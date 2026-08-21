@@ -32,9 +32,13 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
+
+# generated QR codes (run `npm run qrcodes` after deploying to regenerate)
+/qrcodes
 
 # typescript
 *.tsbuildinfo

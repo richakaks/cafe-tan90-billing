@@ -1,36 +1,118 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Cafe Tan90 — Ordering, Billing &amp; Inventory
 
-## Getting Started
+Customers scan a QR code on their table (T1–T9) or counter seat (S1–S4), order from
+a live menu, and pay a staff member directly — no in-app payment. Placing an order
+atomically deducts stock from linked ingredients, and the customer menu shows
+"low in stock" / "out of stock" badges computed from that same stock in real time.
+Staff have a PIN-gated serving screen and inventory/menu admin.
 
-First, run the development server:
+Built as a separate app from the Cafe Tan90 attendance tool (which stays on Google
+Apps Script + Sheets) — this one is customer-facing and needs a real database, so it
+runs on Next.js + Supabase (Postgres), deployed on Vercel. See the plan doc shared at
+the start of this project for the reasoning behind these choices.
+
+## 1. Create a Supabase project
+
+1. Go to [supabase.com](https://supabase.com), sign up / log in, and create a new project (the free tier is enough).
+2. Once it's ready, open the **SQL Editor** and run the contents of [`supabase/schema.sql`](supabase/schema.sql) — this creates all the tables and the `place_order` function that does atomic stock deduction + daily order numbering.
+3. Then run [`supabase/seed.sql`](supabase/seed.sql) — this adds the 13 seats (T1–T9, S1–S4) and a small placeholder menu so the app works end-to-end. Replace it with your real menu later via `/admin/menu` and `/admin/inventory` (or by editing/re-running parts of this file).
+4. Go to **Settings → API** and copy the **Project URL** and the **service_role** key (not the anon key — this app never uses the anon key; every database call happens server-side). Keep the service-role key secret, it bypasses all row-level security.
+
+## 2. Configure environment variables
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Fill in `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` from step 1, pick a `STAFF_PIN`,
+and generate a `STAFF_SESSION_SECRET` with:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+openssl rand -hex 32
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 3. Run locally
 
-## Learn More
+```bash
+npm install
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+- Customer menu: `http://localhost:3000/order/T1` (or any of T1–T9, S1–S4)
+- Staff serving screen: `http://localhost:3000/serve` (PIN-gated)
+- Inventory admin: `http://localhost:3000/admin/inventory` (PIN-gated)
+- Menu/ingredient admin: `http://localhost:3000/admin/menu` (PIN-gated)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 4. Generate QR codes
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Once you know the app's real URL (see deployment below), generate one QR code
+per seat plus a printable sheet:
 
-## Deploy on Vercel
+```bash
+npm run qrcodes -- https://your-deployed-domain.vercel.app
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Output goes to `qrcodes/` (gitignored) — open `qrcodes/print-sheet.html` in a
+browser and print it, or print each `T*.png`/`S*.png` individually and stick
+them on the corresponding table/seat.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 5. Deploy to Vercel
+
+1. Push this repo to GitHub.
+2. Import it in [vercel.com/new](https://vercel.com/new).
+3. Add the same four environment variables from `.env.local` in the Vercel project settings.
+4. Deploy. Then re-run step 4 above with the real `https://...vercel.app` URL (or your custom domain) to generate the QR codes staff will actually put on tables.
+
+## How stock availability works
+
+Every menu item can be linked to one or more ingredients with a quantity used per
+order (`/admin/menu`). For each item, the app computes the largest number that
+could be made right now from current ingredient stock:
+
+- **Out of stock** (blocked on the customer menu) — stock isn't enough to make even one more.
+- **Low in stock** (badge shown, still orderable) — makeable, but some linked ingredient has dropped below its restock threshold.
+- Otherwise shown normally.
+
+This logic lives in `src/lib/stock.ts` as a pure function with unit tests
+(`npm test`) — it has no database dependency, so it's easy to verify in isolation.
+
+Stock is actually deducted (and the daily order number assigned) inside a single
+Postgres transaction (`place_order` in `supabase/schema.sql`), so two customers
+checking out on the same ingredient at the same moment can't oversell it, and
+order numbers — which reset each day, Asia/Bangkok time — never collide.
+
+## Known simplifications (v1)
+
+- **"Out of stock" error detail names ingredients, not menu items.** If checkout
+  fails because stock ran out between page load and checkout (a race with another
+  customer), the error message lists the ingredient name (e.g. "Coffee Beans"),
+  not the drink. Good enough for a small cafe; could be mapped back to item names
+  later if it's ever confusing in practice.
+- **Serving screen polls, it doesn't use Supabase realtime.** It refreshes every
+  6 seconds via a normal fetch rather than a live websocket subscription. This was
+  a deliberate simplification to avoid exposing a Supabase anon key to the browser
+  (every DB access in this app is server-side, using the service-role key only) —
+  the original plan mentioned realtime, this is the tradeoff made to keep that
+  "no client-side Supabase" security posture. 6 seconds is fine for a walk-up
+  serving screen; shout if it needs to feel more instant.
+- **No hard delete for menu items/ingredients** — only an active/inactive toggle
+  for menu items (a "delete" would break old order history, since ingredients and
+  items can be referenced by past orders' ingredient links). Discontinue an item
+  by switching it inactive rather than deleting it.
+- **Table/seat list is seeded, not admin-editable yet.** Adding an item to
+  `seats` is a one-line SQL insert (see `supabase/seed.sql`) — there's no admin UI
+  for it in this v1 since 13 is fixed for now. Say the word if that needs to change.
+
+## Project structure
+
+```
+supabase/schema.sql       Tables, RLS (locked down — service role bypasses it), place_order()
+supabase/seed.sql         13 seats + placeholder menu
+src/lib/                  Types, Supabase client, stock-availability logic, PIN auth, data access
+src/proxy.ts              PIN-gates /serve and /admin/* (Next.js "Proxy", formerly middleware)
+src/app/order/[seatId]/   Customer menu, basket, checkout
+src/app/serve/            Staff serving screen
+src/app/admin/inventory/  Stock levels, restock, thresholds
+src/app/admin/menu/       Menu items + ingredient mapping
+scripts/generate-qrcodes.mjs   QR codes + printable sheet
+```
