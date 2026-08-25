@@ -38,7 +38,13 @@ PRIMARIES = {
 RAW = {
     # Food
     "Frozen Fries": ("g", 5000, 1000),
-    "Frying Oil": ("L", 20, 5),
+    # Real usage pattern (owner, Aug 2026): buys 5L/week, pours the whole
+    # jug in Monday, draws down through the week -- currently open Mon-Fri
+    # with no mid-week top-up. Plan is to refill every 3 days and add
+    # Saturday service once order volume grows enough to justify it -- when
+    # that happens, bump current_stock accordingly (or restock mid-week via
+    # /admin/inventory) rather than changing this seed file again.
+    "Frying Oil": ("L", 5, 1),
     "Ketchup": ("ml", 2000, 400),
     "Peri-Peri Seasoning": ("g", 300, 60),
     "Garlic Powder": ("g", 300, 60),
@@ -56,7 +62,6 @@ RAW = {
     "Cheese Sauce": ("ml", 800, 150),
     "Sandwich Bread": ("slices", 100, 20),
     "Cheese Slice": ("pcs", 150, 30),
-    "Chilli Flakes": ("g", 200, 40),
     "Tikka Masala Paste": ("ml", 500, 100),
     "Fresh Lemon Juice": ("ml", 1500, 300),
     "Iceberg Lettuce": ("g", 2000, 400),
@@ -69,7 +74,6 @@ RAW = {
     "Spaghetti (Dry)": ("g", 3000, 600),
     "Garlic": ("cloves", 200, 40),
     "Grated Parmesan Cheese": ("g", 800, 150),
-    "Black Pepper": ("g", 300, 60),
     "Green Chilli": ("pcs", 100, 20),
     "Olive Oil": ("ml", 1500, 300),
     # Drinks
@@ -80,14 +84,12 @@ RAW = {
     "Honey": ("ml", 800, 150),
     "Ground Coffee": ("g", 2000, 400),
     "Thai Tea Powder": ("g", 500, 100),
-    "Condensed Milk": ("ml", 800, 150),
     "Full-Fat Milk": ("ml", 5000, 1000),
     "Evaporated Milk": ("ml", 1000, 200),
     "Dried Butterfly Pea Flowers": ("pcs", 200, 40),
     "Hazelnut Syrup": ("ml", 800, 150),
     "Chocolate Sauce": ("ml", 800, 150),
     "Cocoa Powder": ("g", 800, 150),
-    "Whipped Cream": ("ml", 500, 100),
     "Strawberry Syrup": ("ml", 800, 150),
     "Mango Syrup": ("ml", 800, 150),
     "Passionfruit Syrup": ("ml", 800, 150),
@@ -101,12 +103,24 @@ RAW = {
 }
 
 # Ingredients that exist for manual/visibility restock tracking only --
-# genuinely unquantifiable in the SOP ("to taste", "sufficient to submerge",
-# qty not given, "small dollop"). Deliberately NOT linked to any menu item,
-# so they are never auto-deducted. Salt and sugar themselves are excluded
-# entirely (not even a row) per the owner's manual par-stock ruling.
+# genuinely unquantifiable in the SOP ("sufficient to submerge"). Deliberately
+# NOT linked to any menu item, so it's never auto-deducted -- staff track and
+# restock it by eye / by the weekly oil delivery, same as before this app
+# existed.
 UNLINKED_VISIBILITY_ONLY = {
     "Frying Oil",
+}
+
+# Ingredients excluded ENTIRELY -- no ingredients row at all, same manual
+# par-stock treatment as salt and sugar (owner's ruling: keep a spare on
+# hand, replace the moment one is opened/finished, no digital tracking).
+# Originally just salt/sugar; extended on the owner's instruction to also
+# cover chilli flakes, black pepper, condensed milk, and whipped cream,
+# since none of those had a usable SOP quantity anyway. Purely documentation
+# here -- nothing in this script creates rows for any of these.
+EXCLUDED_MANUAL_PAR_STOCK = {
+    "Salt",
+    "Sugar",
     "Chilli Flakes",
     "Black Pepper",
     "Condensed Milk",
@@ -260,12 +274,13 @@ def main():
     out.append("-- par levels for day one, not a real physical count -- correct them via")
     out.append("-- /admin/inventory once actual stock is counted.")
     out.append("--")
-    out.append("-- Salt and plain white sugar are deliberately absent (no ingredient row")
-    out.append("-- at all) -- the owner tracks those manually via par stock, not digitally.")
-    out.append("-- A handful of other ingredients exist for manual/visibility restock")
-    out.append("-- tracking only and are NOT linked to any menu item, because the SOP")
-    out.append("-- gives no fixed quantity for them (\"to taste\", \"sufficient to submerge\",")
-    out.append("-- a qty missing from the source table, or \"small dollop\"): " + ", ".join(sorted(UNLINKED_VISIBILITY_ONLY)) + ".")
+    out.append("-- The following are deliberately absent (no ingredient row at all) --")
+    out.append("-- manual par stock, not digitally tracked: " + ", ".join(sorted(EXCLUDED_MANUAL_PAR_STOCK)) + ".")
+    out.append("--")
+    out.append("-- " + ", ".join(sorted(UNLINKED_VISIBILITY_ONLY)) + " has an ingredient row for")
+    out.append("-- manual restock tracking, but is NOT linked to any menu item -- the SOP")
+    out.append("-- gives no fixed per-order quantity (\"sufficient to submerge\"), so orders")
+    out.append("-- never auto-deduct it. Restock/monitor it directly via /admin/inventory.")
     out.append("")
 
     out.append("-- Seats: 9 tables (T1-T9), 4 counter seats (S1-S4)")

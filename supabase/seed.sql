@@ -6,12 +6,13 @@
 -- par levels for day one, not a real physical count -- correct them via
 -- /admin/inventory once actual stock is counted.
 --
--- Salt and plain white sugar are deliberately absent (no ingredient row
--- at all) -- the owner tracks those manually via par stock, not digitally.
--- A handful of other ingredients exist for manual/visibility restock
--- tracking only and are NOT linked to any menu item, because the SOP
--- gives no fixed quantity for them ("to taste", "sufficient to submerge",
--- a qty missing from the source table, or "small dollop"): Black Pepper, Chilli Flakes, Condensed Milk, Frying Oil, Whipped Cream.
+-- The following are deliberately absent (no ingredient row at all) --
+-- manual par stock, not digitally tracked: Black Pepper, Chilli Flakes, Condensed Milk, Salt, Sugar, Whipped Cream.
+--
+-- Frying Oil has an ingredient row for
+-- manual restock tracking, but is NOT linked to any menu item -- the SOP
+-- gives no fixed per-order quantity ("sufficient to submerge"), so orders
+-- never auto-deduct it. Restock/monitor it directly via /admin/inventory.
 
 -- Seats: 9 tables (T1-T9), 4 counter seats (S1-S4)
 insert into seats (id, label, kind) values
@@ -30,7 +31,7 @@ insert into seats (id, label, kind) values
   ('S4', 'Counter 4', 'counter')
 on conflict (id) do nothing;
 
--- Ingredients (11 primaries + 60 raw/purchased ingredients)
+-- Ingredients (11 primaries + 56 raw/purchased ingredients)
 insert into ingredients (name, unit, current_stock, low_stock_threshold) values
   ('White Sauce', 'ml', 1000, 200),
   ('Sautéed Mushrooms', 'g', 800, 150),
@@ -44,7 +45,7 @@ insert into ingredients (name, unit, current_stock, low_stock_threshold) values
   ('Coffee Concentrate', 'ml', 1000, 200),
   ('Black Tea Concentrate', 'ml', 1000, 200),
   ('Frozen Fries', 'g', 5000, 1000),
-  ('Frying Oil', 'L', 20, 5),
+  ('Frying Oil', 'L', 5, 1),
   ('Ketchup', 'ml', 2000, 400),
   ('Peri-Peri Seasoning', 'g', 300, 60),
   ('Garlic Powder', 'g', 300, 60),
@@ -62,7 +63,6 @@ insert into ingredients (name, unit, current_stock, low_stock_threshold) values
   ('Cheese Sauce', 'ml', 800, 150),
   ('Sandwich Bread', 'slices', 100, 20),
   ('Cheese Slice', 'pcs', 150, 30),
-  ('Chilli Flakes', 'g', 200, 40),
   ('Tikka Masala Paste', 'ml', 500, 100),
   ('Fresh Lemon Juice', 'ml', 1500, 300),
   ('Iceberg Lettuce', 'g', 2000, 400),
@@ -75,7 +75,6 @@ insert into ingredients (name, unit, current_stock, low_stock_threshold) values
   ('Spaghetti (Dry)', 'g', 3000, 600),
   ('Garlic', 'cloves', 200, 40),
   ('Grated Parmesan Cheese', 'g', 800, 150),
-  ('Black Pepper', 'g', 300, 60),
   ('Green Chilli', 'pcs', 100, 20),
   ('Olive Oil', 'ml', 1500, 300),
   ('Black Tea Leaves', 'g', 500, 100),
@@ -85,14 +84,12 @@ insert into ingredients (name, unit, current_stock, low_stock_threshold) values
   ('Honey', 'ml', 800, 150),
   ('Ground Coffee', 'g', 2000, 400),
   ('Thai Tea Powder', 'g', 500, 100),
-  ('Condensed Milk', 'ml', 800, 150),
   ('Full-Fat Milk', 'ml', 5000, 1000),
   ('Evaporated Milk', 'ml', 1000, 200),
   ('Dried Butterfly Pea Flowers', 'pcs', 200, 40),
   ('Hazelnut Syrup', 'ml', 800, 150),
   ('Chocolate Sauce', 'ml', 800, 150),
   ('Cocoa Powder', 'g', 800, 150),
-  ('Whipped Cream', 'ml', 500, 100),
   ('Strawberry Syrup', 'ml', 800, 150),
   ('Mango Syrup', 'ml', 800, 150),
   ('Passionfruit Syrup', 'ml', 800, 150),

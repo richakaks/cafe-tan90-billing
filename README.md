@@ -92,18 +92,22 @@ order numbers — which reset each day, Asia/Bangkok time — never collide.
   flour, milk, eggs, etc. Those raw components aren't deducted when a batch
   is made, and a batch doesn't have to be fully used before the next one is
   prepped; this is a deliberate simplification, not a bug.
-- **Salt and sugar aren't tracked in the system at all.** Per the owner, these
-  are handled with manual par stock (an extra packet on hand at all times,
-  replaced when opened) rather than digital inventory — there's no
-  `ingredients` row for either.
-- **A few ingredients exist for visibility/restock only and are never
-  auto-deducted**, because the SOP gives no fixed quantity for them: Frying
-  Oil ("sufficient to submerge"), Chilli Flakes (optional garnish), Black
-  Pepper ("to taste" in both Spaghetti Alfredo variants), Condensed Milk (used
-  in Thai Milk Tea but no quantity given in the SOP table), and Whipped Cream
-  ("small dollop" on Mocha). Track and restock these manually; if real
-  quantities are pinned down later, link them via `/admin/menu` like any
-  other ingredient.
+- **Salt, sugar, chilli flakes, black pepper, condensed milk, and whipped
+  cream aren't tracked in the system at all** — no `ingredients` row for any
+  of them. Per the owner, these are handled with manual par stock (an extra
+  one on hand at all times, replaced the moment it's opened/finished) rather
+  than digital inventory. Salt/sugar were the original case; the same
+  treatment was extended to the other four since the SOP gives no usable
+  fixed quantity for them either ("to taste", "optional garnish", a quantity
+  missing from the source table, "small dollop").
+- **Frying Oil is tracked, but never auto-deducted.** The SOP gives no
+  per-order quantity ("sufficient to submerge"), so there's nothing to link
+  it to a menu item for. Seeded at 5L / 1L threshold, matching how the cafe
+  actually buys and uses it today — a 5L jug poured in whole on Monday and
+  drawn down across the week (currently Mon–Fri, no mid-week top-up). As
+  order volume grows and the owner moves to refilling every 3 days plus
+  Saturday service, update the stock number directly via `/admin/inventory`
+  rather than re-seeding.
 - **Four menu items have no recipe yet and so deduct nothing**: EXTRA CHEESY
   Maggie (SN-ECM), Veg Momo (M-VMM), Chicken Momo (M-CMM), and Spicy Chicken
   Burger (B-SCB). They're seeded active and orderable — customers can order
