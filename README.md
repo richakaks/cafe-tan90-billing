@@ -15,7 +15,7 @@ the start of this project for the reasoning behind these choices.
 
 1. Go to [supabase.com](https://supabase.com), sign up / log in, and create a new project (the free tier is enough).
 2. Once it's ready, open the **SQL Editor** and run the contents of [`supabase/schema.sql`](supabase/schema.sql) — this creates all the tables and the `place_order` function that does atomic stock deduction + daily order numbering.
-3. Then run [`supabase/seed.sql`](supabase/seed.sql) — this adds the 13 seats (T1–T9, S1–S4) and a small placeholder menu so the app works end-to-end. Replace it with your real menu later via `/admin/menu` and `/admin/inventory` (or by editing/re-running parts of this file).
+3. Then run [`supabase/seed.sql`](supabase/seed.sql) — this adds the 13 seats (T1–T9, S1–S4), the real Tan90 menu (46 items), and the full ingredient/inventory catalog (11 batch-prepped "primaries" + 60 raw ingredients), with their recipe links. **Starting stock levels and low-stock thresholds in this file are placeholder par levels for day one** — correct them via `/admin/inventory` once real counts are taken. `supabase/seed.sql` is generated from `scripts/gen_seed.py`; if the menu or recipes change again, edit the data there and regenerate with `python3 scripts/gen_seed.py > supabase/seed.sql` rather than hand-editing the SQL.
 4. Go to **Settings → API** and copy the **Project URL** and the **service_role** key (not the anon key — this app never uses the anon key; every database call happens server-side). Keep the service-role key secret, it bypasses all row-level security.
 
 ## 2. Configure environment variables
@@ -83,6 +83,33 @@ order numbers — which reset each day, Asia/Bangkok time — never collide.
 
 ## Known simplifications (v1)
 
+- **"Primaries" are tracked as one stock number, not their raw sub-ingredients.**
+  Batch-prepped items (White Sauce, Sautéed Mushrooms, Potato Patty, Tikka
+  Marinated Mince, Homemade Mayo, Fresh Salsa, Gochujang Sauce, Caramelised
+  Onions, Sugar Syrup, Coffee Concentrate, Black Tea Concentrate) are ordinary
+  `ingredients` rows in their own right — restocked manually whenever a fresh
+  batch is made — rather than a nested bill-of-materials down to butter,
+  flour, milk, eggs, etc. Those raw components aren't deducted when a batch
+  is made, and a batch doesn't have to be fully used before the next one is
+  prepped; this is a deliberate simplification, not a bug.
+- **Salt and sugar aren't tracked in the system at all.** Per the owner, these
+  are handled with manual par stock (an extra packet on hand at all times,
+  replaced when opened) rather than digital inventory — there's no
+  `ingredients` row for either.
+- **A few ingredients exist for visibility/restock only and are never
+  auto-deducted**, because the SOP gives no fixed quantity for them: Frying
+  Oil ("sufficient to submerge"), Chilli Flakes (optional garnish), Black
+  Pepper ("to taste" in both Spaghetti Alfredo variants), Condensed Milk (used
+  in Thai Milk Tea but no quantity given in the SOP table), and Whipped Cream
+  ("small dollop" on Mocha). Track and restock these manually; if real
+  quantities are pinned down later, link them via `/admin/menu` like any
+  other ingredient.
+- **Four menu items have no recipe yet and so deduct nothing**: EXTRA CHEESY
+  Maggie (SN-ECM), Veg Momo (M-VMM), Chicken Momo (M-CMM), and Spicy Chicken
+  Burger (B-SCB). They're seeded active and orderable — customers can order
+  them today — but no SOP recipe exists for any of the four in the Kitchen or
+  Bar manuals, so nothing is deducted from inventory when they're ordered.
+  Link their ingredients via `/admin/menu` once recipes are written.
 - **"Out of stock" error detail names ingredients, not menu items.** If checkout
   fails because stock ran out between page load and checkout (a race with another
   customer), the error message lists the ingredient name (e.g. "Coffee Beans"),
@@ -107,7 +134,8 @@ order numbers — which reset each day, Asia/Bangkok time — never collide.
 
 ```
 supabase/schema.sql       Tables, RLS (locked down — service role bypasses it), place_order()
-supabase/seed.sql         13 seats + placeholder menu
+supabase/seed.sql         13 seats + real menu + ingredient catalog (generated, see scripts/gen_seed.py)
+scripts/gen_seed.py       Source data for seed.sql — edit here, then regenerate
 src/lib/                  Types, Supabase client, stock-availability logic, PIN auth, data access
 src/proxy.ts              PIN-gates /serve and /admin/* (Next.js "Proxy", formerly middleware)
 src/app/order/[seatId]/   Customer menu, basket, checkout
