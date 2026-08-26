@@ -76,6 +76,9 @@ RAW = {
     "Grated Parmesan Cheese": ("g", 800, 150),
     "Green Chilli": ("pcs", 100, 20),
     "Olive Oil": ("ml", 1500, 300),
+    "Frozen Corn": ("g", 500, 100),
+    "Frozen Peas": ("g", 500, 100),
+    "Chilli Oil": ("ml", 500, 100),
     # Drinks
     "Black Tea Leaves": ("g", 500, 100),
     "Red Label Tea Leaves": ("g", 300, 60),
@@ -192,9 +195,9 @@ MENU_ITEMS = [
 
 # ---------------------------------------------------------------------------
 # Menu item -> ingredient mappings: code -> [(ingredient_name, qty), ...]
-# Items with recipes not found anywhere in the SOP docs (EXTRA CHEESY Maggie,
-# Veg Momo, Chicken Momo, Spicy Chicken Burger) are intentionally absent here
-# -- they're seeded as active/orderable but with zero ingredient links.
+# Items with recipes not found anywhere in the SOP docs (Veg Momo, Chicken
+# Momo) are intentionally absent here -- they're seeded as active/orderable
+# but with zero ingredient links.
 # ---------------------------------------------------------------------------
 MAPPINGS = {
     "SN-FRF": [("Frozen Fries", 130), ("Ketchup", 30), ("Homemade Mayo", 15)],
@@ -202,6 +205,7 @@ MAPPINGS = {
     "SN-ZAF": [("Frozen Fries", 130), ("Zab Seasoning", 4.5), ("Fresh Lime Juice", 2.5), ("Ketchup", 30)],
     "SN-SMT": [("Frozen Samosas", 3), ("Ketchup", 30)],
     "SN-MGN": [("Maggi Noodles", 80), ("Maggi Masala Sachet", 1), ("Butter", 10)],
+    "SN-ECM": [("Maggi Noodles", 80), ("Maggi Masala Sachet", 1), ("Frozen Corn", 10), ("Frozen Peas", 10), ("Cheese Slice", 1), ("Butter", 10)],
     "SN-CLN": [("Tortilla Chips", 80), ("Tikka Marinated Mince", 60), ("Mozzarella Cheese Shredded", 40), ("Sour Cream", 20), ("BBQ Sauce", 15), ("Cheese Sauce", 20), ("Fresh Salsa", 30)],
 
     "SD-MUS": [("Sandwich Bread", 2), ("Butter", 10), ("Sautéed Mushrooms", 70), ("White Sauce", 50), ("Cheese Slice", 1)],
@@ -212,6 +216,7 @@ MAPPINGS = {
     "B-CCB": [("Burger Bun", 1), ("Butter", 5), ("Frozen Chicken Patty", 1), ("Cheese Slice", 1), ("Iceberg Lettuce", 20), ("Tomato Slices", 2), ("Caramelised Onions", 2), ("Ketchup", 15), ("Homemade Mayo", 10)],
     "B-DTB": [("Burger Bun", 1), ("Butter", 5), ("Frozen Chicken Patty", 2), ("Cheese Slice", 2), ("Iceberg Lettuce", 20), ("Tomato Slices", 2), ("Pickled Cucumber Slices", 3.5), ("Caramelised Onions", 2), ("Ketchup", 20), ("Homemade Mayo", 15)],
     "B-GCB": [("Burger Bun", 1), ("Butter", 5), ("Frozen Chicken Patty", 1), ("Gochujang Sauce", 15), ("Pickled Cabbage / Coleslaw", 30), ("Fresh Cucumber Slices", 3)],
+    "B-SCB": [("Burger Bun", 1), ("Butter", 5), ("Frozen Chicken Patty", 1), ("Cheese Slice", 1), ("Iceberg Lettuce", 20), ("Tomato Slices", 2), ("Caramelised Onions", 2), ("Ketchup", 15), ("Homemade Mayo", 10), ("Chilli Oil", 15)],
 
     "SP-AWS0": [("Spaghetti (Dry)", 90), ("White Sauce", 120), ("Sautéed Mushrooms", 75), ("Butter", 5), ("Garlic", 1), ("Garlic Powder", 0.75), ("Grated Parmesan Cheese", 10), ("Olive Oil", 5)],
     "SP-AWS1": [("Spaghetti (Dry)", 90), ("White Sauce", 120), ("Tikka Marinated Mince", 70), ("Butter", 5), ("Garlic", 1), ("Garlic Powder", 0.75), ("Green Chilli", 1), ("Grated Parmesan Cheese", 10), ("Olive Oil", 5)],
@@ -249,7 +254,7 @@ MAPPINGS = {
 }
 
 # No-recipe items -- deliberately zero mappings:
-NO_RECIPE = {"SN-ECM", "M-VMM", "M-CMM", "B-SCB"}
+NO_RECIPE = {"M-VMM", "M-CMM"}
 
 
 def sql_str(s):

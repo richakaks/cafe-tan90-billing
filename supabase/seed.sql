@@ -31,7 +31,7 @@ insert into seats (id, label, kind) values
   ('S4', 'Counter 4', 'counter')
 on conflict (id) do nothing;
 
--- Ingredients (11 primaries + 56 raw/purchased ingredients)
+-- Ingredients (11 primaries + 59 raw/purchased ingredients)
 insert into ingredients (name, unit, current_stock, low_stock_threshold) values
   ('White Sauce', 'ml', 1000, 200),
   ('Sautéed Mushrooms', 'g', 800, 150),
@@ -77,6 +77,9 @@ insert into ingredients (name, unit, current_stock, low_stock_threshold) values
   ('Grated Parmesan Cheese', 'g', 800, 150),
   ('Green Chilli', 'pcs', 100, 20),
   ('Olive Oil', 'ml', 1500, 300),
+  ('Frozen Corn', 'g', 500, 100),
+  ('Frozen Peas', 'g', 500, 100),
+  ('Chilli Oil', 'ml', 500, 100),
   ('Black Tea Leaves', 'g', 500, 100),
   ('Red Label Tea Leaves', 'g', 300, 60),
   ('Red Label Masala Powder', 'g', 300, 60),
@@ -153,7 +156,7 @@ insert into menu_items (code, name, category, price, active) values
 on conflict (code) do nothing;
 
 -- Menu item -> ingredient mappings
--- (B-SCB, M-CMM, M-VMM, SN-ECM intentionally have none -- no SOP recipe exists for them yet)
+-- (M-CMM, M-VMM intentionally have none -- no SOP recipe exists for them yet)
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
 select 'SN-FRF', id, 130 from ingredients where name = 'Frozen Fries'
 union all
@@ -196,6 +199,20 @@ union all
 select 'SN-MGN', id, 1 from ingredients where name = 'Maggi Masala Sachet'
 union all
 select 'SN-MGN', id, 10 from ingredients where name = 'Butter'
+on conflict (menu_item_code, ingredient_id) do nothing;
+
+insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
+select 'SN-ECM', id, 80 from ingredients where name = 'Maggi Noodles'
+union all
+select 'SN-ECM', id, 1 from ingredients where name = 'Maggi Masala Sachet'
+union all
+select 'SN-ECM', id, 10 from ingredients where name = 'Frozen Corn'
+union all
+select 'SN-ECM', id, 10 from ingredients where name = 'Frozen Peas'
+union all
+select 'SN-ECM', id, 1 from ingredients where name = 'Cheese Slice'
+union all
+select 'SN-ECM', id, 10 from ingredients where name = 'Butter'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
@@ -326,6 +343,28 @@ union all
 select 'B-GCB', id, 30 from ingredients where name = 'Pickled Cabbage / Coleslaw'
 union all
 select 'B-GCB', id, 3 from ingredients where name = 'Fresh Cucumber Slices'
+on conflict (menu_item_code, ingredient_id) do nothing;
+
+insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
+select 'B-SCB', id, 1 from ingredients where name = 'Burger Bun'
+union all
+select 'B-SCB', id, 5 from ingredients where name = 'Butter'
+union all
+select 'B-SCB', id, 1 from ingredients where name = 'Frozen Chicken Patty'
+union all
+select 'B-SCB', id, 1 from ingredients where name = 'Cheese Slice'
+union all
+select 'B-SCB', id, 20 from ingredients where name = 'Iceberg Lettuce'
+union all
+select 'B-SCB', id, 2 from ingredients where name = 'Tomato Slices'
+union all
+select 'B-SCB', id, 2 from ingredients where name = 'Caramelised Onions'
+union all
+select 'B-SCB', id, 15 from ingredients where name = 'Ketchup'
+union all
+select 'B-SCB', id, 10 from ingredients where name = 'Homemade Mayo'
+union all
+select 'B-SCB', id, 15 from ingredients where name = 'Chilli Oil'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
