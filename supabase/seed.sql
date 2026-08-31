@@ -9,7 +9,7 @@
 -- The following are deliberately absent (no ingredient row at all) --
 -- manual par stock, not digitally tracked: Black Pepper, Chilli Flakes, Condensed Milk, Salt, Sugar, Whipped Cream.
 --
--- Frying Oil has an ingredient row for
+-- Chocolate Sauce, Cocoa Powder, Frying Oil has an ingredient row for
 -- manual restock tracking, but is NOT linked to any menu item -- the SOP
 -- gives no fixed per-order quantity ("sufficient to submerge"), so orders
 -- never auto-deduct it. Restock/monitor it directly via /admin/inventory.
@@ -31,7 +31,7 @@ insert into seats (id, label, kind) values
   ('S4', 'Counter 4', 'counter')
 on conflict (id) do nothing;
 
--- Ingredients (11 primaries + 59 raw/purchased ingredients)
+-- Ingredients (11 primaries + 60 raw/purchased ingredients)
 insert into ingredients (name, unit, current_stock, low_stock_threshold) values
   ('White Sauce', 'ml', 1000, 200),
   ('Sautéed Mushrooms', 'g', 800, 150),
@@ -44,6 +44,11 @@ insert into ingredients (name, unit, current_stock, low_stock_threshold) values
   ('Sugar Syrup', 'ml', 1200, 200),
   ('Coffee Concentrate', 'ml', 1000, 200),
   ('Black Tea Concentrate', 'ml', 1000, 200),
+  ('Base Milk', 'ml', 2000, 400),
+  ('Chocolate Syrup', 'ml', 800, 150),
+  ('Chicken Keema', 'g', 1200, 250),
+  ('Veg Keema', 'g', 2200, 400),
+  ('Tomato Sauce', 'ml', 650, 150),
   ('Frozen Fries', 'g', 5000, 1000),
   ('Frying Oil', 'L', 5, 1),
   ('Ketchup', 'ml', 2000, 400),
@@ -80,6 +85,7 @@ insert into ingredients (name, unit, current_stock, low_stock_threshold) values
   ('Frozen Corn', 'g', 500, 100),
   ('Frozen Peas', 'g', 500, 100),
   ('Chilli Oil', 'ml', 500, 100),
+  ('Momo Wrap', 'pcs', 300, 60),
   ('Black Tea Leaves', 'g', 500, 100),
   ('Red Label Tea Leaves', 'g', 300, 60),
   ('Red Label Masala Powder', 'g', 300, 60),
@@ -156,7 +162,7 @@ insert into menu_items (code, name, category, price, active) values
 on conflict (code) do nothing;
 
 -- Menu item -> ingredient mappings
--- (M-CMM, M-VMM intentionally have none -- no SOP recipe exists for them yet)
+-- (every active menu item has a recipe as of this generation)
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
 select 'SN-FRF', id, 130 from ingredients where name = 'Frozen Fries'
 union all
@@ -198,6 +204,10 @@ select 'SN-MGN', id, 80 from ingredients where name = 'Maggi Noodles'
 union all
 select 'SN-MGN', id, 1 from ingredients where name = 'Maggi Masala Sachet'
 union all
+select 'SN-MGN', id, 10 from ingredients where name = 'Frozen Corn'
+union all
+select 'SN-MGN', id, 10 from ingredients where name = 'Frozen Peas'
+union all
 select 'SN-MGN', id, 10 from ingredients where name = 'Butter'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
@@ -229,6 +239,22 @@ union all
 select 'SN-CLN', id, 20 from ingredients where name = 'Cheese Sauce'
 union all
 select 'SN-CLN', id, 30 from ingredients where name = 'Fresh Salsa'
+on conflict (menu_item_code, ingredient_id) do nothing;
+
+insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
+select 'M-VMM', id, 100 from ingredients where name = 'Veg Keema'
+union all
+select 'M-VMM', id, 10 from ingredients where name = 'Momo Wrap'
+union all
+select 'M-VMM', id, 35 from ingredients where name = 'Tomato Sauce'
+on conflict (menu_item_code, ingredient_id) do nothing;
+
+insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
+select 'M-CMM', id, 100 from ingredients where name = 'Chicken Keema'
+union all
+select 'M-CMM', id, 10 from ingredients where name = 'Momo Wrap'
+union all
+select 'M-CMM', id, 35 from ingredients where name = 'Tomato Sauce'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
@@ -490,67 +516,59 @@ select 'C-BLC1', id, 60 from ingredients where name = 'Coffee Concentrate'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
-select 'C-CPN0', id, 100 from ingredients where name = 'Coffee Concentrate'
+select 'C-CPN0', id, 25 from ingredients where name = 'Coffee Concentrate'
 union all
-select 'C-CPN0', id, 50 from ingredients where name = 'Full-Fat Milk'
-union all
-select 'C-CPN0', id, 0.3 from ingredients where name = 'Cocoa Powder'
+select 'C-CPN0', id, 85 from ingredients where name = 'Base Milk'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
-select 'C-CPN1', id, 100 from ingredients where name = 'Coffee Concentrate'
+select 'C-CPN1', id, 30 from ingredients where name = 'Coffee Concentrate'
 union all
-select 'C-CPN1', id, 80 from ingredients where name = 'Full-Fat Milk'
-union all
-select 'C-CPN1', id, 0.3 from ingredients where name = 'Cocoa Powder'
+select 'C-CPN1', id, 100 from ingredients where name = 'Base Milk'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
-select 'C-HZL0', id, 100 from ingredients where name = 'Coffee Concentrate'
+select 'C-HZL0', id, 60 from ingredients where name = 'Coffee Concentrate'
 union all
 select 'C-HZL0', id, 15 from ingredients where name = 'Hazelnut Syrup'
 union all
-select 'C-HZL0', id, 50 from ingredients where name = 'Full-Fat Milk'
+select 'C-HZL0', id, 150 from ingredients where name = 'Full-Fat Milk'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
-select 'C-HZL1', id, 100 from ingredients where name = 'Coffee Concentrate'
+select 'C-HZL1', id, 60 from ingredients where name = 'Coffee Concentrate'
 union all
 select 'C-HZL1', id, 15 from ingredients where name = 'Hazelnut Syrup'
 union all
-select 'C-HZL1', id, 50 from ingredients where name = 'Full-Fat Milk'
+select 'C-HZL1', id, 150 from ingredients where name = 'Full-Fat Milk'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
-select 'C-MCH0', id, 100 from ingredients where name = 'Coffee Concentrate'
+select 'C-MCH0', id, 25 from ingredients where name = 'Coffee Concentrate'
 union all
-select 'C-MCH0', id, 15 from ingredients where name = 'Chocolate Sauce'
+select 'C-MCH0', id, 25 from ingredients where name = 'Chocolate Syrup'
 union all
-select 'C-MCH0', id, 13.5 from ingredients where name = 'Cocoa Powder'
-union all
-select 'C-MCH0', id, 120 from ingredients where name = 'Full-Fat Milk'
+select 'C-MCH0', id, 100 from ingredients where name = 'Base Milk'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
-select 'C-MCH1', id, 100 from ingredients where name = 'Coffee Concentrate'
+select 'C-MCH1', id, 30 from ingredients where name = 'Coffee Concentrate'
 union all
-select 'C-MCH1', id, 15 from ingredients where name = 'Chocolate Sauce'
+select 'C-MCH1', id, 30 from ingredients where name = 'Chocolate Syrup'
 union all
-select 'C-MCH1', id, 13.5 from ingredients where name = 'Cocoa Powder'
-union all
-select 'C-MCH1', id, 100 from ingredients where name = 'Full-Fat Milk'
+select 'C-MCH1', id, 125 from ingredients where name = 'Base Milk'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
-select 'C-CCA0', id, 20 from ingredients where name = 'Cocoa Powder'
+select 'C-CCA0', id, 33 from ingredients where name = 'Chocolate Syrup'
 union all
-select 'C-CCA0', id, 180 from ingredients where name = 'Full-Fat Milk'
+select 'C-CCA0', id, 125 from ingredients where name = 'Base Milk'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
-select 'C-CCA1', id, 20 from ingredients where name = 'Cocoa Powder'
+select 'C-CCA1', id, 50 from ingredients where name = 'Chocolate Syrup'
 union all
-select 'C-CCA1', id, 150 from ingredients where name = 'Full-Fat Milk'
+select 'C-CCA1', id, 150 from ingredients where name = 'Base Milk'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)

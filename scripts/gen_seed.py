@@ -33,6 +33,18 @@ PRIMARIES = {
     "Sugar Syrup": ("ml", 1200, 200),
     "Coffee Concentrate": ("ml", 1000, 200),
     "Black Tea Concentrate": ("ml", 1000, 200),
+    # Added when the Drinks SOP introduced a blended-milk base (Meiji :
+    # Carnation : Mali, 7:2:1) used across Cappuccino/Mocha/Cocoa in place
+    # of plain Full-Fat Milk. 2-day shelf life per the SOP.
+    "Base Milk": ("ml", 2000, 400),
+    # House-made from Base Milk + cocoa powder + sugar, cooked down. Distinct
+    # from the raw "Chocolate Sauce" ingredient (a store-bought drizzle, now
+    # unlinked -- see UNLINKED_VISIBILITY_ONLY). 2-day shelf life.
+    "Chocolate Syrup": ("ml", 800, 150),
+    # Momo primaries, added once the food SOP got Momo recipes.
+    "Chicken Keema": ("g", 1200, 250),
+    "Veg Keema": ("g", 2200, 400),
+    "Tomato Sauce": ("ml", 650, 150),
 }
 
 RAW = {
@@ -79,6 +91,7 @@ RAW = {
     "Frozen Corn": ("g", 500, 100),
     "Frozen Peas": ("g", 500, 100),
     "Chilli Oil": ("ml", 500, 100),
+    "Momo Wrap": ("pcs", 300, 60),
     # Drinks
     "Black Tea Leaves": ("g", 500, 100),
     "Red Label Tea Leaves": ("g", 300, 60),
@@ -106,12 +119,18 @@ RAW = {
 }
 
 # Ingredients that exist for manual/visibility restock tracking only --
-# genuinely unquantifiable in the SOP ("sufficient to submerge"). Deliberately
-# NOT linked to any menu item, so it's never auto-deducted -- staff track and
-# restock it by eye / by the weekly oil delivery, same as before this app
-# existed.
+# genuinely unquantifiable in the SOP. Deliberately NOT linked to any menu
+# item, so they're never auto-deducted -- staff track and restock by eye.
 UNLINKED_VISIBILITY_ONLY = {
-    "Frying Oil",
+    "Frying Oil",  # "sufficient to submerge"
+    # Both went from a fixed per-order quantity to an unquantified garnish
+    # once the Drinks SOP reworked Cappuccino/Mocha/Cocoa around the new
+    # Base Milk + Chocolate Syrup primaries: Cocoa Powder is now just an
+    # unquantified dusting on Cocoa (previously 20g/13.5g/0.3g mixed-in
+    # across three drinks); Chocolate Sauce is now just an unquantified
+    # drizzle garnish on Mocha (previously 15ml mixed-in).
+    "Cocoa Powder",
+    "Chocolate Sauce",
 }
 
 # Ingredients excluded ENTIRELY -- no ingredients row at all, same manual
@@ -204,9 +223,12 @@ MAPPINGS = {
     "SN-PPF": [("Frozen Fries", 130), ("Peri-Peri Seasoning", 2.25), ("Garlic Powder", 0.75), ("Smoked Paprika", 0.75), ("Homemade Mayo", 20)],
     "SN-ZAF": [("Frozen Fries", 130), ("Zab Seasoning", 4.5), ("Fresh Lime Juice", 2.5), ("Ketchup", 30)],
     "SN-SMT": [("Frozen Samosas", 3), ("Ketchup", 30)],
-    "SN-MGN": [("Maggi Noodles", 80), ("Maggi Masala Sachet", 1), ("Butter", 10)],
+    "SN-MGN": [("Maggi Noodles", 80), ("Maggi Masala Sachet", 1), ("Frozen Corn", 10), ("Frozen Peas", 10), ("Butter", 10)],
     "SN-ECM": [("Maggi Noodles", 80), ("Maggi Masala Sachet", 1), ("Frozen Corn", 10), ("Frozen Peas", 10), ("Cheese Slice", 1), ("Butter", 10)],
     "SN-CLN": [("Tortilla Chips", 80), ("Tikka Marinated Mince", 60), ("Mozzarella Cheese Shredded", 40), ("Sour Cream", 20), ("BBQ Sauce", 15), ("Cheese Sauce", 20), ("Fresh Salsa", 30)],
+
+    "M-VMM": [("Veg Keema", 100), ("Momo Wrap", 10), ("Tomato Sauce", 35)],
+    "M-CMM": [("Chicken Keema", 100), ("Momo Wrap", 10), ("Tomato Sauce", 35)],
 
     "SD-MUS": [("Sandwich Bread", 2), ("Butter", 10), ("Sautéed Mushrooms", 70), ("White Sauce", 50), ("Cheese Slice", 1)],
     "SD-GCS": [("Sandwich Bread", 2), ("Butter", 10), ("Cheese Slice", 2), ("Mozzarella Cheese Shredded", 20)],
@@ -234,14 +256,27 @@ MAPPINGS = {
 
     "C-BLC0": [("Ground Coffee", 20)],
     "C-BLC1": [("Coffee Concentrate", 60)],
-    "C-CPN0": [("Coffee Concentrate", 100), ("Full-Fat Milk", 50), ("Cocoa Powder", 0.3)],
-    "C-CPN1": [("Coffee Concentrate", 100), ("Full-Fat Milk", 80), ("Cocoa Powder", 0.3)],
-    "C-HZL0": [("Coffee Concentrate", 100), ("Hazelnut Syrup", 15), ("Full-Fat Milk", 50)],
-    "C-HZL1": [("Coffee Concentrate", 100), ("Hazelnut Syrup", 15), ("Full-Fat Milk", 50)],
-    "C-MCH0": [("Coffee Concentrate", 100), ("Chocolate Sauce", 15), ("Cocoa Powder", 13.5), ("Full-Fat Milk", 120)],
-    "C-MCH1": [("Coffee Concentrate", 100), ("Chocolate Sauce", 15), ("Cocoa Powder", 13.5), ("Full-Fat Milk", 100)],
-    "C-CCA0": [("Cocoa Powder", 20), ("Full-Fat Milk", 180)],
-    "C-CCA1": [("Cocoa Powder", 20), ("Full-Fat Milk", 150)],
+    # Reworked around the new Base Milk primary; Sugar Syrup is an optional
+    # customer add-in per the SOP (8ml hot / 10ml cold), not included by
+    # default -- same "on request" treatment used elsewhere (e.g. milk in
+    # Black Tea). The old cocoa/cinnamon dusting garnish is no longer
+    # mentioned in the SOP at all for this drink.
+    "C-CPN0": [("Coffee Concentrate", 25), ("Base Milk", 85)],
+    "C-CPN1": [("Coffee Concentrate", 30), ("Base Milk", 100)],
+    # Coffee Concentrate volume increased, milk stays Full-Fat Milk (not
+    # switched to Base Milk like the other three), single quantity now
+    # covers both hot and cold per the SOP.
+    "C-HZL0": [("Coffee Concentrate", 60), ("Hazelnut Syrup", 15), ("Full-Fat Milk", 150)],
+    "C-HZL1": [("Coffee Concentrate", 60), ("Hazelnut Syrup", 15), ("Full-Fat Milk", 150)],
+    # Chocolate Sauce + Cocoa Powder mixed-in replaced by the new Chocolate
+    # Syrup primary; garnish (chocolate drizzle + instant coffee dusting) is
+    # unquantified, not linked.
+    "C-MCH0": [("Coffee Concentrate", 25), ("Chocolate Syrup", 25), ("Base Milk", 100)],
+    "C-MCH1": [("Coffee Concentrate", 30), ("Chocolate Syrup", 30), ("Base Milk", 125)],
+    # Cocoa Powder mixed-in replaced by Chocolate Syrup; cocoa powder is now
+    # only an unquantified garnish dusting, not linked.
+    "C-CCA0": [("Chocolate Syrup", 33), ("Base Milk", 125)],
+    "C-CCA1": [("Chocolate Syrup", 50), ("Base Milk", 150)],
 
     "I-LIT": [("Black Tea Concentrate", 150), ("Fresh Lemon Juice", 20), ("Sugar Syrup", 20), ("Lemon Slice", 1)],
     "I-PIT": [("Black Tea Concentrate", 120), ("Passionfruit Syrup", 35), ("Sugar Syrup", 10), ("Fresh Lemon Juice", 5)],
@@ -253,8 +288,10 @@ MAPPINGS = {
     "SO-CRC": [("Cola", 1), ("Fresh Lime Juice", 10), ("Pink Salt", 0.75), ("Lemon Slice", 1)],
 }
 
-# No-recipe items -- deliberately zero mappings:
-NO_RECIPE = {"M-VMM", "M-CMM"}
+# No-recipe items -- deliberately zero mappings. Empty now that Momo has
+# real recipes; kept as a set (not deleted) so the pattern is ready for the
+# next item that ships without a recipe.
+NO_RECIPE = set()
 
 
 def sql_str(s):
@@ -310,7 +347,10 @@ def main():
     out.append("")
 
     out.append("-- Menu item -> ingredient mappings")
-    out.append("-- (" + ", ".join(sorted(NO_RECIPE)) + " intentionally have none -- no SOP recipe exists for them yet)")
+    if NO_RECIPE:
+        out.append("-- (" + ", ".join(sorted(NO_RECIPE)) + " intentionally have none -- no SOP recipe exists for them yet)")
+    else:
+        out.append("-- (every active menu item has a recipe as of this generation)")
     for code, _, _, _ in MENU_ITEMS:
         pairs = MAPPINGS.get(code)
         if not pairs:
