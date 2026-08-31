@@ -211,3 +211,16 @@ begin
   );
 end;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Explicit grants for the service role. Newer Supabase projects no longer
+-- auto-grant service_role access to tables created by hand (the "Automatically
+-- expose new tables" project setting) — these grants make this schema work
+-- regardless of that toggle. RLS above still fully locks out anon/authenticated;
+-- service_role bypasses RLS as usual but still needs table-level privileges to
+-- be reachable through the Data API at all.
+-- ---------------------------------------------------------------------------
+grant usage on schema public to service_role;
+grant all on all tables in schema public to service_role;
+grant all on all sequences in schema public to service_role;
+grant execute on function place_order(text, jsonb) to service_role;
