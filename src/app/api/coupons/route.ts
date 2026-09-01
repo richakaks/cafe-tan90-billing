@@ -1,0 +1,48 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createCouponBatch, getCouponBatches } from "@/lib/data";
+
+export async function GET() {
+  try {
+    const batches = await getCouponBatches();
+    return NextResponse.json({ batches });
+  } catch (err) {
+    console.error("getCouponBatches failed", err);
+    return NextResponse.json({ error: "Could not load coupon batches." }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  let body: { buyerName?: string; couponValue?: number; codes?: string[]; totalCollected?: number };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+  }
+
+  const buyerName = body.buyerName?.trim();
+  const couponValue = Number(body.couponValue);
+  const codes = body.codes;
+  const totalCollected = Number(body.totalCollected);
+
+  if (!buyerName) {
+    return NextResponse.json({ error: "Enter who bought these coupons." }, { status: 400 });
+  }
+  if (!couponValue || couponValue <= 0) {
+    return NextResponse.json({ error: "Enter a value per coupon." }, { status: 400 });
+  }
+  if (!Array.isArray(codes) || codes.filter((c) => c.trim()).length === 0) {
+    return NextResponse.json({ error: "Enter at least one coupon code." }, { status: 400 });
+  }
+  if (Number.isNaN(totalCollected) || totalCollected < 0) {
+    return NextResponse.json({ error: "Enter the total amount collected." }, { status: 400 });
+  }
+
+  try {
+    await createCouponBatch(buyerName, couponValue, codes, totalCollected);
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("createCouponBatch failed", err);
+    const message = err instanceof Error && err.message.includes("duplicate key") ? "One of those coupon codes is already in use." : "Could not save this coupon batch.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}

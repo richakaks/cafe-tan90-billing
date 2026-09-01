@@ -4,6 +4,8 @@ const NAV = [
   { href: "/serve", label: "Serve" },
   { href: "/admin/inventory", label: "Inventory" },
   { href: "/admin/menu", label: "Menu" },
+  { href: "/admin/coupons", label: "Coupons" },
+  { href: "/admin/analytics", label: "Analytics" },
 ];
 
 export default function StaffHeader({ active }: { active: string }) {

@@ -55,7 +55,8 @@ export interface PlacedOrder {
   total: number;
 }
 
-export type OrderStatus = "placed" | "served";
+export type OrderStatus = "pending_pickup" | "placed" | "served";
+export type OrderType = "immediate" | "pre_order";
 
 export interface OrderItemRow {
   id: number;
@@ -67,12 +68,89 @@ export interface OrderItemRow {
 
 export interface OrderRow {
   id: string;
-  dailyOrderNumber: number;
-  orderDate: string;
-  seatId: string;
+  dailyOrderNumber: number | null;
+  orderDate: string | null;
+  seatId: string | null;
   status: OrderStatus;
+  orderType: OrderType;
+  requestedDate: string | null;
+  requestedTime: string | null;
+  couponCode: string | null;
+  discountAmount: number;
   createdAt: string;
   items: OrderItemRow[];
+}
+
+export interface PlacedPreOrder {
+  orderId: string;
+  requestedDate: string;
+  requestedTime: string | null;
+  items: PlacedOrderItem[];
+  total: number;
+}
+
+// ---------------------------------------------------------------------------
+// Coupons
+// ---------------------------------------------------------------------------
+
+export interface CouponBatch {
+  id: string;
+  buyerName: string;
+  couponValue: number;
+  quantity: number;
+  totalCollected: number;
+  soldAt: string;
+  redeemedCount: number;
+}
+
+export interface Coupon {
+  code: string;
+  batchId: string;
+  value: number;
+  redeemed: boolean;
+  redeemedAt: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Analytics
+// ---------------------------------------------------------------------------
+
+export interface DailyTotal {
+  date: string;
+  orderCount: number;
+  revenue: number;
+}
+
+export interface ItemRanking {
+  code: string;
+  name: string;
+  qty: number;
+  revenue: number;
+}
+
+export interface CategoryTotal {
+  category: string;
+  revenue: number;
+}
+
+export interface ItemPair {
+  codeA: string;
+  nameA: string;
+  codeB: string;
+  nameB: string;
+  count: number;
+}
+
+export interface SalesAnalytics {
+  from: string;
+  to: string;
+  totalRevenue: number;
+  totalOrders: number;
+  dailyTotals: DailyTotal[];
+  bestsellers: ItemRanking[];
+  leastSellers: ItemRanking[];
+  categoryTotals: CategoryTotal[];
+  topPairs: ItemPair[];
 }
 
 export interface MenuItemAdminView extends MenuItem {

@@ -28,6 +28,10 @@ const SEATS = [
   ...Array.from({ length: 4 }, (_, i) => ({ id: `S${i + 1}`, label: `Counter Seat ${i + 1}` })),
 ];
 
+// One general pre-order QR, not tied to any table — for the counter, a
+// poster, or social media, since a customer scheduling ahead isn't seated yet.
+const PREORDER = { id: "PREORDER", label: "Pre-order ahead" };
+
 async function main() {
   await mkdir(outDir, { recursive: true });
 
@@ -38,6 +42,14 @@ async function main() {
     await QRCode.toFile(file, url, { width: 600, margin: 2 });
     cards.push({ ...seat, url, file: `${seat.id}.png` });
     console.log(`Generated ${seat.id} -> ${url}`);
+  }
+
+  {
+    const url = `${baseUrl.replace(/\/$/, "")}/preorder`;
+    const file = path.join(outDir, `${PREORDER.id}.png`);
+    await QRCode.toFile(file, url, { width: 600, margin: 2 });
+    cards.push({ ...PREORDER, url, file: `${PREORDER.id}.png` });
+    console.log(`Generated ${PREORDER.id} -> ${url}`);
   }
 
   const sheet = `<!doctype html>

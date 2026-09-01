@@ -3,21 +3,25 @@
 @theme inline {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 
-  --color-navy-950: #0b1330;
-  --color-navy-900: #101a3d;
-  --color-navy-800: #16234d;
-  --color-navy-700: #202f66;
-  --color-navy-600: #2c3f85;
-  --color-navy-100: #e4e8f7;
+  /* Tan90's real brand palette (sampled from the loyalty card): deep forest
+     green + gold on a warm cream page, replacing the earlier placeholder
+     navy/gold. Variable names kept as "navy-*" so no component file needed
+     to change — only the color values moved. */
+  --color-navy-950: #0d2818;
+  --color-navy-900: #133a22;
+  --color-navy-800: #1a4a2c;
+  --color-navy-700: #235c38;
+  --color-navy-600: #2f7048;
+  --color-navy-100: #e8f0e4;
 
-  --color-page: #f4f6fb;
+  --color-page: #f8e9d4;
   --color-card: #ffffff;
-  --color-card-border: #e3e7f2;
+  --color-card-border: #e8dcc4;
 
-  --color-accent: #d9a441;
+  --color-accent: #b97c21;
   --color-accent-foreground: #1a1204;
 
-  --color-status-good: #1c8a4c;
+  --color-status-good: #2f7048;
   --color-status-low: #b8790f;
   --color-status-out: #b3372c;
 }
