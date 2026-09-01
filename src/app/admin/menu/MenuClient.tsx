@@ -1,7 +1,66 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { Ingredient, MenuItemAdminView } from "@/lib/types";
+
+type LinkedIngredient = MenuItemAdminView["ingredients"][number];
+
+function LinkedIngredientRow({
+  itemCode,
+  link,
+  busy,
+  onChanged,
+  onRemove,
+}: {
+  itemCode: string;
+  link: LinkedIngredient;
+  busy: boolean;
+  onChanged: () => void;
+  onRemove: () => void;
+}) {
+  const [qty, setQty] = useState(String(link.qtyPerOrder));
+  const [saving, setSaving] = useState(false);
+  const dirty = Number(qty) !== link.qtyPerOrder;
+
+  async function save() {
+    const n = Number(qty);
+    if (!n || n <= 0) return;
+    setSaving(true);
+    try {
+      await fetch(`/api/menu/${itemCode}/ingredients`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ingredientId: link.ingredientId, qtyPerOrder: n }),
+      });
+      onChanged();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <li className="flex items-center justify-between gap-2 text-sm text-navy-800">
+      <span className="min-w-0 flex-1 truncate">{link.ingredientName}</span>
+      <input
+        type="number"
+        min={0}
+        step="any"
+        value={qty}
+        onChange={(e) => setQty(e.target.value)}
+        className="w-20 rounded-md border border-card-border px-2 py-1 text-sm"
+      />
+      <span className="w-10 shrink-0 text-xs text-navy-600">{link.unit}</span>
+      {dirty && (
+        <button onClick={save} disabled={busy || saving} className="shrink-0 text-xs font-medium text-status-good hover:underline">
+          Save
+        </button>
+      )}
+      <button onClick={onRemove} disabled={busy || saving} className="shrink-0 text-xs text-status-out hover:underline">
+        Remove
+      </button>
+    </li>
+  );
+}
 
 function ItemCard({ item, ingredients, onChanged }: { item: MenuItemAdminView; ingredients: Ingredient[]; onChanged: () => void }) {
   const [expanded, setExpanded] = useState(false);
@@ -123,14 +182,14 @@ function ItemCard({ item, ingredients, onChanged }: { item: MenuItemAdminView; i
             <ul className="mt-2 space-y-1">
               {item.ingredients.length === 0 && <li className="text-sm text-navy-500">No ingredients linked yet.</li>}
               {item.ingredients.map((l) => (
-                <li key={l.ingredientId} className="flex items-center justify-between text-sm text-navy-800">
-                  <span>
-                    {l.ingredientName} &mdash; {l.qtyPerOrder} {l.unit}
-                  </span>
-                  <button onClick={() => removeLink(l.ingredientId)} disabled={busy} className="text-xs text-status-out hover:underline">
-                    Remove
-                  </button>
-                </li>
+                <LinkedIngredientRow
+                  key={l.ingredientId}
+                  itemCode={item.code}
+                  link={l}
+                  busy={busy}
+                  onChanged={onChanged}
+                  onRemove={() => removeLink(l.ingredientId)}
+                />
               ))}
             </ul>
 
@@ -167,6 +226,15 @@ function ItemCard({ item, ingredients, onChanged }: { item: MenuItemAdminView; i
 
 export default function MenuClient({ initialItems, ingredients }: { initialItems: MenuItemAdminView[]; ingredients: Ingredient[] }) {
   const [items] = useState(initialItems);
+  const byCategory = useMemo(() => {
+    const map = new Map<string, MenuItemAdminView[]>();
+    for (const item of items) {
+      const list = map.get(item.category) ?? [];
+      list.push(item);
+      map.set(item.category, list);
+    }
+    return Array.from(map.entries());
+  }, [items]);
   const [newCode, setNewCode] = useState("");
   const [newName, setNewName] = useState("");
   const [newCategory, setNewCategory] = useState("");
@@ -201,9 +269,16 @@ export default function MenuClient({ initialItems, ingredients }: { initialItems
 
   return (
     <div className="space-y-6">
-      <div className="space-y-4">
-        {items.map((item) => (
-          <ItemCard key={item.code} item={item} ingredients={ingredients} onChanged={refresh} />
+      <div className="space-y-8">
+        {byCategory.map(([category, categoryItems]) => (
+          <section key={category}>
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-navy-600">{category}</h2>
+            <div className="space-y-4">
+              {categoryItems.map((item) => (
+                <ItemCard key={item.code} item={item} ingredients={ingredients} onChanged={refresh} />
+              ))}
+            </div>
+          </section>
         ))}
       </div>
 

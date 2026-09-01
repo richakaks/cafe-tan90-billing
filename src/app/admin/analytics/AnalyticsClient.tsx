@@ -95,7 +95,16 @@ export default function AnalyticsClient() {
             This month
           </button>
         </div>
+        <a
+          href={`/api/analytics/export?from=${from}&to=${to}`}
+          className="ml-auto rounded-md bg-navy-900 px-3 py-2 text-xs font-medium text-white hover:bg-navy-800"
+        >
+          Export orders (CSV)
+        </a>
       </div>
+      <p className="-mt-4 text-xs text-navy-600">
+        Export covers whatever range is selected above — pick any past dates, including previous months, before downloading.
+      </p>
 
       {error && <p className="text-sm text-status-out">{error}</p>}
       {loading && <p className="text-sm text-navy-600">Loading…</p>}

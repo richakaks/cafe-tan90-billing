@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 export default async function StaffLoginPage({
   searchParams,
 }: {
@@ -8,8 +10,16 @@ export default async function StaffLoginPage({
 
   return (
     <div className="flex flex-1 items-center justify-center px-6 py-16">
-      <form action="/api/staff-login" method="POST" className="card w-full max-w-sm p-8">
-        <p className="text-xs font-semibold uppercase tracking-wide text-navy-600">Cafe Tan90 · Staff</p>
+      <form action="/api/staff-login" method="POST" className="card w-full max-w-sm p-8 text-center">
+        <Image
+          src="/logo.png"
+          alt="Cafe Tan90"
+          width={480}
+          height={480}
+          priority
+          className="mx-auto h-20 w-20 rounded-2xl shadow-sm"
+        />
+        <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-navy-600">Cafe Tan90 · Staff</p>
         <h1 className="mt-2 text-xl font-semibold text-navy-950">Enter staff PIN</h1>
 
         <input type="hidden" name="next" value={nextPath} />

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import type { Ingredient, StockAdjustmentRow } from "@/lib/types";
 import { ingredientAlertStatus } from "@/lib/stock";
@@ -115,6 +116,97 @@ function Row({ ingredient, onChanged }: { ingredient: Ingredient; onChanged: () 
         </div>
       </td>
     </tr>
+  );
+}
+
+function ResetButton({
+  label,
+  confirmLabel,
+  warning,
+  endpoint,
+}: {
+  label: string;
+  confirmLabel: string;
+  warning: string;
+  endpoint: string;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(endpoint, { method: "POST" });
+      if (!res.ok) {
+        const body = await res.json();
+        setError(body.error ?? "Something went wrong.");
+        return;
+      }
+      window.location.reload();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!confirming) {
+    return (
+      <button
+        onClick={() => setConfirming(true)}
+        className="rounded-lg border border-status-out px-4 py-2 text-sm font-medium text-status-out hover:bg-red-50"
+      >
+        {label}
+      </button>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-status-out bg-red-50 p-3">
+      <p className="text-sm text-status-out">{warning}</p>
+      {error && <p className="mt-1 text-sm text-status-out">{error}</p>}
+      <div className="mt-2 flex gap-2">
+        <button
+          onClick={run}
+          disabled={busy}
+          className="rounded-md bg-status-out px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+        >
+          {busy ? "Working…" : confirmLabel}
+        </button>
+        <button
+          onClick={() => setConfirming(false)}
+          disabled={busy}
+          className="rounded-md border border-card-border px-3 py-1.5 text-xs font-medium text-navy-900 hover:bg-navy-100"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DangerZone() {
+  return (
+    <div className="card border-status-out/40 p-5">
+      <h2 className="text-sm font-semibold text-status-out">Danger zone</h2>
+      <p className="mt-1 text-xs text-navy-600">
+        Testing/setup tools. Both of these are permanent and affect the whole system, not just what you can see here.
+      </p>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <ResetButton
+          label="Reset all orders"
+          confirmLabel="Yes, delete all orders"
+          warning="This permanently deletes every order (open, served, and paid) and frees up any coupon codes they'd redeemed. It does not touch ingredient stock levels."
+          endpoint="/api/admin/reset-orders"
+        />
+        <ResetButton
+          label="Reset all stock to 0"
+          confirmLabel="Yes, zero out all stock"
+          warning="This sets every ingredient's current stock to 0. It does not touch orders."
+          endpoint="/api/admin/reset-stock"
+        />
+      </div>
+    </div>
   );
 }
 
@@ -245,7 +337,12 @@ export default function InventoryClient({
       </div>
 
       <div className="card p-5">
-        <h2 className="text-sm font-semibold text-navy-950">Recent stock changes</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-navy-950">Recent stock changes</h2>
+          <Link href="/admin/inventory/history" className="text-xs font-medium text-navy-700 underline">
+            Full history &amp; export
+          </Link>
+        </div>
         <p className="mt-1 text-xs text-navy-600">Every restock or manual use-up entered above, most recent first.</p>
         {adjustments.length === 0 ? (
           <p className="mt-3 text-sm text-navy-600">No stock changes logged yet.</p>
@@ -264,6 +361,8 @@ export default function InventoryClient({
           </ul>
         )}
       </div>
+
+      <DangerZone />
     </div>
   );
 }

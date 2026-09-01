@@ -415,6 +415,27 @@ export async function adjustIngredientStock(id: string, delta: number): Promise<
   if (logErr) console.error("stock_adjustments insert failed", logErr);
 }
 
+type RawAdjustment = {
+  id: number;
+  ingredient_id: string;
+  delta: number;
+  resulting_stock: number;
+  created_at: string;
+  ingredients: { name: string } | { name: string }[] | null;
+};
+
+function mapAdjustmentRow(raw: RawAdjustment): StockAdjustmentRow {
+  const ingredient = Array.isArray(raw.ingredients) ? raw.ingredients[0] : raw.ingredients;
+  return {
+    id: raw.id,
+    ingredientId: raw.ingredient_id,
+    ingredientName: ingredient?.name ?? "(deleted ingredient)",
+    delta: Number(raw.delta),
+    resultingStock: Number(raw.resulting_stock),
+    createdAt: raw.created_at,
+  };
+}
+
 export async function getRecentStockAdjustments(limit = 30): Promise<StockAdjustmentRow[]> {
   const { data, error } = await db()
     .from("stock_adjustments")
@@ -422,28 +443,35 @@ export async function getRecentStockAdjustments(limit = 30): Promise<StockAdjust
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) throw error;
+  return (data ?? []).map((raw) => mapAdjustmentRow(raw as unknown as RawAdjustment));
+}
 
-  type RawAdjustment = {
-    id: number;
-    ingredient_id: string;
-    delta: number;
-    resulting_stock: number;
-    created_at: string;
-    ingredients: { name: string } | { name: string }[] | null;
-  };
+// fromIso/toIso are plain "YYYY-MM-DD" dates (inclusive on both ends) — used
+// by the full history page and its CSV export, both of which let staff pick
+// any past range, including previous months, not just the most recent 30
+// entries the Inventory page's quick view shows.
+export async function getStockAdjustmentsInRange(fromIso: string, toIso: string): Promise<StockAdjustmentRow[]> {
+  const { data, error } = await db()
+    .from("stock_adjustments")
+    .select("id, ingredient_id, delta, resulting_stock, created_at, ingredients(name)")
+    .gte("created_at", `${fromIso}T00:00:00`)
+    .lte("created_at", `${toIso}T23:59:59.999`)
+    .order("created_at", { ascending: false })
+    .limit(5000);
+  if (error) throw error;
+  return (data ?? []).map((raw) => mapAdjustmentRow(raw as unknown as RawAdjustment));
+}
 
-  return (data ?? []).map((raw) => {
-    const r = raw as unknown as RawAdjustment;
-    const ingredient = Array.isArray(r.ingredients) ? r.ingredients[0] : r.ingredients;
-    return {
-      id: r.id,
-      ingredientId: r.ingredient_id,
-      ingredientName: ingredient?.name ?? "(deleted ingredient)",
-      delta: Number(r.delta),
-      resultingStock: Number(r.resulting_stock),
-      createdAt: r.created_at,
-    };
-  });
+// Testing/setup utilities — see the matching Postgres functions in
+// schema.sql for exactly what each one does and why they're kept separate.
+export async function resetAllOrders(): Promise<void> {
+  const { error } = await db().rpc("reset_all_orders");
+  if (error) throw error;
+}
+
+export async function resetAllStock(): Promise<void> {
+  const { error } = await db().rpc("reset_all_stock");
+  if (error) throw error;
 }
 
 export async function updateIngredientThreshold(id: string, lowStockThreshold: number): Promise<void> {
@@ -599,4 +627,23 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
       .sort((a, b) => b.count - a.count)
       .slice(0, 10),
   };
+}
+
+// One row per real order (placed/served/paid) in [from, to], for the
+// Analytics page's CSV export — same date range the on-screen numbers use,
+// so exporting a previous month is just picking that range before clicking
+// export. A pre-order still sitting in pending_pickup has no order_date yet
+// and won't match a date filter either way, same as getSalesAnalytics.
+export async function getOrdersForExport(from: string, to: string): Promise<OrderRow[]> {
+  const { data, error } = await db()
+    .from("orders")
+    .select(ORDER_ROW_SELECT)
+    .in("status", ["placed", "served", "paid"])
+    .gte("order_date", from)
+    .lte("order_date", to)
+    .order("order_date")
+    .order("daily_order_number");
+
+  if (error) throw error;
+  return (data ?? []).map((o) => mapOrderRow(o as unknown as RawOrderRow));
 }

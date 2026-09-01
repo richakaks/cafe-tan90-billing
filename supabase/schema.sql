@@ -504,6 +504,49 @@ create index if not exists stock_adjustments_ingredient_id_idx on stock_adjustme
 alter table stock_adjustments enable row level security;
 
 -- ---------------------------------------------------------------------------
+-- reset_all_orders: a testing/setup utility for wiping trial orders placed
+-- while trying out the QR flow, without leaving orphaned state behind.
+-- Un-redeems any coupon that was applied to an order first (while
+-- redeemed_order_id still points at it, so only actually-redeemed coupons
+-- are touched) — otherwise deleting the order would leave that coupon
+-- permanently stuck "redeemed" with no order to show for it, since
+-- coupons.redeemed_order_id is ON DELETE SET NULL rather than cascading.
+-- Deliberately does NOT touch ingredient stock — see reset_all_stock below
+-- for that, kept as a separate action so the two can be run independently.
+-- ---------------------------------------------------------------------------
+create or replace function reset_all_orders()
+returns void
+language plpgsql
+as $$
+begin
+  update coupons
+  set redeemed = false, redeemed_at = null, redeemed_order_id = null
+  where redeemed_order_id is not null;
+
+  delete from orders;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- reset_all_stock: a testing/setup utility for zeroing every ingredient's
+-- current_stock back out (e.g. after playing with restock/use-up numbers to
+-- see how the low-stock badges/alerts behave). Logs one stock_adjustments
+-- row per ingredient that actually had stock, same as a normal manual
+-- adjustment, so the reset itself shows up in the restock history.
+-- ---------------------------------------------------------------------------
+create or replace function reset_all_stock()
+returns void
+language plpgsql
+as $$
+begin
+  insert into stock_adjustments (ingredient_id, delta, resulting_stock)
+  select id, -current_stock, 0 from ingredients where current_stock <> 0;
+
+  update ingredients set current_stock = 0;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- Explicit grants for the service role. Newer Supabase projects no longer
 -- auto-grant service_role access to tables created by hand (the "Automatically
 -- expose new tables" project setting) — these grants make this schema work
@@ -518,3 +561,5 @@ grant execute on function place_order(text, jsonb) to service_role;
 grant execute on function place_pre_order(jsonb, date, time) to service_role;
 grant execute on function fulfill_pre_order(uuid) to service_role;
 grant execute on function redeem_coupon(uuid, text) to service_role;
+grant execute on function reset_all_orders() to service_role;
+grant execute on function reset_all_stock() to service_role;
