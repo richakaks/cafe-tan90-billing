@@ -1,12 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import type { Ingredient } from "@/lib/types";
+import type { Ingredient, StockAdjustmentRow } from "@/lib/types";
+import { ingredientAlertStatus } from "@/lib/stock";
 
 function statusFor(ing: Ingredient): { label: string; className: string } {
-  if (ing.currentStock <= 0) return { label: "Out of stock", className: "bg-red-50 text-status-out border border-red-200" };
-  if (ing.currentStock < ing.lowStockThreshold) return { label: "Low", className: "bg-amber-50 text-status-low border border-amber-200" };
+  const alert = ingredientAlertStatus(ing);
+  if (alert === "out_of_stock") return { label: "Out of stock", className: "bg-red-50 text-status-out border border-red-200" };
+  if (alert === "low_stock") return { label: "Low", className: "bg-amber-50 text-status-low border border-amber-200" };
   return { label: "OK", className: "bg-green-50 text-status-good border border-green-200" };
+}
+
+function timeAgo(iso: string): string {
+  const seconds = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function Row({ ingredient, onChanged }: { ingredient: Ingredient; onChanged: () => void }) {
@@ -106,8 +118,16 @@ function Row({ ingredient, onChanged }: { ingredient: Ingredient; onChanged: () 
   );
 }
 
-export default function InventoryClient({ initialIngredients }: { initialIngredients: Ingredient[] }) {
+export default function InventoryClient({
+  initialIngredients,
+  initialAdjustments,
+}: {
+  initialIngredients: Ingredient[];
+  initialAdjustments: StockAdjustmentRow[];
+}) {
   const [ingredients] = useState(initialIngredients);
+  const [adjustments] = useState(initialAdjustments);
+  const lowOrOut = ingredients.filter((ing) => ingredientAlertStatus(ing) !== null);
   const [newName, setNewName] = useState("");
   const [newUnit, setNewUnit] = useState("");
   const [newStock, setNewStock] = useState("");
@@ -151,6 +171,21 @@ export default function InventoryClient({ initialIngredients }: { initialIngredi
 
   return (
     <div className="space-y-8">
+      {lowOrOut.length > 0 && (
+        <div className="card border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm font-semibold text-status-low">
+            {lowOrOut.length} ingredient{lowOrOut.length === 1 ? "" : "s"} need{lowOrOut.length === 1 ? "s" : ""} attention
+          </p>
+          <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-navy-800">
+            {lowOrOut.map((ing) => (
+              <li key={ing.id}>
+                {ing.name} — {ing.currentStock <= 0 ? "out" : `${ing.currentStock} ${ing.unit} left`}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="card overflow-x-auto p-5">
         <table className="w-full text-left">
           <thead>
@@ -207,6 +242,27 @@ export default function InventoryClient({ initialIngredients }: { initialIngredi
         >
           Add ingredient
         </button>
+      </div>
+
+      <div className="card p-5">
+        <h2 className="text-sm font-semibold text-navy-950">Recent stock changes</h2>
+        <p className="mt-1 text-xs text-navy-600">Every restock or manual use-up entered above, most recent first.</p>
+        {adjustments.length === 0 ? (
+          <p className="mt-3 text-sm text-navy-600">No stock changes logged yet.</p>
+        ) : (
+          <ul className="mt-3 space-y-1.5 text-sm">
+            {adjustments.map((a) => (
+              <li key={a.id} className="flex items-center justify-between gap-3">
+                <span className="text-navy-900">{a.ingredientName}</span>
+                <span className={a.delta >= 0 ? "text-status-good" : "text-navy-700"}>
+                  {a.delta >= 0 ? "+" : ""}
+                  {a.delta} &rarr; {a.resultingStock}
+                </span>
+                <span className="shrink-0 text-xs text-navy-600">{timeAgo(a.createdAt)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

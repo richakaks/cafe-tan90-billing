@@ -55,7 +55,7 @@ export interface PlacedOrder {
   total: number;
 }
 
-export type OrderStatus = "pending_pickup" | "placed" | "served";
+export type OrderStatus = "pending_pickup" | "placed" | "served" | "paid";
 export type OrderType = "immediate" | "pre_order";
 
 export interface OrderItemRow {
@@ -155,4 +155,17 @@ export interface SalesAnalytics {
 
 export interface MenuItemAdminView extends MenuItem {
   ingredients: Array<{ ingredientId: string; ingredientName: string; unit: string; qtyPerOrder: number }>;
+}
+
+// ---------------------------------------------------------------------------
+// Stock adjustment history
+// ---------------------------------------------------------------------------
+
+export interface StockAdjustmentRow {
+  id: number;
+  ingredientId: string;
+  ingredientName: string;
+  delta: number;
+  resultingStock: number;
+  createdAt: string;
 }

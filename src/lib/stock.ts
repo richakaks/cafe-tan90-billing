@@ -42,3 +42,16 @@ export function computeAvailability(
   if (makeable < 1) return "out_of_stock";
   return anyLow ? "low_stock" : "in_stock";
 }
+
+/**
+ * Ingredient-level (not menu-item-level) status, used by the inventory admin
+ * table, the low-stock banner, and the staff-wide alert popup — kept as one
+ * pure function so all three agree on what counts as "low"/"out".
+ */
+export function ingredientAlertStatus(
+  ingredient: Pick<Ingredient, "currentStock" | "lowStockThreshold">
+): "out_of_stock" | "low_stock" | null {
+  if (ingredient.currentStock <= 0) return "out_of_stock";
+  if (ingredient.currentStock < ingredient.lowStockThreshold) return "low_stock";
+  return null;
+}

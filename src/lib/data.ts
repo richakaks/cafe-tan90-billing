@@ -15,6 +15,7 @@ import type {
   PlacedPreOrder,
   SalesAnalytics,
   Seat,
+  StockAdjustmentRow,
 } from "./types";
 
 export class OrderError extends Error {
@@ -284,6 +285,35 @@ export async function markOrderServed(orderId: string): Promise<void> {
   if (error) throw error;
 }
 
+// ---------------------------------------------------------------------------
+// Billing
+// ---------------------------------------------------------------------------
+
+// Orders that have been served but not yet paid — the /billing screen's
+// worklist. Grouped by seat client-side, same as getOpenOrders(), so a table
+// that ordered more than once in a visit shows all its unpaid orders together.
+export async function getServedOrders(): Promise<OrderRow[]> {
+  const { data, error } = await db()
+    .from("orders")
+    .select(ORDER_ROW_SELECT)
+    .eq("status", "served")
+    .order("seat_id")
+    .order("created_at");
+
+  if (error) throw error;
+  return (data ?? []).map((o) => mapOrderRow(o as unknown as RawOrderRow));
+}
+
+// Marks one or several orders paid at once (staff's choice — one order at a
+// time, or a whole table's tab together). Only flips orders that are
+// currently 'served', so this can't accidentally "pay" something still
+// cooking or already paid.
+export async function markOrdersPaid(orderIds: string[]): Promise<void> {
+  if (orderIds.length === 0) return;
+  const { error } = await db().from("orders").update({ status: "paid" }).in("id", orderIds).eq("status", "served");
+  if (error) throw error;
+}
+
 export async function fulfillPreOrder(orderId: string): Promise<void> {
   const { error } = await db().rpc("fulfill_pre_order", { p_order_id: orderId });
   if (error) throw new FulfillError(error.message);
@@ -374,6 +404,46 @@ export async function adjustIngredientStock(id: string, delta: number): Promise<
   const next = Math.max(0, Number(data.current_stock) + delta);
   const { error } = await db().from("ingredients").update({ current_stock: next }).eq("id", id);
   if (error) throw error;
+
+  // Log the adjustment for the restock history view. Best-effort: if this
+  // insert fails for some reason, the stock update above has already
+  // succeeded, so we don't want to throw and make the caller think the
+  // restock itself failed — just note it server-side.
+  const { error: logErr } = await db()
+    .from("stock_adjustments")
+    .insert({ ingredient_id: id, delta, resulting_stock: next });
+  if (logErr) console.error("stock_adjustments insert failed", logErr);
+}
+
+export async function getRecentStockAdjustments(limit = 30): Promise<StockAdjustmentRow[]> {
+  const { data, error } = await db()
+    .from("stock_adjustments")
+    .select("id, ingredient_id, delta, resulting_stock, created_at, ingredients(name)")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+
+  type RawAdjustment = {
+    id: number;
+    ingredient_id: string;
+    delta: number;
+    resulting_stock: number;
+    created_at: string;
+    ingredients: { name: string } | { name: string }[] | null;
+  };
+
+  return (data ?? []).map((raw) => {
+    const r = raw as unknown as RawAdjustment;
+    const ingredient = Array.isArray(r.ingredients) ? r.ingredients[0] : r.ingredients;
+    return {
+      id: r.id,
+      ingredientId: r.ingredient_id,
+      ingredientName: ingredient?.name ?? "(deleted ingredient)",
+      delta: Number(r.delta),
+      resultingStock: Number(r.resulting_stock),
+      createdAt: r.created_at,
+    };
+  });
 }
 
 export async function updateIngredientThreshold(id: string, lowStockThreshold: number): Promise<void> {
@@ -443,15 +513,19 @@ export async function removeMenuItemIngredient(menuItemCode: string, ingredientI
 // Sales & analytics
 // ---------------------------------------------------------------------------
 
-// Orders count as "sales" once they're real (placed or served) — a pending
-// pre-order hasn't happened yet (order_date is null until fulfillment, so it
-// wouldn't match a date range anyway) and isn't counted.
+// Orders count as "sales" once they're real (placed, served, or paid — every
+// stage after checkout/fulfillment) — a pending pre-order hasn't happened yet
+// (order_date is null until fulfillment, so it wouldn't match a date range
+// anyway) and isn't counted. Including 'paid' matters here: without it, an
+// order would silently drop out of every sales report the moment staff
+// closed its bill on /billing, which would make daily totals shrink over
+// the course of the day as tables paid up — exactly backwards.
 export async function getSalesAnalytics(from: string, to: string): Promise<SalesAnalytics> {
   const [{ data: orders, error: ordersErr }, { data: menuItems, error: menuErr }] = await Promise.all([
     db()
       .from("orders")
       .select("id, order_date, discount_amount, order_items(menu_item_code, item_name, qty, price_at_order)")
-      .in("status", ["placed", "served"])
+      .in("status", ["placed", "served", "paid"])
       .gte("order_date", from)
       .lte("order_date", to),
     db().from("menu_items").select("code, category"),

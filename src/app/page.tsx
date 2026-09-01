@@ -19,6 +19,12 @@ export default function Home() {
             Serving screen
           </Link>
           <Link
+            href="/billing"
+            className="rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm font-medium text-navy-900 transition hover:bg-navy-100"
+          >
+            Billing
+          </Link>
+          <Link
             href="/admin/inventory"
             className="rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm font-medium text-navy-900 transition hover:bg-navy-100"
           >
@@ -29,6 +35,18 @@ export default function Home() {
             className="rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm font-medium text-navy-900 transition hover:bg-navy-100"
           >
             Menu admin
+          </Link>
+          <Link
+            href="/admin/coupons"
+            className="rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm font-medium text-navy-900 transition hover:bg-navy-100"
+          >
+            Coupons
+          </Link>
+          <Link
+            href="/admin/analytics"
+            className="rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm font-medium text-navy-900 transition hover:bg-navy-100"
+          >
+            Sales &amp; analytics
           </Link>
         </div>
       </div>

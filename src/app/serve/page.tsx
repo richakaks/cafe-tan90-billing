@@ -12,7 +12,10 @@ export default async function ServePage() {
       <StaffHeader active="/serve" />
       <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-8">
         <h1 className="text-lg font-semibold text-navy-950">Serving</h1>
-        <p className="mt-1 text-sm text-navy-600">Open orders grouped by table/seat, plus upcoming pre-orders to fulfill. Updates automatically every few seconds.</p>
+        <p className="mt-1 text-sm text-navy-600">
+          Open orders grouped by table/seat, plus upcoming pre-orders to fulfill. Mark served once food/drinks are handed over — it
+          then moves to Billing. Updates automatically every few seconds.
+        </p>
         <div className="mt-6">
           <ServeClient initialOrders={orders} initialPreOrders={preOrders} />
         </div>

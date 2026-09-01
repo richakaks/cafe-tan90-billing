@@ -263,7 +263,7 @@ alter table orders
   add column discount_amount numeric not null default 0 check (discount_amount >= 0);
 
 alter table orders drop constraint orders_status_check;
-alter table orders add constraint orders_status_check check (status in ('pending_pickup', 'placed', 'served'));
+alter table orders add constraint orders_status_check check (status in ('pending_pickup', 'placed', 'served', 'paid'));
 
 alter table orders add constraint orders_immediate_requires_seat
   check (order_type <> 'immediate' or seat_id is not null);
@@ -469,6 +469,35 @@ begin
   return jsonb_build_object('order_id', p_order_id, 'coupon_code', p_coupon_code, 'discount_amount', v_value);
 end;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Billing: orders reach a final 'paid' status once staff settle the bill on
+-- the /billing screen (separate from 'served', which just means the food/
+-- drinks were handed over). Staff can mark one order paid at a time, or
+-- several at once (a table that ordered more than once in a visit) — the
+-- app does this with a plain multi-row UPDATE, no new function needed since
+-- there's no stock/number allocation involved, just a status flip.
+-- (orders_status_check above already includes 'paid'.)
+-- ---------------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------------
+-- stock_adjustments: an append-only log of every manual restock/use-up entry
+-- made from /admin/inventory, so there's a history behind the running
+-- current_stock total (who/when/how much — no user identity tracked yet
+-- since staff share one PIN, but timestamp + delta + resulting stock already
+-- answers "when did we last restock this, and by how much").
+-- ---------------------------------------------------------------------------
+create table if not exists stock_adjustments (
+  id bigserial primary key,
+  ingredient_id uuid not null references ingredients(id) on delete cascade,
+  delta numeric not null,
+  resulting_stock numeric not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists stock_adjustments_ingredient_id_idx on stock_adjustments(ingredient_id);
+
+alter table stock_adjustments enable row level security;
 
 -- ---------------------------------------------------------------------------
 -- Explicit grants for the service role. Newer Supabase projects no longer

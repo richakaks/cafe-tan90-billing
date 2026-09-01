@@ -1,7 +1,9 @@
 import Link from "next/link";
+import LowStockAlert from "./LowStockAlert";
 
 const NAV = [
   { href: "/serve", label: "Serve" },
+  { href: "/billing", label: "Billing" },
   { href: "/admin/inventory", label: "Inventory" },
   { href: "/admin/menu", label: "Menu" },
   { href: "/admin/coupons", label: "Coupons" },
@@ -11,10 +13,11 @@ const NAV = [
 export default function StaffHeader({ active }: { active: string }) {
   return (
     <header className="bg-navy-950 text-white">
+      <LowStockAlert />
       <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-navy-100">Cafe Tan90 · Staff</p>
-          <nav className="mt-1 flex gap-4">
+          <nav className="mt-1 flex flex-wrap gap-4">
             {NAV.map((item) => (
               <Link
                 key={item.href}
