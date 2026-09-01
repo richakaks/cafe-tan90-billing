@@ -1,5 +1,8 @@
 -- Cafe Tan90 — Ordering, Billing & Inventory
--- Run this once in the Supabase SQL editor (or via `supabase db push`) on a fresh project.
+-- Run this in the Supabase SQL editor (or via `supabase db push`) on a fresh project,
+-- or re-run the whole file against an existing project to pick up new changes — every
+-- statement in this file is written to be safely re-runnable (create-if-not-exists,
+-- drop-constraint-if-exists-then-add, add-column-if-not-exists, create-or-replace).
 -- Everything is accessed server-side via the service-role key (see lib/supabase.ts),
 -- so RLS is enabled with no policies: it locks out the anon/public key entirely while
 -- the service role (used only in trusted Next.js server code) bypasses RLS as usual.
@@ -256,15 +259,16 @@ alter table orders
   alter column seat_id drop not null,
   alter column order_date drop not null,
   alter column daily_order_number drop not null,
-  add column order_type text not null default 'immediate' check (order_type in ('immediate', 'pre_order')),
-  add column requested_date date,
-  add column requested_time time,
-  add column coupon_code text references coupons(code),
-  add column discount_amount numeric not null default 0 check (discount_amount >= 0);
+  add column if not exists order_type text not null default 'immediate' check (order_type in ('immediate', 'pre_order')),
+  add column if not exists requested_date date,
+  add column if not exists requested_time time,
+  add column if not exists coupon_code text references coupons(code),
+  add column if not exists discount_amount numeric not null default 0 check (discount_amount >= 0);
 
-alter table orders drop constraint orders_status_check;
+alter table orders drop constraint if exists orders_status_check;
 alter table orders add constraint orders_status_check check (status in ('pending_pickup', 'placed', 'served', 'paid'));
 
+alter table orders drop constraint if exists orders_immediate_requires_seat;
 alter table orders add constraint orders_immediate_requires_seat
   check (order_type <> 'immediate' or seat_id is not null);
 

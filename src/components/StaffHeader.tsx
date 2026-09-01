@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import LowStockAlert from "./LowStockAlert";
 
@@ -14,26 +15,45 @@ export default function StaffHeader({ active }: { active: string }) {
   return (
     <header className="bg-navy-950 text-white">
       <LowStockAlert />
-      <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-navy-100">Cafe Tan90 · Staff</p>
-          <nav className="mt-1 flex flex-wrap gap-4">
-            {NAV.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`text-sm font-medium ${active === item.href ? "text-white" : "text-navy-100 hover:text-white"}`}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
+      <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-6 py-4">
+        <div className="flex items-center gap-3">
+          <Image
+            src="/logo.png"
+            alt="Cafe Tan90"
+            width={480}
+            height={480}
+            className="h-9 w-9 shrink-0 rounded-lg"
+          />
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-navy-100">Cafe Tan90 · Staff</p>
+            <nav className="mt-1 flex flex-wrap gap-4">
+              {NAV.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`text-sm font-medium ${active === item.href ? "text-white" : "text-navy-100 hover:text-white"}`}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+          </div>
         </div>
-        <form action="/api/staff-logout" method="POST">
-          <button type="submit" className="text-xs font-medium text-navy-100 hover:text-white">
-            Log out
-          </button>
-        </form>
+        <div className="flex shrink-0 items-center gap-3">
+          <form action="/api/staff-logout" method="POST">
+            <button type="submit" className="text-xs font-medium text-navy-100 hover:text-white">
+              Log out
+            </button>
+          </form>
+          <Image
+            src="/logo.png"
+            alt=""
+            aria-hidden="true"
+            width={480}
+            height={480}
+            className="hidden h-9 w-9 shrink-0 rounded-lg sm:block"
+          />
+        </div>
       </div>
     </header>
   );
