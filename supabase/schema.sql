@@ -633,6 +633,31 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- reset_orders_in_range: same as reset_all_orders above (un-redeems coupons
+-- first, deliberately leaves stock untouched) but scoped to a date range
+-- instead of everything, filtered on order_date -- the same column
+-- getSalesAnalytics/getOrdersForExport filter on -- so clearing "this range"
+-- always matches whatever the Analytics dashboard is showing for it. A
+-- still-pending pre-order (order_date still null) is never matched by either
+-- bound, so it's never touched by this, same as it's excluded from analytics
+-- until it's fulfilled. p_from/p_to are inclusive on both ends.
+-- ---------------------------------------------------------------------------
+create or replace function reset_orders_in_range(p_from date, p_to date)
+returns void
+language plpgsql
+as $$
+begin
+  update coupons
+  set redeemed = false, redeemed_at = null, redeemed_order_id = null
+  where redeemed_order_id in (
+    select id from orders where order_date between p_from and p_to
+  );
+
+  delete from orders where order_date between p_from and p_to;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- Explicit grants for the service role. Newer Supabase projects no longer
 -- auto-grant service_role access to tables created by hand (the "Automatically
 -- expose new tables" project setting) — these grants make this schema work
@@ -650,3 +675,4 @@ grant execute on function redeem_coupon(uuid, text) to service_role;
 grant execute on function reset_all_orders() to service_role;
 grant execute on function reset_all_stock() to service_role;
 grant execute on function clear_stock_history() to service_role;
+grant execute on function reset_orders_in_range(date, date) to service_role;

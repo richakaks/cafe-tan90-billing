@@ -479,6 +479,18 @@ export async function clearStockHistory(): Promise<void> {
   if (error) throw error;
 }
 
+// fromIso/toIso are plain "YYYY-MM-DD" dates (inclusive on both ends),
+// matching the range pickers on getSalesAnalytics/getOrdersForExport above —
+// filtered by order_date (the Bangkok-local day a walk-in order was placed,
+// or a pre-order was fulfilled), same column those two read, so "clear this
+// range" always matches what the analytics dashboard is showing for it.
+// A still-pending pre-order has no order_date yet and is never touched by
+// this, same as it's excluded from analytics until fulfilled.
+export async function resetOrdersInRange(fromIso: string, toIso: string): Promise<void> {
+  const { error } = await db().rpc("reset_orders_in_range", { p_from: fromIso, p_to: toIso });
+  if (error) throw error;
+}
+
 export async function updateIngredientThreshold(id: string, lowStockThreshold: number): Promise<void> {
   const { error } = await db().from("ingredients").update({ low_stock_threshold: lowStockThreshold }).eq("id", id);
   if (error) throw error;
