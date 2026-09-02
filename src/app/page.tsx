@@ -3,13 +3,22 @@ import Link from "next/link";
 
 export default function Home() {
   return (
-    <div className="flex flex-1 items-center justify-center px-6 py-16">
-      <div className="card w-full max-w-md p-8 text-center">
+    <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-emblem-bg px-6 py-16">
+      <Image
+        src="/logo.png"
+        alt=""
+        aria-hidden="true"
+        width={800}
+        height={800}
+        priority
+        className="pointer-events-none absolute left-1/2 top-1/2 h-[480px] w-[480px] -translate-x-1/2 -translate-y-1/2 select-none sm:h-[620px] sm:w-[620px]"
+      />
+      <div className="card relative z-10 w-full max-w-md p-8 text-center">
         <Image
           src="/logo.png"
           alt="Cafe Tan90"
-          width={480}
-          height={480}
+          width={800}
+          height={800}
           priority
           className="mx-auto h-24 w-24 rounded-2xl shadow-sm"
         />

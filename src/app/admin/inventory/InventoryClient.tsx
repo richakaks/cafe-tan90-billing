@@ -190,7 +190,7 @@ function DangerZone() {
     <div className="card border-status-out/40 p-5">
       <h2 className="text-sm font-semibold text-status-out">Danger zone</h2>
       <p className="mt-1 text-xs text-navy-600">
-        Testing/setup tools. Both of these are permanent and affect the whole system, not just what you can see here.
+        Testing/setup tools. All of these are permanent and affect the whole system, not just what you can see here.
       </p>
       <div className="mt-4 flex flex-wrap gap-3">
         <ResetButton
@@ -202,8 +202,14 @@ function DangerZone() {
         <ResetButton
           label="Reset all stock to 0"
           confirmLabel="Yes, zero out all stock"
-          warning="This sets every ingredient's current stock to 0. It does not touch orders."
+          warning="This sets every ingredient's current stock to 0. It does not touch orders. The zeroing itself still gets logged to stock history below, same as any other adjustment."
           endpoint="/api/admin/reset-stock"
+        />
+        <ResetButton
+          label="Clear stock history"
+          confirmLabel="Yes, clear stock history"
+          warning="This permanently deletes every entry from the stock-change history log (here and on the full history/export page). It does not change any ingredient's current stock — only the log of how it got there."
+          endpoint="/api/admin/clear-stock-history"
         />
       </div>
     </div>

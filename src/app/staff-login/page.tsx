@@ -9,13 +9,22 @@ export default async function StaffLoginPage({
   const nextPath = next && next.startsWith("/") ? next : "/serve";
 
   return (
-    <div className="flex flex-1 items-center justify-center px-6 py-16">
-      <form action="/api/staff-login" method="POST" className="card w-full max-w-sm p-8 text-center">
+    <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-emblem-bg px-6 py-16">
+      <Image
+        src="/logo.png"
+        alt=""
+        aria-hidden="true"
+        width={800}
+        height={800}
+        priority
+        className="pointer-events-none absolute left-1/2 top-1/2 h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 select-none sm:h-[520px] sm:w-[520px]"
+      />
+      <form action="/api/staff-login" method="POST" className="card relative z-10 w-full max-w-sm p-8 text-center">
         <Image
           src="/logo.png"
           alt="Cafe Tan90"
-          width={480}
-          height={480}
+          width={800}
+          height={800}
           priority
           className="mx-auto h-20 w-20 rounded-2xl shadow-sm"
         />

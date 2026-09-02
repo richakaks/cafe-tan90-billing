@@ -20,8 +20,8 @@ export default function StaffHeader({ active }: { active: string }) {
           <Image
             src="/logo.png"
             alt="Cafe Tan90"
-            width={480}
-            height={480}
+            width={800}
+            height={800}
             className="h-9 w-9 shrink-0 rounded-lg"
           />
           <div>
@@ -39,21 +39,11 @@ export default function StaffHeader({ active }: { active: string }) {
             </nav>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-3">
-          <form action="/api/staff-logout" method="POST">
-            <button type="submit" className="text-xs font-medium text-navy-100 hover:text-white">
-              Log out
-            </button>
-          </form>
-          <Image
-            src="/logo.png"
-            alt=""
-            aria-hidden="true"
-            width={480}
-            height={480}
-            className="hidden h-9 w-9 shrink-0 rounded-lg sm:block"
-          />
-        </div>
+        <form action="/api/staff-logout" method="POST" className="shrink-0">
+          <button type="submit" className="text-xs font-medium text-navy-100 hover:text-white">
+            Log out
+          </button>
+        </form>
       </div>
     </header>
   );

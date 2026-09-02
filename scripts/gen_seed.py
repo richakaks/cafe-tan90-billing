@@ -338,11 +338,15 @@ def main():
     out.append(",\n".join(rows) + "\non conflict (name) do nothing;")
     out.append("")
 
-    out.append("-- Menu items (" + str(len(MENU_ITEMS)) + " total, matching the Menu tab item codes/prices)")
-    out.append("insert into menu_items (code, name, category, price, active) values")
+    out.append("-- Menu items (" + str(len(MENU_ITEMS)) + " total, matching the Menu tab item codes/prices).")
+    out.append("-- sort_order starts at 10 (never 0 -- 0 is reserved as the 'not yet migrated'")
+    out.append("-- sentinel the schema.sql backfill looks for) and steps by 10 in MENU_ITEMS'")
+    out.append("-- own order, which is already the Menu PRD's category order (Snacks, Momo,")
+    out.append("-- Sandwich, Burger, Spaghetti, Tea, Coffee, Iced Tea, Soda).")
+    out.append("insert into menu_items (code, name, category, price, active, sort_order) values")
     rows = []
-    for code, name, cat, price in MENU_ITEMS:
-        rows.append(f"  ({sql_str(code)}, {sql_str(name)}, {sql_str(cat)}, {num(price)}, true)")
+    for i, (code, name, cat, price) in enumerate(MENU_ITEMS):
+        rows.append(f"  ({sql_str(code)}, {sql_str(name)}, {sql_str(cat)}, {num(price)}, true, {(i + 1) * 10})")
     out.append(",\n".join(rows) + "\non conflict (code) do nothing;")
     out.append("")
 

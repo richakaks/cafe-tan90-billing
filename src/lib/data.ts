@@ -135,7 +135,7 @@ export async function getSeat(id: string): Promise<Seat | null> {
 export async function getMenuForCustomer(): Promise<MenuItemWithAvailability[]> {
   const [{ data: items, error: itemsErr }, { data: ingredients, error: ingErr }, { data: links, error: linkErr }] =
     await Promise.all([
-      db().from("menu_items").select("code, name, category, price, active").eq("active", true).order("category").order("name"),
+      db().from("menu_items").select("code, name, category, price, active").eq("active", true).order("sort_order"),
       db().from("ingredients").select("id, name, unit, current_stock, low_stock_threshold"),
       db().from("menu_item_ingredients").select("menu_item_code, ingredient_id, qty_per_order"),
     ]);
@@ -474,6 +474,11 @@ export async function resetAllStock(): Promise<void> {
   if (error) throw error;
 }
 
+export async function clearStockHistory(): Promise<void> {
+  const { error } = await db().rpc("clear_stock_history");
+  if (error) throw error;
+}
+
 export async function updateIngredientThreshold(id: string, lowStockThreshold: number): Promise<void> {
   const { error } = await db().from("ingredients").update({ low_stock_threshold: lowStockThreshold }).eq("id", id);
   if (error) throw error;
@@ -485,7 +490,7 @@ export async function updateIngredientThreshold(id: string, lowStockThreshold: n
 
 export async function getMenuItemsAdmin(): Promise<MenuItemAdminView[]> {
   const [{ data: items, error: itemsErr }, { data: links, error: linkErr }, { data: ingredients, error: ingErr }] = await Promise.all([
-    db().from("menu_items").select("code, name, category, price, active").order("category").order("name"),
+    db().from("menu_items").select("code, name, category, price, active").order("sort_order"),
     db().from("menu_item_ingredients").select("menu_item_code, ingredient_id, qty_per_order"),
     db().from("ingredients").select("id, name, unit"),
   ]);
@@ -516,8 +521,48 @@ export async function getMenuItemsAdmin(): Promise<MenuItemAdminView[]> {
 }
 
 export async function upsertMenuItem(item: { code: string; name: string; category: string; price: number; active: boolean }): Promise<void> {
-  const { error } = await db().from("menu_items").upsert(item);
+  const { data: existing } = await db().from("menu_items").select("code").eq("code", item.code).maybeSingle();
+
+  // Only a genuinely new item needs a sort_order assigned — editing an
+  // existing item's details (via this same endpoint) must never disturb its
+  // place in the drag-ordered list, so sort_order is simply omitted then.
+  let sortOrder: number | undefined;
+  if (!existing) {
+    const [{ data: sameCategoryMax }, { data: overallMax }] = await Promise.all([
+      db().from("menu_items").select("sort_order").eq("category", item.category).order("sort_order", { ascending: false }).limit(1).maybeSingle(),
+      db().from("menu_items").select("sort_order").order("sort_order", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    // Append within the category if it already has items (keeps it grouped
+    // with its siblings); otherwise append after the whole menu (a brand
+    // new category not in the Menu PRD's fixed order lands at the end
+    // rather than colliding with an existing category's sort_order range).
+    sortOrder = sameCategoryMax ? sameCategoryMax.sort_order + 10 : (overallMax?.sort_order ?? 0) + 1000;
+  }
+
+  const payload: { code: string; name: string; category: string; price: number; active: boolean; sort_order?: number } =
+    sortOrder === undefined ? item : { ...item, sort_order: sortOrder };
+  const { error } = await db().from("menu_items").upsert(payload);
   if (error) throw error;
+}
+
+// Persists a new within-category display order after a drag-and-drop reorder
+// in the admin Menu page. `orderedCodes` must all belong to the same
+// category (the client only ever drags within one category's section).
+// Renumbered relative to the lowest sort_order already among them, so the
+// category's block stays put relative to every other category.
+export async function reorderMenuItems(orderedCodes: string[]): Promise<void> {
+  if (orderedCodes.length === 0) return;
+  const { data: rows, error: readErr } = await db().from("menu_items").select("code, sort_order").in("code", orderedCodes);
+  if (readErr) throw readErr;
+  if (!rows || rows.length === 0) return;
+
+  const base = Math.min(...rows.map((r) => r.sort_order));
+  const updates = orderedCodes.map((code, i) =>
+    db().from("menu_items").update({ sort_order: base + i * 10 }).eq("code", code)
+  );
+  const results = await Promise.all(updates);
+  const failed = results.find((r) => r.error);
+  if (failed?.error) throw failed.error;
 }
 
 export async function setMenuItemActive(code: string, active: boolean): Promise<void> {

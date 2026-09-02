@@ -62,6 +62,71 @@ function LinkedIngredientRow({
   );
 }
 
+function DragHandle({ onGrab, onRelease }: { onGrab: () => void; onRelease: () => void }) {
+  return (
+    <span
+      aria-hidden="true"
+      title="Drag to reorder within this category"
+      onMouseDown={onGrab}
+      onMouseUp={onRelease}
+      onMouseLeave={onRelease}
+      className="mt-5 flex shrink-0 cursor-grab select-none flex-col items-center justify-center gap-[3px] self-start rounded px-1.5 py-2 text-navy-400 hover:bg-navy-100 hover:text-navy-700 active:cursor-grabbing"
+    >
+      <span className="h-0.5 w-4 rounded-full bg-current" />
+      <span className="h-0.5 w-4 rounded-full bg-current" />
+      <span className="h-0.5 w-4 rounded-full bg-current" />
+    </span>
+  );
+}
+
+// Wraps one ItemCard with a drag handle on the left so it can be reordered
+// within its category (drag never crosses into another category's section —
+// see reorderWithinCategory). Native HTML5 drag-and-drop, no library: the
+// row is only made `draggable` while the mouse is held down on the handle
+// itself, so dragging the card's own inputs/buttons still works normally.
+function DraggableItem({
+  item,
+  ingredients,
+  onChanged,
+  onDropReorder,
+}: {
+  item: MenuItemAdminView;
+  ingredients: Ingredient[];
+  onChanged: () => void;
+  onDropReorder: (draggedCode: string, targetCode: string) => void;
+}) {
+  const [dragEnabled, setDragEnabled] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+
+  return (
+    <div
+      draggable={dragEnabled}
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", item.code);
+      }}
+      onDragEnd={() => setDragEnabled(false)}
+      onDragOver={(e) => {
+        e.preventDefault();
+        if (!dragOver) setDragOver(true);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOver(false);
+        const draggedCode = e.dataTransfer.getData("text/plain");
+        if (draggedCode && draggedCode !== item.code) onDropReorder(draggedCode, item.code);
+      }}
+      className={`flex items-start gap-1 rounded-xl transition ${dragOver ? "ring-2 ring-navy-600" : ""}`}
+    >
+      <DragHandle onGrab={() => setDragEnabled(true)} onRelease={() => setDragEnabled(false)} />
+      <div className="min-w-0 flex-1">
+        <ItemCard item={item} ingredients={ingredients} onChanged={onChanged} />
+      </div>
+    </div>
+  );
+}
+
 function ItemCard({ item, ingredients, onChanged }: { item: MenuItemAdminView; ingredients: Ingredient[]; onChanged: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const [name, setName] = useState(item.name);
@@ -246,6 +311,27 @@ export default function MenuClient({ initialItems, ingredients }: { initialItems
     window.location.reload();
   }
 
+  async function reorderWithinCategory(categoryItems: MenuItemAdminView[], draggedCode: string, targetCode: string) {
+    const codes = categoryItems.map((i) => i.code);
+    const fromIdx = codes.indexOf(draggedCode);
+    const toIdx = codes.indexOf(targetCode);
+    if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
+
+    const reordered = [...codes];
+    reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, draggedCode);
+
+    try {
+      await fetch("/api/menu/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderedCodes: reordered }),
+      });
+    } finally {
+      window.location.reload();
+    }
+  }
+
   async function addItem() {
     if (!newCode.trim() || !newName.trim()) return;
     setCreating(true);
@@ -269,13 +355,22 @@ export default function MenuClient({ initialItems, ingredients }: { initialItems
 
   return (
     <div className="space-y-6">
+      <p className="text-xs text-navy-600">
+        Drag the <span aria-hidden="true">☰</span> handle on the left of an item to reorder it within its category — that order is what customers see on the QR menu too.
+      </p>
       <div className="space-y-8">
         {byCategory.map(([category, categoryItems]) => (
           <section key={category}>
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-navy-600">{category}</h2>
             <div className="space-y-4">
               {categoryItems.map((item) => (
-                <ItemCard key={item.code} item={item} ingredients={ingredients} onChanged={refresh} />
+                <DraggableItem
+                  key={item.code}
+                  item={item}
+                  ingredients={ingredients}
+                  onChanged={refresh}
+                  onDropReorder={(draggedCode, targetCode) => reorderWithinCategory(categoryItems, draggedCode, targetCode)}
+                />
               ))}
             </div>
           </section>

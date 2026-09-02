@@ -24,6 +24,12 @@
   --color-status-good: #2f7048;
   --color-status-low: #b8790f;
   --color-status-out: #b3372c;
+
+  /* Exact average corner color of public/logo.png's dark-green fill —
+     deliberately its own token (not navy-950) so the big background logo on
+     the landing page and staff-login screen blends into the page with zero
+     visible seam. Used only on those two page wrappers. */
+  --color-emblem-bg: #082616;
 }
 
 body {

@@ -40,8 +40,77 @@ create table if not exists menu_items (
   category text not null default 'Other',
   price numeric not null check (price >= 0),
   active boolean not null default true,
+  -- Drives display order everywhere (customer menu + admin), within a
+  -- category and across categories at once: seeded so categories land in
+  -- the Menu PRD's order and items within a category in seed order, then
+  -- adjustable per item via the admin Menu page's drag handle. Left as a
+  -- plain integer with gaps of 10 (not a dense 0..n sequence) so a drag
+  -- reorder only needs to renumber the one category being reordered.
+  sort_order integer not null default 0,
   created_at timestamptz not null default now()
 );
+
+-- Idempotent: `sort_order` was added after the table already existed in
+-- production databases, so an existing installation needs this ALTER too
+-- (the CREATE TABLE above only applies on a brand-new database).
+alter table menu_items
+  add column if not exists sort_order integer not null default 0;
+
+-- Backfill: assigns the Menu PRD's fixed order to any menu_items row
+-- that has never been migrated (sort_order still at its 0 default). Once a
+-- row is migrated (or newly created, which always gets a nonzero value --
+-- see upsertMenuItem in data.ts) it's permanently exempt from this backfill,
+-- so re-running schema.sql can never clobber a later drag-reorder.
+update menu_items as m set sort_order = v.sort_order
+from (values
+  ('SN-FRF', 10),
+  ('SN-PPF', 20),
+  ('SN-ZAF', 30),
+  ('SN-SMT', 40),
+  ('SN-MGN', 50),
+  ('SN-ECM', 60),
+  ('SN-CLN', 70),
+  ('M-VMM', 80),
+  ('M-CMM', 90),
+  ('SD-MUS', 100),
+  ('SD-GCS', 110),
+  ('SD-CHS', 120),
+  ('B-CVB', 130),
+  ('B-CCB', 140),
+  ('B-DTB', 150),
+  ('B-GCB', 160),
+  ('B-SCB', 170),
+  ('SP-AWS0', 180),
+  ('SP-AWS1', 190),
+  ('T-GLT0', 200),
+  ('T-GLT1', 210),
+  ('T-BLT0', 220),
+  ('T-BLT1', 230),
+  ('T-TMT0', 240),
+  ('T-TMT1', 250),
+  ('T-MST0', 260),
+  ('T-MST1', 270),
+  ('T-BPT0', 280),
+  ('T-BPT1', 290),
+  ('C-BLC0', 300),
+  ('C-BLC1', 310),
+  ('C-CPN0', 320),
+  ('C-CPN1', 330),
+  ('C-HZL0', 340),
+  ('C-HZL1', 350),
+  ('C-MCH0', 360),
+  ('C-MCH1', 370),
+  ('C-CCA0', 380),
+  ('C-CCA1', 390),
+  ('I-LIT', 400),
+  ('I-PIT', 410),
+  ('SO-SLS', 420),
+  ('SO-MPS', 430),
+  ('SO-LLS', 440),
+  ('SO-BHS', 450),
+  ('SO-CRC', 460)
+) as v(code, sort_order)
+where m.code = v.code and m.sort_order = 0;
 
 -- ---------------------------------------------------------------------------
 -- Menu item <-> ingredient mapping: how much of each ingredient one order of
@@ -547,6 +616,23 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- clear_stock_history: wipes the stock_adjustments log itself (not current
+-- stock levels) — a separate action from reset_all_stock above. While
+-- testing, reset_all_stock deliberately logs its own zeroing as adjustment
+-- rows (so a *real* reset is traceable later); this function is for
+-- discarding that whole trial-run log once testing is done, without
+-- touching ingredients.current_stock at all.
+-- ---------------------------------------------------------------------------
+create or replace function clear_stock_history()
+returns void
+language plpgsql
+as $$
+begin
+  delete from stock_adjustments;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- Explicit grants for the service role. Newer Supabase projects no longer
 -- auto-grant service_role access to tables created by hand (the "Automatically
 -- expose new tables" project setting) — these grants make this schema work
@@ -563,3 +649,4 @@ grant execute on function fulfill_pre_order(uuid) to service_role;
 grant execute on function redeem_coupon(uuid, text) to service_role;
 grant execute on function reset_all_orders() to service_role;
 grant execute on function reset_all_stock() to service_role;
+grant execute on function clear_stock_history() to service_role;
