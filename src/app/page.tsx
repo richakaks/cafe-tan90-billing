@@ -11,7 +11,8 @@ export default function Home() {
         width={800}
         height={800}
         priority
-        className="pointer-events-none absolute left-1/2 top-1/2 h-[480px] w-[480px] -translate-x-1/2 -translate-y-1/2 select-none sm:h-[620px] sm:w-[620px]"
+        unoptimized
+        className="pointer-events-none absolute left-1/2 top-1/2 h-[480px] w-[480px] -translate-x-1/2 -translate-y-1/2 select-none [mask-image:radial-gradient(circle,black_55%,transparent_78%)] sm:h-[620px] sm:w-[620px] [-webkit-mask-image:radial-gradient(circle,black_55%,transparent_78%)]"
       />
       <div className="card relative z-10 w-full max-w-md p-8 text-center">
         <Image

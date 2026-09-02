@@ -17,7 +17,8 @@ export default async function StaffLoginPage({
         width={800}
         height={800}
         priority
-        className="pointer-events-none absolute left-1/2 top-1/2 h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 select-none sm:h-[520px] sm:w-[520px]"
+        unoptimized
+        className="pointer-events-none absolute left-1/2 top-1/2 h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 select-none [mask-image:radial-gradient(circle,black_55%,transparent_78%)] sm:h-[520px] sm:w-[520px] [-webkit-mask-image:radial-gradient(circle,black_55%,transparent_78%)]"
       />
       <form action="/api/staff-login" method="POST" className="card relative z-10 w-full max-w-sm p-8 text-center">
         <Image
