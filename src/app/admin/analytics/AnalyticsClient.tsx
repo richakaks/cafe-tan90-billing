@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { SalesAnalytics } from "@/lib/types";
+import { RangeResetOrdersButton, ResetButton } from "@/components/OrdersDangerZone";
 
 function formatBaht(amount: number): string {
   return `฿${amount.toLocaleString("en-US", { minimumFractionDigits: 0 })}`;
@@ -216,6 +217,24 @@ export default function AnalyticsClient() {
           </div>
         </>
       )}
+
+      <div className="card border-status-out/40 p-5">
+        <h2 className="text-sm font-semibold text-status-out">Danger zone</h2>
+        <p className="mt-1 text-xs text-navy-600">
+          Testing/setup tools for clearing trial orders — this is what the Daily Sales numbers above are computed
+          from, so deleting orders resets what shows here too. Also available on the Inventory admin page. Neither
+          of these touches ingredient stock levels.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <ResetButton
+            label="Reset all orders"
+            confirmLabel="Yes, delete all orders"
+            warning="This permanently deletes every order (open, served, and paid) and frees up any coupon codes they'd redeemed. It does not touch ingredient stock levels. To only clear some dates instead of everything, use “Reset orders in a date range” below."
+            endpoint="/api/admin/reset-orders"
+          />
+          <RangeResetOrdersButton />
+        </div>
+      </div>
     </div>
   );
 }

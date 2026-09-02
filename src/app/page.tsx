@@ -33,7 +33,7 @@ export default function Home() {
             href="/serve"
             className="rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm font-medium text-navy-900 transition hover:border-navy-900 hover:bg-navy-100"
           >
-            Serving screen
+            Serving Screen
           </Link>
           <Link
             href="/billing"
@@ -45,13 +45,13 @@ export default function Home() {
             href="/admin/inventory"
             className="rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm font-medium text-navy-900 transition hover:border-navy-900 hover:bg-navy-100"
           >
-            Inventory admin
+            Inventory Admin
           </Link>
           <Link
             href="/admin/menu"
             className="rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm font-medium text-navy-900 transition hover:border-navy-900 hover:bg-navy-100"
           >
-            Menu admin
+            Menu Admin
           </Link>
           <Link
             href="/admin/coupons"
@@ -63,7 +63,7 @@ export default function Home() {
             href="/admin/analytics"
             className="rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm font-medium text-navy-900 transition hover:border-navy-900 hover:bg-navy-100"
           >
-            Sales &amp; analytics
+            Sales &amp; Analytics
           </Link>
         </div>
       </div>
