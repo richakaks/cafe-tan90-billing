@@ -124,6 +124,17 @@ create table if not exists menu_item_ingredients (
   primary key (menu_item_code, ingredient_id)
 );
 
+-- One-off cleanup: Zab Fries' SOP recipe changed from Fresh Lime Juice +
+-- Ketchup to Lime Seasoning + Homemade Mayo. seed.sql's inserts are `on
+-- conflict do nothing`, so re-pasting it only adds the two new links -- it
+-- can never remove the two now-stale ones, which would otherwise keep
+-- getting silently deducted from stock (and shown as ingredients) on every
+-- Zab Fries order alongside the new pair. Harmless to re-run: matches
+-- nothing once these two rows are gone.
+delete from menu_item_ingredients
+where menu_item_code = 'SN-ZAF'
+  and ingredient_id in (select id from ingredients where name in ('Fresh Lime Juice', 'Ketchup'));
+
 -- ---------------------------------------------------------------------------
 -- Orders + order items. order_items intentionally does NOT foreign-key to
 -- menu_items — item_name/price_at_order are snapshotted so order history

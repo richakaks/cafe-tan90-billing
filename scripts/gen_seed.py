@@ -62,6 +62,9 @@ RAW = {
     "Garlic Powder": ("g", 300, 60),
     "Smoked Paprika": ("g", 200, 40),
     "Zab Seasoning": ("g", 300, 60),
+    # Added when the Zab Fries SOP picked up a second dry seasoning
+    # alongside Zab Seasoning.
+    "Lime Seasoning": ("g", 300, 60),
     "Fresh Lime Juice": ("ml", 500, 100),
     "Frozen Samosas": ("pcs", 60, 15),
     "Maggi Noodles": ("g", 2000, 400),
@@ -110,6 +113,8 @@ RAW = {
     "Mango Syrup": ("ml", 800, 150),
     "Passionfruit Syrup": ("ml", 800, 150),
     "Lychee Syrup": ("ml", 800, 150),
+    # Added for the new Mixed Berry Soda menu item.
+    "Mixed Berry Syrup": ("ml", 800, 150),
     "Blue Curacao Syrup (Non-Alcoholic)": ("ml", 500, 100),
     "Coconut Syrup": ("ml", 500, 100),
     "Soda Water": ("ml", 5000, 1000),
@@ -207,6 +212,7 @@ MENU_ITEMS = [
     # Soda
     ("SO-SLS", "Strawberry Lemon Soda", "Soda", 45),
     ("SO-MPS", "Mango Passion Soda", "Soda", 45),
+    ("SO-MBS", "Mixed Berry Soda", "Soda", 45),
     ("SO-LLS", "Lychee Lemon Soda", "Soda", 45),
     ("SO-BHS", "Blue Hawaii Soda", "Soda", 45),
     ("SO-CRC", "Crispy Coke", "Soda", 45),
@@ -221,7 +227,11 @@ MENU_ITEMS = [
 MAPPINGS = {
     "SN-FRF": [("Frozen Fries", 130), ("Ketchup", 30), ("Homemade Mayo", 15)],
     "SN-PPF": [("Frozen Fries", 130), ("Peri-Peri Seasoning", 2.25), ("Garlic Powder", 0.75), ("Smoked Paprika", 0.75), ("Homemade Mayo", 20)],
-    "SN-ZAF": [("Frozen Fries", 130), ("Zab Seasoning", 4.5), ("Fresh Lime Juice", 2.5), ("Ketchup", 30)],
+    # Updated SOP: dropped Fresh Lime Juice + Ketchup, picked up a second dry
+    # seasoning (Lime Seasoning) and switched the fat from Ketchup to
+    # Mayonnaise (mapped to the Homemade Mayo primary, same "house mayo"
+    # convention used elsewhere -- see project notes).
+    "SN-ZAF": [("Frozen Fries", 130), ("Zab Seasoning", 4.5), ("Lime Seasoning", 3), ("Homemade Mayo", 30)],
     "SN-SMT": [("Frozen Samosas", 3), ("Ketchup", 30)],
     "SN-MGN": [("Maggi Noodles", 80), ("Maggi Masala Sachet", 1), ("Frozen Corn", 10), ("Frozen Peas", 10), ("Butter", 10)],
     "SN-ECM": [("Maggi Noodles", 80), ("Maggi Masala Sachet", 1), ("Frozen Corn", 10), ("Frozen Peas", 10), ("Cheese Slice", 1), ("Butter", 10)],
@@ -283,6 +293,7 @@ MAPPINGS = {
 
     "SO-SLS": [("Strawberry Syrup", 35), ("Fresh Lemon Juice", 15), ("Sugar Syrup", 10), ("Soda Water", 180), ("Lemon Slice", 1)],
     "SO-MPS": [("Mango Syrup", 20), ("Passionfruit Syrup", 15), ("Fresh Lemon Juice", 5), ("Soda Water", 180)],
+    "SO-MBS": [("Mixed Berry Syrup", 35), ("Fresh Lemon Juice", 10), ("Sugar Syrup", 2), ("Soda Water", 180)],
     "SO-LLS": [("Lychee Syrup", 35), ("Fresh Lemon Juice", 15), ("Soda Water", 180), ("Lemon Slice", 1)],
     "SO-BHS": [("Blue Curacao Syrup (Non-Alcoholic)", 20), ("Coconut Syrup", 15), ("Fresh Lemon Juice", 10), ("Soda Water", 170), ("Lemon Slice", 1)],
     "SO-CRC": [("Cola", 1), ("Fresh Lime Juice", 10), ("Pink Salt", 0.75), ("Lemon Slice", 1)],
@@ -292,6 +303,23 @@ MAPPINGS = {
 # real recipes; kept as a set (not deleted) so the pattern is ready for the
 # next item that ships without a recipe.
 NO_RECIPE = set()
+
+# sort_order overrides for items inserted into the MIDDLE of MENU_ITEMS after
+# production has already been seeded once. The normal (index+1)*10 formula
+# below recomputes every item's "logical" position from scratch each time
+# this script runs, but on an already-seeded database `insert ... on conflict
+# do nothing` only actually inserts the brand-new code -- every other row
+# keeps whatever sort_order it was originally migrated with. Without this
+# override, a mid-list insertion collides: e.g. adding SO-MBS between SO-MPS
+# (already live at 430) and SO-LLS (already live at 440) would compute 440
+# for SO-MBS too, tying it with SO-LLS instead of landing between them. List
+# the exact value to use here instead of the formula's result; leave
+# everything else alone. Safe for a brand-new database too -- it just makes
+# that one item's gap to its neighbour uneven (15 instead of 10), which
+# doesn't matter since only relative order is ever used.
+SORT_ORDER_OVERRIDES = {
+    "SO-MBS": 435,  # between SO-MPS (430) and SO-LLS (440)
+}
 
 
 def sql_str(s):
@@ -346,7 +374,8 @@ def main():
     out.append("insert into menu_items (code, name, category, price, active, sort_order) values")
     rows = []
     for i, (code, name, cat, price) in enumerate(MENU_ITEMS):
-        rows.append(f"  ({sql_str(code)}, {sql_str(name)}, {sql_str(cat)}, {num(price)}, true, {(i + 1) * 10})")
+        sort_order = SORT_ORDER_OVERRIDES.get(code, (i + 1) * 10)
+        rows.append(f"  ({sql_str(code)}, {sql_str(name)}, {sql_str(cat)}, {num(price)}, true, {sort_order})")
     out.append(",\n".join(rows) + "\non conflict (code) do nothing;")
     out.append("")
 

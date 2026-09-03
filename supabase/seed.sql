@@ -31,7 +31,7 @@ insert into seats (id, label, kind) values
   ('S4', 'Counter 4', 'counter')
 on conflict (id) do nothing;
 
--- Ingredients (11 primaries + 60 raw/purchased ingredients)
+-- Ingredients (11 primaries + 62 raw/purchased ingredients)
 insert into ingredients (name, unit, current_stock, low_stock_threshold) values
   ('White Sauce', 'ml', 1000, 200),
   ('Sautéed Mushrooms', 'g', 800, 150),
@@ -56,6 +56,7 @@ insert into ingredients (name, unit, current_stock, low_stock_threshold) values
   ('Garlic Powder', 'g', 300, 60),
   ('Smoked Paprika', 'g', 200, 40),
   ('Zab Seasoning', 'g', 300, 60),
+  ('Lime Seasoning', 'g', 300, 60),
   ('Fresh Lime Juice', 'ml', 500, 100),
   ('Frozen Samosas', 'pcs', 60, 15),
   ('Maggi Noodles', 'g', 2000, 400),
@@ -103,6 +104,7 @@ insert into ingredients (name, unit, current_stock, low_stock_threshold) values
   ('Mango Syrup', 'ml', 800, 150),
   ('Passionfruit Syrup', 'ml', 800, 150),
   ('Lychee Syrup', 'ml', 800, 150),
+  ('Mixed Berry Syrup', 'ml', 800, 150),
   ('Blue Curacao Syrup (Non-Alcoholic)', 'ml', 500, 100),
   ('Coconut Syrup', 'ml', 500, 100),
   ('Soda Water', 'ml', 5000, 1000),
@@ -111,7 +113,7 @@ insert into ingredients (name, unit, current_stock, low_stock_threshold) values
   ('Lemon Slice', 'pcs', 200, 40)
 on conflict (name) do nothing;
 
--- Menu items (46 total, matching the Menu tab item codes/prices).
+-- Menu items (47 total, matching the Menu tab item codes/prices).
 -- sort_order starts at 10 (never 0 -- 0 is reserved as the 'not yet migrated'
 -- sentinel the schema.sql backfill looks for) and steps by 10 in MENU_ITEMS'
 -- own order, which is already the Menu PRD's category order (Snacks, Momo,
@@ -160,9 +162,10 @@ insert into menu_items (code, name, category, price, active, sort_order) values
   ('I-PIT', 'Passionfruit Iced Tea', 'Iced Tea', 45, true, 410),
   ('SO-SLS', 'Strawberry Lemon Soda', 'Soda', 45, true, 420),
   ('SO-MPS', 'Mango Passion Soda', 'Soda', 45, true, 430),
-  ('SO-LLS', 'Lychee Lemon Soda', 'Soda', 45, true, 440),
-  ('SO-BHS', 'Blue Hawaii Soda', 'Soda', 45, true, 450),
-  ('SO-CRC', 'Crispy Coke', 'Soda', 45, true, 460)
+  ('SO-MBS', 'Mixed Berry Soda', 'Soda', 45, true, 435),
+  ('SO-LLS', 'Lychee Lemon Soda', 'Soda', 45, true, 450),
+  ('SO-BHS', 'Blue Hawaii Soda', 'Soda', 45, true, 460),
+  ('SO-CRC', 'Crispy Coke', 'Soda', 45, true, 470)
 on conflict (code) do nothing;
 
 -- Menu item -> ingredient mappings
@@ -192,9 +195,9 @@ select 'SN-ZAF', id, 130 from ingredients where name = 'Frozen Fries'
 union all
 select 'SN-ZAF', id, 4.5 from ingredients where name = 'Zab Seasoning'
 union all
-select 'SN-ZAF', id, 2.5 from ingredients where name = 'Fresh Lime Juice'
+select 'SN-ZAF', id, 3 from ingredients where name = 'Lime Seasoning'
 union all
-select 'SN-ZAF', id, 30 from ingredients where name = 'Ketchup'
+select 'SN-ZAF', id, 30 from ingredients where name = 'Homemade Mayo'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
@@ -615,6 +618,16 @@ union all
 select 'SO-MPS', id, 5 from ingredients where name = 'Fresh Lemon Juice'
 union all
 select 'SO-MPS', id, 180 from ingredients where name = 'Soda Water'
+on conflict (menu_item_code, ingredient_id) do nothing;
+
+insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
+select 'SO-MBS', id, 35 from ingredients where name = 'Mixed Berry Syrup'
+union all
+select 'SO-MBS', id, 10 from ingredients where name = 'Fresh Lemon Juice'
+union all
+select 'SO-MBS', id, 2 from ingredients where name = 'Sugar Syrup'
+union all
+select 'SO-MBS', id, 180 from ingredients where name = 'Soda Water'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)

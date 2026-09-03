@@ -8,7 +8,7 @@ const NAV = [
   { href: "/admin/inventory", label: "Inventory" },
   { href: "/admin/menu", label: "Menu" },
   { href: "/admin/coupons", label: "Coupons" },
-  { href: "/admin/analytics", label: "Analytics" },
+  { href: "/admin/analytics", label: "Sales & Analytics" },
 ];
 
 export default function StaffHeader({ active }: { active: string }) {
