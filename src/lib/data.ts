@@ -1,5 +1,6 @@
 import { db } from "./supabase";
 import { computeAvailability } from "./stock";
+import { addDays, daysBetweenInclusive, enumerateDates, weekdayOf } from "./analyticsDates";
 import type {
   CartItem,
   CouponBatch,
@@ -12,6 +13,7 @@ import type {
   MenuItemWithAvailability,
   OrderItemRow,
   OrderRow,
+  PeriodTotals,
   PlacedOrder,
   PlacedPreOrder,
   SalesAnalytics,
@@ -634,6 +636,70 @@ export async function removeMenuItemIngredient(menuItemCode: string, ingredientI
 // Sales & analytics
 // ---------------------------------------------------------------------------
 
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+// Best-effort category guess for historical items that never matched a
+// current menu item, so "Sales by category" doesn't dump every off-menu
+// item into one generic wedge and lose what kind of thing they actually
+// were. Keyed by the exact historical item name (see MAPPING in
+// scripts/historical/build_import.py, which reviewed each of these
+// individually) — anything not listed here (there shouldn't be any, but a
+// future off-menu row could show up if the import script's mapping ever
+// changes) falls back to a generic "no longer on menu" bucket rather than
+// guessing blind.
+const HISTORICAL_CATEGORY_HINTS: Record<string, string> = {
+  "Chicken Burger": "Burger",
+  "Chicken Katti Roll": "Snacks",
+  Fries: "Snacks",
+  Doritos: "Snacks",
+  "Pani Puri": "Snacks",
+  Coke: "Soda",
+  Lemonade: "Soda",
+  "Alfredo Pasta": "Spaghetti",
+  Pasta: "Spaghetti",
+  "Pasta White saucs": "Spaghetti",
+  "Milk Coffee": "Coffee",
+  "Milk Coffee Iced": "Coffee",
+  "Passion Lemon Iced tea": "Iced Tea",
+  "Mango passion Iced tea": "Iced Tea",
+  "Black Tea Lemon": "Tea",
+  "Lemon Tea Hot": "Tea",
+  "Green Tea Lemon": "Tea",
+  "Tuna Sandwich": "Sandwich",
+};
+
+// Lean version of getSalesAnalytics used only for the "vs previous period"
+// comparison — just the two totals, not the full item/category/hour
+// breakdown, so the extra round trip stays cheap.
+async function getPeriodTotals(from: string, to: string): Promise<PeriodTotals> {
+  const [{ data: orders, error: ordersErr }, { data: historical, error: histErr }] = await Promise.all([
+    db()
+      .from("orders")
+      .select("discount_amount, order_items(qty, price_at_order)")
+      .in("status", ["placed", "served", "paid"])
+      .gte("order_date", from)
+      .lte("order_date", to),
+    db().from("historical_sales").select("total_revenue").gte("sale_date", from).lte("sale_date", to),
+  ]);
+  if (ordersErr) throw ordersErr;
+  if (histErr) throw histErr;
+
+  type RawItem = { qty: number; price_at_order: number };
+  type RawOrder = { discount_amount: number; order_items: RawItem[] | null };
+
+  let revenue = 0;
+  let orderCount = 0;
+  for (const order of (orders ?? []) as unknown as RawOrder[]) {
+    const gross = (order.order_items ?? []).reduce((sum, it) => sum + it.qty * Number(it.price_at_order), 0);
+    revenue += Math.max(0, gross - Number(order.discount_amount));
+    orderCount += 1;
+  }
+  for (const h of (historical ?? []) as unknown as { total_revenue: number | null }[]) {
+    revenue += Number(h.total_revenue ?? 0);
+  }
+  return { revenue, orders: orderCount };
+}
+
 // Orders count as "sales" once they're real (placed, served, or paid — every
 // stage after checkout/fulfillment) — a pending pre-order hasn't happened yet
 // (order_date is null until fulfillment, so it wouldn't match a date range
@@ -642,10 +708,20 @@ export async function removeMenuItemIngredient(menuItemCode: string, ingredientI
 // closed its bill on /billing, which would make daily totals shrink over
 // the course of the day as tables paid up — exactly backwards.
 export async function getSalesAnalytics(from: string, to: string): Promise<SalesAnalytics> {
-  const [{ data: orders, error: ordersErr }, { data: menuItems, error: menuErr }, { data: historical, error: histErr }] = await Promise.all([
+  const periodLength = daysBetweenInclusive(from, to);
+  const prevTo = addDays(from, -1);
+  const prevFrom = addDays(prevTo, -(Math.max(periodLength, 1) - 1));
+
+  const [
+    { data: orders, error: ordersErr },
+    { data: menuItems, error: menuErr },
+    { data: historical, error: histErr },
+    { data: redeemedCoupons, error: couponErr },
+    previousPeriod,
+  ] = await Promise.all([
     db()
       .from("orders")
-      .select("id, order_date, discount_amount, order_items(menu_item_code, item_name, qty, price_at_order)")
+      .select("id, order_date, discount_amount, created_at, order_items(menu_item_code, item_name, qty, price_at_order)")
       .in("status", ["placed", "served", "paid"])
       .gte("order_date", from)
       .lte("order_date", to),
@@ -655,10 +731,18 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
       .select("sale_date, item_name, menu_item_code, quantity, total_revenue")
       .gte("sale_date", from)
       .lte("sale_date", to),
+    db()
+      .from("coupons")
+      .select("value, redeemed_at")
+      .eq("redeemed", true)
+      .gte("redeemed_at", `${from}T00:00:00`)
+      .lte("redeemed_at", `${to}T23:59:59.999`),
+    getPeriodTotals(prevFrom, prevTo),
   ]);
   if (ordersErr) throw ordersErr;
   if (menuErr) throw menuErr;
   if (histErr) throw histErr;
+  if (couponErr) throw couponErr;
 
   const categoryByCode = new Map((menuItems ?? []).map((m) => [m.code, m.category]));
 
@@ -666,22 +750,41 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
   const itemMap = new Map<string, ItemRanking>();
   const categoryMap = new Map<string, number>();
   const pairCounts = new Map<string, ItemPair>();
+  const hourly = Array.from({ length: 24 }, (_, hour) => ({ hour, orderCount: 0, revenue: 0 }));
+  const weekdayRevenue = new Array(7).fill(0);
   let totalRevenue = 0;
+  let totalDiscount = 0;
 
   type RawItem = { menu_item_code: string; item_name: string; qty: number; price_at_order: number };
-  type RawOrder = { id: string; order_date: string | null; discount_amount: number; order_items: RawItem[] | null };
+  type RawOrder = {
+    id: string;
+    order_date: string | null;
+    discount_amount: number;
+    created_at: string;
+    order_items: RawItem[] | null;
+  };
 
   for (const order of (orders ?? []) as unknown as RawOrder[]) {
     if (!order.order_date) continue;
     const items = order.order_items ?? [];
     const orderGross = items.reduce((sum, it) => sum + it.qty * Number(it.price_at_order), 0);
-    const orderNet = Math.max(0, orderGross - Number(order.discount_amount));
+    const discount = Number(order.discount_amount);
+    const orderNet = Math.max(0, orderGross - discount);
     totalRevenue += orderNet;
+    totalDiscount += discount;
 
     const day = dailyMap.get(order.order_date) ?? { orderCount: 0, revenue: 0 };
     day.orderCount += 1;
     day.revenue += orderNet;
     dailyMap.set(order.order_date, day);
+
+    weekdayRevenue[weekdayOf(order.order_date)] += orderNet;
+
+    const bangkokHour = Number(
+      new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Bangkok", hour: "numeric", hour12: false }).format(new Date(order.created_at))
+    ) % 24;
+    hourly[bangkokHour].orderCount += 1;
+    hourly[bangkokHour].revenue += orderNet;
 
     for (const it of items) {
       const existing = itemMap.get(it.menu_item_code) ?? { code: it.menu_item_code, name: it.item_name, qty: 0, revenue: 0 };
@@ -708,12 +811,12 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
   }
 
   // Fold in the imported historical sales log (Round 14) — same
-  // dailyTotals/bestsellers/categoryTotals buckets as live orders, so a
-  // date range spanning both shows one combined picture. Deliberately
-  // does NOT touch orderCount or topPairs: the source data has no
-  // order/seat boundaries (see historical_sales in schema.sql), only
-  // day-level item x quantity x price lines, so there's nothing to
-  // honestly count as an "order" or pair up.
+  // dailyTotals/bestsellers/categoryTotals/weekdayTotals buckets as live
+  // orders, so a date range spanning both shows one combined picture.
+  // Deliberately does NOT touch orderCount, topPairs, or hourlyTotals: the
+  // source data has no order/seat/time-of-day info (see historical_sales in
+  // schema.sql), only day-level item x quantity x price lines, so there's
+  // nothing honest to count as an "order", a pairing, or a time of day.
   let historicalRevenue = 0;
   type RawHistorical = {
     sale_date: string;
@@ -731,6 +834,8 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
     day.revenue += revenue;
     dailyMap.set(h.sale_date, day);
 
+    weekdayRevenue[weekdayOf(h.sale_date)] += revenue;
+
     // Matched items merge into the same bucket a live order for that code
     // would use, so a bestseller's total reflects both eras. Unmatched
     // items get their own synthetic key (never collides with a real
@@ -741,20 +846,51 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
     existing.revenue += revenue;
     itemMap.set(key, existing);
 
-    const category = h.menu_item_code ? categoryByCode.get(h.menu_item_code) ?? "Other" : "Off-menu (historical)";
+    // Off-menu items still count toward their real category where we can
+    // tell what kind of item they were, so a discontinued burger still
+    // shows up under "Burger" rather than a catch-all "historical" bucket
+    // that erases what it actually was.
+    const category = h.menu_item_code
+      ? categoryByCode.get(h.menu_item_code) ?? "Other"
+      : HISTORICAL_CATEGORY_HINTS[h.item_name] ?? "Other (no longer on menu)";
     categoryMap.set(category, (categoryMap.get(category) ?? 0) + revenue);
   }
 
   const rankedItems = Array.from(itemMap.values()).sort((a, b) => b.qty - a.qty);
+
+  // Zero-fill every date in range so a sparsely-populated month (or one
+  // with no live orders yet) still renders as a full month instead of
+  // silently skipping straight from, say, Jul 7 to nothing — see the
+  // 366-day cap note on enumerateDates above.
+  const allDates = enumerateDates(from, to);
+  const dailyTotals =
+    allDates.length > 0
+      ? allDates.map((date) => {
+          const v = dailyMap.get(date);
+          return { date, orderCount: v?.orderCount ?? 0, revenue: v?.revenue ?? 0 };
+        })
+      : Array.from(dailyMap.entries())
+          .map(([date, v]) => ({ date, orderCount: v.orderCount, revenue: v.revenue }))
+          .sort((a, b) => a.date.localeCompare(b.date));
+
+  const weekdayOccurrences = new Array(7).fill(0);
+  for (const date of allDates.length > 0 ? allDates : []) {
+    weekdayOccurrences[weekdayOf(date)] += 1;
+  }
+  // If the range exceeded the enumeration cap, fall back to counting
+  // occurrences the direct way so weekdayTotals still has correct divisors.
+  if (allDates.length === 0) {
+    for (let i = 0; i < periodLength; i++) {
+      weekdayOccurrences[weekdayOf(addDays(from, i))] += 1;
+    }
+  }
 
   return {
     from,
     to,
     totalRevenue,
     totalOrders: Array.from(dailyMap.values()).reduce((sum, d) => sum + d.orderCount, 0),
-    dailyTotals: Array.from(dailyMap.entries())
-      .map(([date, v]) => ({ date, orderCount: v.orderCount, revenue: v.revenue }))
-      .sort((a, b) => a.date.localeCompare(b.date)),
+    dailyTotals,
     bestsellers: rankedItems.slice(0, 10),
     leastSellers: [...rankedItems].reverse().slice(0, 10),
     categoryTotals: Array.from(categoryMap.entries())
@@ -764,6 +900,19 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
       .sort((a, b) => b.count - a.count)
       .slice(0, 10),
     historicalRevenue,
+    previousPeriod,
+    hourlyTotals: hourly,
+    weekdayTotals: WEEKDAY_LABELS.map((label, weekday) => ({
+      weekday,
+      label,
+      revenue: weekdayRevenue[weekday],
+      occurrences: weekdayOccurrences[weekday],
+    })),
+    couponSummary: {
+      discountGiven: totalDiscount,
+      redeemedCount: (redeemedCoupons ?? []).length,
+      redeemedValue: (redeemedCoupons ?? []).reduce((sum, c) => sum + Number((c as { value: number }).value), 0),
+    },
   };
 }
 

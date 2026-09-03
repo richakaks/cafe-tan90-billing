@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resetOrdersInRange } from "@/lib/data";
+import { describeError } from "@/lib/errorMessage";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -18,6 +19,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("resetOrdersInRange failed", err);
-    return NextResponse.json({ error: "Could not reset orders in that range." }, { status: 500 });
+    const detail = describeError(err);
+    return NextResponse.json(
+      { error: detail ? `Could not reset orders in that range: ${detail}` : "Could not reset orders in that range." },
+      { status: 500 }
+    );
   }
 }

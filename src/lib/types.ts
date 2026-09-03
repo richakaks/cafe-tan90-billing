@@ -146,6 +146,39 @@ export interface ItemPair {
   count: number;
 }
 
+// Same-length period immediately before the one selected (e.g. the 7 days
+// before "last 7 days", or last month for "this month") — powers the
+// up/down trend badges on the summary cards. Null when the selected range
+// starts so far back that a "previous period" isn't meaningful to compute
+// (currently always computed, but kept nullable for future flexibility).
+export interface PeriodTotals {
+  revenue: number;
+  orders: number;
+}
+
+export interface HourlyTotal {
+  hour: number; // 0-23, Asia/Bangkok local hour
+  orderCount: number;
+  revenue: number;
+}
+
+export interface WeekdayTotal {
+  weekday: number; // 0 = Sunday .. 6 = Saturday
+  label: string;
+  revenue: number;
+  // How many calendar dates of this weekday fall within the selected range
+  // (counted whether or not they had any sales) — lets the UI show a fair
+  // per-weekday average instead of just a total skewed by how many of each
+  // weekday happened to fall in the range.
+  occurrences: number;
+}
+
+export interface CouponSummary {
+  discountGiven: number;
+  redeemedCount: number;
+  redeemedValue: number;
+}
+
 export interface SalesAnalytics {
   from: string;
   to: string;
@@ -162,6 +195,15 @@ export interface SalesAnalytics {
   // day-level item x quantity x price lines, so there's nothing honest to
   // count as an "order" for them.
   historicalRevenue: number;
+  // The same-length period immediately preceding [from, to] — e.g. from
+  // Jul 1-7 this is Jun 24-30. Used for the "vs previous period" badges.
+  previousPeriod: PeriodTotals;
+  // Live orders only, grouped by hour of day (Asia/Bangkok) — the imported
+  // historical log has no time-of-day data to contribute here.
+  hourlyTotals: HourlyTotal[];
+  // Live + historical revenue combined, grouped by weekday.
+  weekdayTotals: WeekdayTotal[];
+  couponSummary: CouponSummary;
 }
 
 export interface MenuItemAdminView extends MenuItem {

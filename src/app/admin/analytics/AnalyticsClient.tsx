@@ -5,29 +5,83 @@ import type { SalesAnalytics } from "@/lib/types";
 import { RangeResetOrdersButton, ResetButton } from "@/components/OrdersDangerZone";
 
 function formatBaht(amount: number): string {
-  return `฿${amount.toLocaleString("en-US", { minimumFractionDigits: 0 })}`;
+  return `฿${amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
+// ---------------------------------------------------------------------------
+// Pure calendar-date helpers, Asia/Bangkok for anything anchored to "today"
+// (Today/This month jump targets), otherwise plain UTC date-string math —
+// these are just calendar labels, not instants, so UTC increments avoid any
+// DST surprise without needing a timezone-aware library.
+// ---------------------------------------------------------------------------
 function todayIso(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
 }
-
-function daysAgoIso(n: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(d);
+function addDaysIso(iso: string, n: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
 }
-
-function firstOfMonthIso(): string {
-  const today = todayIso();
-  return `${today.slice(0, 7)}-01`;
+function monthOf(iso: string): string {
+  return iso.slice(0, 7);
+}
+function firstOfMonth(monthIso: string): string {
+  return `${monthIso}-01`;
+}
+function lastOfMonth(monthIso: string): string {
+  const [y, m] = monthIso.split("-").map(Number);
+  return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+}
+function addMonths(monthIso: string, n: number): string {
+  const [y, m] = monthIso.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + n, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+function monthLabel(monthIso: string): string {
+  return new Date(`${monthIso}-01T00:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+}
+function dayLabel(iso: string): string {
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
 }
 
 const PIE_COLORS = ["#101a3d", "#2c3f85", "#d9a441", "#1c8a4c", "#b8790f", "#b3372c", "#6b7db0", "#8a6d3b"];
 
+type ViewMode = "day" | "month" | "custom";
+
+// Small up/down badge comparing the current period's number to the same
+// number for the immediately preceding period of equal length. Null previous
+// value with a nonzero current one reads as "New" (nothing to compare
+// against, e.g. the very first tracked period); both zero renders nothing.
+function TrendBadge({ current, previous }: { current: number; previous: number }) {
+  if (previous === 0 && current === 0) return null;
+  if (previous === 0) {
+    return <span className="ml-2 rounded-full bg-status-good/15 px-1.5 py-0.5 text-[10px] font-medium text-status-good">New</span>;
+  }
+  const pct = ((current - previous) / previous) * 100;
+  const flat = Math.abs(pct) < 0.5;
+  const positive = pct >= 0;
+  return (
+    <span
+      className={`ml-2 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+        flat ? "bg-navy-100 text-navy-600" : positive ? "bg-status-good/15 text-status-good" : "bg-status-out/15 text-status-out"
+      }`}
+      title="vs. the same-length period right before this one"
+    >
+      {flat ? "±0%" : `${positive ? "▲" : "▼"} ${Math.abs(pct).toFixed(0)}%`}
+    </span>
+  );
+}
+
 export default function AnalyticsClient() {
-  const [from, setFrom] = useState(firstOfMonthIso());
-  const [to, setTo] = useState(todayIso());
+  const [mode, setMode] = useState<ViewMode>("month");
+  const [day, setDay] = useState(todayIso());
+  const [month, setMonth] = useState(monthOf(todayIso()));
+  const [customFrom, setCustomFrom] = useState(monthOf(todayIso()) + "-01");
+  const [customTo, setCustomTo] = useState(todayIso());
+
+  const from = mode === "day" ? day : mode === "month" ? firstOfMonth(month) : customFrom;
+  const to = mode === "day" ? day : mode === "month" ? lastOfMonth(month) : customTo;
+
   const [data, setData] = useState<SalesAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +114,14 @@ export default function AnalyticsClient() {
   }, [from, to]);
 
   const maxDaily = useMemo(() => Math.max(1, ...(data?.dailyTotals.map((d) => d.revenue) ?? [1])), [data]);
+  const maxHourly = useMemo(() => Math.max(1, ...(data?.hourlyTotals.map((h) => h.revenue) ?? [1])), [data]);
+  const daysWithSales = useMemo(() => data?.dailyTotals.filter((d) => d.revenue > 0).length ?? 0, [data]);
+  const hasAnySales = useMemo(() => (data?.dailyTotals.some((d) => d.revenue > 0) ?? false), [data]);
+  const hasLiveHourlyData = useMemo(() => (data?.hourlyTotals.some((h) => h.orderCount > 0) ?? false), [data]);
+  const sortedWeekdays = useMemo(
+    () => (data ? [...data.weekdayTotals].sort((a, b) => b.revenue - a.revenue) : []),
+    [data]
+  );
 
   const pieGradient = useMemo(() => {
     if (!data || data.categoryTotals.length === 0) return "";
@@ -74,34 +136,125 @@ export default function AnalyticsClient() {
     return `conic-gradient(${stops.join(", ")})`;
   }, [data]);
 
+  const tabs: { key: ViewMode; label: string }[] = [
+    { key: "day", label: "Day" },
+    { key: "month", label: "Month" },
+    { key: "custom", label: "Custom" },
+  ];
+
   return (
     <div className="space-y-8">
-      <div className="card flex flex-wrap items-end gap-3 p-5">
-        <label className="flex flex-col gap-1 text-sm text-navy-800">
-          From
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="rounded-md border border-card-border px-3 py-2 text-sm" />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-navy-800">
-          To
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="rounded-md border border-card-border px-3 py-2 text-sm" />
-        </label>
-        <div className="flex gap-2">
-          <button onClick={() => { setFrom(todayIso()); setTo(todayIso()); }} className="rounded-md border border-card-border px-3 py-2 text-xs font-medium text-navy-900 hover:bg-navy-100">
-            Today
-          </button>
-          <button onClick={() => { setFrom(daysAgoIso(6)); setTo(todayIso()); }} className="rounded-md border border-card-border px-3 py-2 text-xs font-medium text-navy-900 hover:bg-navy-100">
-            Last 7 days
-          </button>
-          <button onClick={() => { setFrom(firstOfMonthIso()); setTo(todayIso()); }} className="rounded-md border border-card-border px-3 py-2 text-xs font-medium text-navy-900 hover:bg-navy-100">
-            This month
-          </button>
+      <div className="card space-y-3 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex gap-1 rounded-md border border-card-border p-1">
+            {tabs.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setMode(t.key)}
+                className={`rounded px-3 py-1.5 text-xs font-medium ${
+                  mode === t.key ? "bg-navy-900 text-white" : "text-navy-800 hover:bg-navy-100"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <a
+            href={`/api/analytics/export?from=${from}&to=${to}`}
+            className="rounded-md bg-navy-900 px-3 py-2 text-xs font-medium text-white hover:bg-navy-800"
+          >
+            Export orders (CSV)
+          </a>
         </div>
-        <a
-          href={`/api/analytics/export?from=${from}&to=${to}`}
-          className="ml-auto rounded-md bg-navy-900 px-3 py-2 text-xs font-medium text-white hover:bg-navy-800"
-        >
-          Export orders (CSV)
-        </a>
+
+        {mode === "day" && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setDay((d) => addDaysIso(d, -1))}
+              className="rounded-md border border-card-border px-3 py-2 text-xs font-medium text-navy-900 hover:bg-navy-100"
+            >
+              &larr; Prev day
+            </button>
+            <input
+              type="date"
+              value={day}
+              max={todayIso()}
+              onChange={(e) => e.target.value && setDay(e.target.value)}
+              className="rounded-md border border-card-border px-3 py-2 text-sm"
+            />
+            <button
+              onClick={() => setDay((d) => addDaysIso(d, 1))}
+              disabled={day >= todayIso()}
+              className="rounded-md border border-card-border px-3 py-2 text-xs font-medium text-navy-900 hover:bg-navy-100 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Next day &rarr;
+            </button>
+            <button
+              onClick={() => setDay(todayIso())}
+              className="rounded-md border border-card-border px-3 py-2 text-xs font-medium text-navy-900 hover:bg-navy-100"
+            >
+              Today
+            </button>
+            <span className="text-xs text-navy-600">{dayLabel(day)}</span>
+          </div>
+        )}
+
+        {mode === "month" && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setMonth((m) => addMonths(m, -1))}
+              className="rounded-md border border-card-border px-3 py-2 text-xs font-medium text-navy-900 hover:bg-navy-100"
+            >
+              &larr; Prev month
+            </button>
+            <span className="min-w-[9rem] text-center text-sm font-medium text-navy-950">{monthLabel(month)}</span>
+            <button
+              onClick={() => setMonth((m) => addMonths(m, 1))}
+              disabled={month >= monthOf(todayIso())}
+              className="rounded-md border border-card-border px-3 py-2 text-xs font-medium text-navy-900 hover:bg-navy-100 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Next month &rarr;
+            </button>
+            <button
+              onClick={() => setMonth(monthOf(todayIso()))}
+              className="rounded-md border border-card-border px-3 py-2 text-xs font-medium text-navy-900 hover:bg-navy-100"
+            >
+              This month
+            </button>
+          </div>
+        )}
+
+        {mode === "custom" && (
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-1 text-sm text-navy-800">
+              From
+              <input
+                type="date"
+                value={customFrom}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                className="rounded-md border border-card-border px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm text-navy-800">
+              To
+              <input
+                type="date"
+                value={customTo}
+                onChange={(e) => setCustomTo(e.target.value)}
+                className="rounded-md border border-card-border px-3 py-2 text-sm"
+              />
+            </label>
+            <button
+              onClick={() => {
+                setCustomFrom(addDaysIso(todayIso(), -6));
+                setCustomTo(todayIso());
+              }}
+              className="rounded-md border border-card-border px-3 py-2 text-xs font-medium text-navy-900 hover:bg-navy-100"
+            >
+              Last 7 days
+            </button>
+          </div>
+        )}
       </div>
       <p className="-mt-4 text-xs text-navy-600">
         Export covers whatever range is selected above — pick any past dates, including previous months, before downloading.
@@ -115,42 +268,57 @@ export default function AnalyticsClient() {
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div className="card p-4">
               <p className="text-xs text-navy-600">Revenue</p>
-              <p className="mt-1 text-lg font-semibold text-navy-950">{formatBaht(data.totalRevenue)}</p>
+              <p className="mt-1 flex items-baseline text-lg font-semibold text-navy-950">
+                {formatBaht(data.totalRevenue)}
+                <TrendBadge current={data.totalRevenue} previous={data.previousPeriod.revenue} />
+              </p>
             </div>
             <div className="card p-4">
               <p className="text-xs text-navy-600">Orders</p>
-              <p className="mt-1 text-lg font-semibold text-navy-950">{data.totalOrders}</p>
+              <p className="mt-1 flex items-baseline text-lg font-semibold text-navy-950">
+                {data.totalOrders}
+                <TrendBadge current={data.totalOrders} previous={data.previousPeriod.orders} />
+              </p>
             </div>
             <div className="card p-4">
               <p className="text-xs text-navy-600">Avg. order</p>
-              <p className="mt-1 text-lg font-semibold text-navy-950">
+              <p className="mt-1 flex items-baseline text-lg font-semibold text-navy-950">
                 {formatBaht(data.totalOrders ? data.totalRevenue / data.totalOrders : 0)}
+                <TrendBadge
+                  current={data.totalOrders ? data.totalRevenue / data.totalOrders : 0}
+                  previous={data.previousPeriod.orders ? data.previousPeriod.revenue / data.previousPeriod.orders : 0}
+                />
               </p>
             </div>
             <div className="card p-4">
               <p className="text-xs text-navy-600">Days with sales</p>
-              <p className="mt-1 text-lg font-semibold text-navy-950">{data.dailyTotals.length}</p>
+              <p className="mt-1 text-lg font-semibold text-navy-950">{daysWithSales}</p>
             </div>
           </div>
           {data.historicalRevenue > 0 && (
             <p className="-mt-4 text-xs text-navy-600">
               Includes {formatBaht(data.historicalRevenue)} from imported historical sales (before online ordering
-              started) — those don&apos;t have per-order data, so Orders/Avg. order only count real orders placed
-              through the app.
+              started) — those don&apos;t have per-order data, so Orders/Avg. order and the trend badges above only
+              count real orders placed through the app.
             </p>
           )}
+          <p className="-mt-4 text-xs text-navy-600">
+            Trend badges compare this period to the same-length period right before it.
+          </p>
 
           <div className="card p-5">
             <h2 className="text-sm font-semibold text-navy-950">Daily sales</h2>
-            {data.dailyTotals.length === 0 ? (
+            {!hasAnySales ? (
               <p className="mt-2 text-sm text-navy-600">No sales in this range.</p>
             ) : (
-              <div className="mt-3 space-y-1.5">
+              <div className="mt-3 max-h-96 space-y-1.5 overflow-y-auto pr-1">
                 {data.dailyTotals.map((d) => (
                   <div key={d.date} className="flex items-center gap-3">
-                    <span className="w-20 shrink-0 text-xs text-navy-600">{new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                    <span className="w-20 shrink-0 text-xs text-navy-600">
+                      {new Date(`${d.date}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+                    </span>
                     <div className="h-4 flex-1 rounded bg-navy-100">
-                      <div className="h-4 rounded bg-navy-900" style={{ width: `${Math.max(2, (d.revenue / maxDaily) * 100)}%` }} />
+                      <div className="h-4 rounded bg-navy-900" style={{ width: `${d.revenue > 0 ? Math.max(2, (d.revenue / maxDaily) * 100) : 0}%` }} />
                     </div>
                     <span className="w-20 shrink-0 text-right text-xs text-navy-800">{formatBaht(d.revenue)}</span>
                   </div>
@@ -201,23 +369,86 @@ export default function AnalyticsClient() {
             </div>
           </div>
 
-          <div className="card p-5">
-            <h2 className="text-sm font-semibold text-navy-950">Sales by category</h2>
-            {data.categoryTotals.length === 0 ? (
-              <p className="mt-2 text-sm text-navy-600">No sales in this range.</p>
-            ) : (
-              <div className="mt-3 flex flex-wrap items-center gap-6">
-                <div className="h-32 w-32 shrink-0 rounded-full" style={{ background: pieGradient }} />
-                <ul className="space-y-1 text-sm text-navy-800">
-                  {data.categoryTotals.map((c, i) => (
-                    <li key={c.category} className="flex items-center gap-2">
-                      <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
-                      {c.category} &middot; {formatBaht(c.revenue)}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="card p-5">
+              <h2 className="text-sm font-semibold text-navy-950">Sales by category</h2>
+              {data.categoryTotals.length === 0 ? (
+                <p className="mt-2 text-sm text-navy-600">No sales in this range.</p>
+              ) : (
+                <div className="mt-3 flex flex-wrap items-center gap-6">
+                  <div className="h-32 w-32 shrink-0 rounded-full" style={{ background: pieGradient }} />
+                  <ul className="space-y-1 text-sm text-navy-800">
+                    {data.categoryTotals.map((c, i) => (
+                      <li key={c.category} className="flex items-center gap-2">
+                        <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                        {c.category} &middot; {formatBaht(c.revenue)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            <div className="card p-5">
+              <h2 className="text-sm font-semibold text-navy-950">Best day of the week</h2>
+              <p className="mt-1 text-xs text-navy-600">Revenue by weekday within this range, with a fair per-occurrence average.</p>
+              {data.weekdayTotals.every((w) => w.revenue === 0) ? (
+                <p className="mt-2 text-sm text-navy-600">No sales in this range.</p>
+              ) : (
+                <ul className="mt-3 space-y-1.5 text-sm text-navy-800">
+                  {sortedWeekdays.map((w) => (
+                    <li key={w.weekday} className="flex justify-between gap-3">
+                      <span>{w.label}</span>
+                      <span className="text-navy-600">
+                        {formatBaht(w.revenue)}
+                        {w.occurrences > 0 && <span className="text-navy-400"> &middot; avg {formatBaht(w.revenue / w.occurrences)}/day</span>}
+                      </span>
                     </li>
                   ))}
                 </ul>
-              </div>
-            )}
+              )}
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="card p-5">
+              <h2 className="text-sm font-semibold text-navy-950">Peak ordering hours</h2>
+              <p className="mt-1 text-xs text-navy-600">
+                Live orders only, Bangkok time — the imported historical log has no time-of-day data to include here.
+              </p>
+              {!hasLiveHourlyData ? (
+                <p className="mt-2 text-sm text-navy-600">No live app orders in this range yet.</p>
+              ) : (
+                <div className="mt-4 flex h-28 items-end gap-0.5">
+                  {data.hourlyTotals.map((h) => (
+                    <div key={h.hour} className="flex h-full flex-1 flex-col items-center justify-end" title={`${h.hour}:00 — ${formatBaht(h.revenue)}, ${h.orderCount} orders`}>
+                      <div
+                        className="w-full rounded-t bg-navy-900"
+                        style={{ height: `${h.revenue > 0 ? Math.max(3, (h.revenue / maxHourly) * 100) : 0}%` }}
+                      />
+                      {h.hour % 3 === 0 && <span className="mt-1 text-[9px] text-navy-500">{h.hour}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="card p-5">
+              <h2 className="text-sm font-semibold text-navy-950">Coupons &amp; discounts</h2>
+              <p className="mt-1 text-xs text-navy-600">Within this range.</p>
+              <ul className="mt-3 space-y-1.5 text-sm text-navy-800">
+                <li className="flex justify-between">
+                  <span>Discount given on bills</span>
+                  <span className="text-navy-600">{formatBaht(data.couponSummary.discountGiven)}</span>
+                </li>
+                <li className="flex justify-between">
+                  <span>Coupons redeemed</span>
+                  <span className="text-navy-600">
+                    {data.couponSummary.redeemedCount} &middot; {formatBaht(data.couponSummary.redeemedValue)}
+                  </span>
+                </li>
+              </ul>
+            </div>
           </div>
 
           <div className="card p-5">
