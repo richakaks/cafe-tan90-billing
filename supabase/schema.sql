@@ -579,6 +579,13 @@ create table if not exists stock_adjustments (
   created_at timestamptz not null default now()
 );
 
+-- Idempotent: price_paid was added after the table already existed in
+-- production databases (Round 13). Total THB paid for that restock, not a
+-- per-unit rate -- optional, and only meaningful on a positive (+Restock)
+-- delta; the app never sets it on a negative (-Use) entry.
+alter table stock_adjustments
+  add column if not exists price_paid numeric;
+
 create index if not exists stock_adjustments_ingredient_id_idx on stock_adjustments(ingredient_id);
 
 alter table stock_adjustments enable row level security;
@@ -667,6 +674,50 @@ begin
   delete from orders where order_date between p_from and p_to;
 end;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Historical sales: a one-time import (Round 14) of the owner's pre-app
+-- paper/spreadsheet sales log (27-May-2026 through early Aug-2026), kept
+-- entirely separate from the live `orders`/`order_items` tables so it can
+-- never interact with billing, inventory deduction, or the
+-- orders_immediate_requires_seat constraint above — it only feeds
+-- Sales & Analytics (getSalesAnalytics reads both tables and merges them).
+--
+-- Every line item from the source is imported, including ones whose name
+-- doesn't match any current menu item (menu_item_code stays null for
+-- those) — the owner asked for these to be kept for sales history and used
+-- in analytics too, just visibly flagged as no longer on the menu, rather
+-- than silently dropped. source_row_id is a fixed identifier assigned at
+-- import time purely so re-pasting the one-time import SQL is a no-op
+-- instead of duplicating rows.
+--
+-- price_source records where unit_price/total_revenue came from:
+--   'recorded'      — the real price the owner logged at the time (May/Jun/Jul)
+--   'reconstructed' — August's price columns were broken (#REF! formula
+--                     errors) in the source sheet, so the price shown is
+--                     today's app price for the matched item, per the
+--                     owner's instruction
+--   'unknown'       — August row with no menu match, so there's no current
+--                     price to reconstruct from either; unit_price/total_revenue are null
+-- ---------------------------------------------------------------------------
+create table if not exists historical_sales (
+  id bigserial primary key,
+  source_row_id integer not null unique,
+  sale_date date not null,
+  item_name text not null,
+  menu_item_code text references menu_items(code) on delete set null,
+  quantity integer not null check (quantity > 0),
+  unit_price numeric,
+  total_revenue numeric,
+  price_source text not null check (price_source in ('recorded', 'reconstructed', 'unknown')),
+  payment_note text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists historical_sales_sale_date_idx on historical_sales(sale_date);
+create index if not exists historical_sales_menu_item_code_idx on historical_sales(menu_item_code);
+
+alter table historical_sales enable row level security;
 
 -- ---------------------------------------------------------------------------
 -- Explicit grants for the service role. Newer Supabase projects no longer

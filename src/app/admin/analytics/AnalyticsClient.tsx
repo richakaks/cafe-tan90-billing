@@ -132,6 +132,13 @@ export default function AnalyticsClient() {
               <p className="mt-1 text-lg font-semibold text-navy-950">{data.dailyTotals.length}</p>
             </div>
           </div>
+          {data.historicalRevenue > 0 && (
+            <p className="-mt-4 text-xs text-navy-600">
+              Includes {formatBaht(data.historicalRevenue)} from imported historical sales (before online ordering
+              started) — those don&apos;t have per-order data, so Orders/Avg. order only count real orders placed
+              through the app.
+            </p>
+          )}
 
           <div className="card p-5">
             <h2 className="text-sm font-semibold text-navy-950">Daily sales</h2>
@@ -157,9 +164,16 @@ export default function AnalyticsClient() {
               <h2 className="text-sm font-semibold text-navy-950">Bestsellers</h2>
               <ol className="mt-3 space-y-1.5 text-sm text-navy-800">
                 {data.bestsellers.map((it, i) => (
-                  <li key={it.code} className="flex justify-between">
-                    <span>{i + 1}. {it.name}</span>
-                    <span className="text-navy-600">{it.qty} sold</span>
+                  <li key={it.code} className="flex justify-between gap-3">
+                    <span>
+                      {i + 1}. {it.name}
+                      {it.offMenu && (
+                        <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">
+                          no longer on menu
+                        </span>
+                      )}
+                    </span>
+                    <span className="shrink-0 text-navy-600">{it.qty} sold</span>
                   </li>
                 ))}
                 {data.bestsellers.length === 0 && <p className="text-navy-600">No sales yet.</p>}
@@ -170,9 +184,16 @@ export default function AnalyticsClient() {
               <p className="mt-1 text-xs text-navy-600">Worth a promotion push.</p>
               <ol className="mt-3 space-y-1.5 text-sm text-navy-800">
                 {data.leastSellers.map((it, i) => (
-                  <li key={it.code} className="flex justify-between">
-                    <span>{i + 1}. {it.name}</span>
-                    <span className="text-navy-600">{it.qty} sold</span>
+                  <li key={it.code} className="flex justify-between gap-3">
+                    <span>
+                      {i + 1}. {it.name}
+                      {it.offMenu && (
+                        <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">
+                          no longer on menu
+                        </span>
+                      )}
+                    </span>
+                    <span className="shrink-0 text-navy-600">{it.qty} sold</span>
                   </li>
                 ))}
                 {data.leastSellers.length === 0 && <p className="text-navy-600">No sales yet.</p>}

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import type { Ingredient, StockAdjustmentRow } from "@/lib/types";
+import type { Ingredient, LastRestockPrice, StockAdjustmentRow } from "@/lib/types";
 import { ingredientAlertStatus } from "@/lib/stock";
 import { RangeResetOrdersButton, ResetButton } from "@/components/OrdersDangerZone";
 
@@ -23,8 +23,17 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function Row({ ingredient, onChanged }: { ingredient: Ingredient; onChanged: () => void }) {
+function Row({
+  ingredient,
+  lastRestock,
+  onChanged,
+}: {
+  ingredient: Ingredient;
+  lastRestock?: LastRestockPrice;
+  onChanged: () => void;
+}) {
   const [amount, setAmount] = useState("");
+  const [price, setPrice] = useState("");
   const [threshold, setThreshold] = useState(String(ingredient.lowStockThreshold));
   const [busy, setBusy] = useState(false);
   const status = statusFor(ingredient);
@@ -32,14 +41,20 @@ function Row({ ingredient, onChanged }: { ingredient: Ingredient; onChanged: () 
   async function restock(sign: 1 | -1) {
     const n = Number(amount);
     if (!n || n <= 0) return;
+    // Price paid is only meaningful for a +Restock (buying more), never for
+    // a -Use entry — sending it on a use-up would misrepresent what it cost
+    // to buy the ingredient, since a use-up doesn't buy anything.
+    const p = sign === 1 && price.trim() !== "" ? Number(price) : undefined;
+    if (p !== undefined && (Number.isNaN(p) || p < 0)) return;
     setBusy(true);
     try {
       await fetch(`/api/inventory/${ingredient.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ delta: sign * n }),
+        body: JSON.stringify({ delta: sign * n, ...(p !== undefined ? { pricePaid: p } : {}) }),
       });
       setAmount("");
+      setPrice("");
       onChanged();
     } finally {
       setBusy(false);
@@ -72,7 +87,7 @@ function Row({ ingredient, onChanged }: { ingredient: Ingredient; onChanged: () 
         {ingredient.currentStock} {ingredient.unit}
       </td>
       <td className="py-3 pr-3">
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1">
           <input
             type="number"
             min={0}
@@ -80,6 +95,15 @@ function Row({ ingredient, onChanged }: { ingredient: Ingredient; onChanged: () 
             onChange={(e) => setAmount(e.target.value)}
             placeholder="Amount"
             className="w-20 rounded-md border border-card-border px-2 py-1 text-sm"
+          />
+          <input
+            type="number"
+            min={0}
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            placeholder="฿ paid (optional)"
+            title="Total price paid for this restock — leave blank if unknown"
+            className="w-28 rounded-md border border-card-border px-2 py-1 text-sm"
           />
           <button
             disabled={busy}
@@ -96,6 +120,12 @@ function Row({ ingredient, onChanged }: { ingredient: Ingredient; onChanged: () 
             − Use
           </button>
         </div>
+        {lastRestock && (
+          <p className="mt-1 text-xs text-navy-600">
+            Last bought: +{lastRestock.delta} {ingredient.unit} for ฿{lastRestock.pricePaid.toLocaleString("en-US")} ·{" "}
+            {timeAgo(lastRestock.createdAt)}
+          </p>
+        )}
       </td>
       <td className="py-3">
         <div className="flex items-center gap-1">
@@ -155,9 +185,11 @@ function DangerZone() {
 export default function InventoryClient({
   initialIngredients,
   initialAdjustments,
+  lastRestockPrices,
 }: {
   initialIngredients: Ingredient[];
   initialAdjustments: StockAdjustmentRow[];
+  lastRestockPrices: Record<string, LastRestockPrice>;
 }) {
   const [ingredients] = useState(initialIngredients);
   const [adjustments] = useState(initialAdjustments);
@@ -232,7 +264,7 @@ export default function InventoryClient({
           </thead>
           <tbody>
             {ingredients.map((ing) => (
-              <Row key={ing.id} ingredient={ing} onChanged={refresh} />
+              <Row key={ing.id} ingredient={ing} lastRestock={lastRestockPrices[ing.id]} onChanged={refresh} />
             ))}
           </tbody>
         </table>
@@ -296,6 +328,7 @@ export default function InventoryClient({
                 <span className={a.delta >= 0 ? "text-status-good" : "text-navy-700"}>
                   {a.delta >= 0 ? "+" : ""}
                   {a.delta} &rarr; {a.resultingStock}
+                  {a.pricePaid !== null && <span className="text-navy-600"> (฿{a.pricePaid.toLocaleString("en-US")})</span>}
                 </span>
                 <span className="shrink-0 text-xs text-navy-600">{timeAgo(a.createdAt)}</span>
               </li>

@@ -14,8 +14,14 @@ export async function GET(req: NextRequest) {
   try {
     const adjustments = await getStockAdjustmentsInRange(from, to);
     const csv = toCsv(
-      ["Date", "Ingredient", "Change", "Resulting stock"],
-      adjustments.map((a) => [new Date(a.createdAt).toISOString(), a.ingredientName, a.delta, a.resultingStock])
+      ["Date", "Ingredient", "Change", "Resulting stock", "Price paid (THB)"],
+      adjustments.map((a) => [
+        new Date(a.createdAt).toISOString(),
+        a.ingredientName,
+        a.delta,
+        a.resultingStock,
+        a.pricePaid ?? "",
+      ])
     );
     return new NextResponse(csv, {
       headers: {

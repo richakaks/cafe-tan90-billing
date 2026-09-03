@@ -6,6 +6,7 @@ import type {
   Ingredient,
   ItemPair,
   ItemRanking,
+  LastRestockPrice,
   MenuItemAdminView,
   MenuItemIngredientLink,
   MenuItemWithAvailability,
@@ -398,7 +399,11 @@ export async function createIngredient(name: string, unit: string, currentStock:
   if (error) throw error;
 }
 
-export async function adjustIngredientStock(id: string, delta: number): Promise<void> {
+// pricePaid: total THB paid for this restock (not a per-unit rate), owner's
+// Round 13 request so the next restock can show "last time this cost ฿X."
+// Optional — pass null/undefined for a plain restock or any "-Use" entry;
+// only meaningful when delta > 0, so the caller shouldn't send it otherwise.
+export async function adjustIngredientStock(id: string, delta: number, pricePaid?: number | null): Promise<void> {
   const { data, error: readErr } = await db().from("ingredients").select("current_stock").eq("id", id).single();
   if (readErr) throw readErr;
   const next = Math.max(0, Number(data.current_stock) + delta);
@@ -411,7 +416,7 @@ export async function adjustIngredientStock(id: string, delta: number): Promise<
   // restock itself failed — just note it server-side.
   const { error: logErr } = await db()
     .from("stock_adjustments")
-    .insert({ ingredient_id: id, delta, resulting_stock: next });
+    .insert({ ingredient_id: id, delta, resulting_stock: next, price_paid: delta > 0 ? (pricePaid ?? null) : null });
   if (logErr) console.error("stock_adjustments insert failed", logErr);
 }
 
@@ -420,6 +425,7 @@ type RawAdjustment = {
   ingredient_id: string;
   delta: number;
   resulting_stock: number;
+  price_paid: number | string | null;
   created_at: string;
   ingredients: { name: string } | { name: string }[] | null;
 };
@@ -432,8 +438,38 @@ function mapAdjustmentRow(raw: RawAdjustment): StockAdjustmentRow {
     ingredientName: ingredient?.name ?? "(deleted ingredient)",
     delta: Number(raw.delta),
     resultingStock: Number(raw.resulting_stock),
+    pricePaid: raw.price_paid === null || raw.price_paid === undefined ? null : Number(raw.price_paid),
     createdAt: raw.created_at,
   };
+}
+
+// Most recent priced restock per ingredient — powers the "last time we
+// bought this" note next to the restock control. `distinct on` picks the
+// single latest (delta > 0, price_paid recorded) row per ingredient in one
+// query rather than N per-ingredient round trips.
+export async function getLastRestockPrices(): Promise<Record<string, LastRestockPrice>> {
+  const { data, error } = await db()
+    .from("stock_adjustments")
+    .select("ingredient_id, delta, price_paid, created_at")
+    .not("price_paid", "is", null)
+    .gt("delta", 0)
+    .order("ingredient_id", { ascending: true })
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+
+  const result: Record<string, LastRestockPrice> = {};
+  for (const row of data ?? []) {
+    // Rows arrive latest-first within each ingredient_id group (secondary
+    // sort above) — keep only the first one seen per ingredient.
+    if (result[row.ingredient_id]) continue;
+    result[row.ingredient_id] = {
+      ingredientId: row.ingredient_id,
+      delta: Number(row.delta),
+      pricePaid: Number(row.price_paid),
+      createdAt: row.created_at,
+    };
+  }
+  return result;
 }
 
 export async function getRecentStockAdjustments(limit = 30): Promise<StockAdjustmentRow[]> {
@@ -606,7 +642,7 @@ export async function removeMenuItemIngredient(menuItemCode: string, ingredientI
 // closed its bill on /billing, which would make daily totals shrink over
 // the course of the day as tables paid up — exactly backwards.
 export async function getSalesAnalytics(from: string, to: string): Promise<SalesAnalytics> {
-  const [{ data: orders, error: ordersErr }, { data: menuItems, error: menuErr }] = await Promise.all([
+  const [{ data: orders, error: ordersErr }, { data: menuItems, error: menuErr }, { data: historical, error: histErr }] = await Promise.all([
     db()
       .from("orders")
       .select("id, order_date, discount_amount, order_items(menu_item_code, item_name, qty, price_at_order)")
@@ -614,9 +650,15 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
       .gte("order_date", from)
       .lte("order_date", to),
     db().from("menu_items").select("code, category"),
+    db()
+      .from("historical_sales")
+      .select("sale_date, item_name, menu_item_code, quantity, total_revenue")
+      .gte("sale_date", from)
+      .lte("sale_date", to),
   ]);
   if (ordersErr) throw ordersErr;
   if (menuErr) throw menuErr;
+  if (histErr) throw histErr;
 
   const categoryByCode = new Map((menuItems ?? []).map((m) => [m.code, m.category]));
 
@@ -665,6 +707,44 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
     }
   }
 
+  // Fold in the imported historical sales log (Round 14) — same
+  // dailyTotals/bestsellers/categoryTotals buckets as live orders, so a
+  // date range spanning both shows one combined picture. Deliberately
+  // does NOT touch orderCount or topPairs: the source data has no
+  // order/seat boundaries (see historical_sales in schema.sql), only
+  // day-level item x quantity x price lines, so there's nothing to
+  // honestly count as an "order" or pair up.
+  let historicalRevenue = 0;
+  type RawHistorical = {
+    sale_date: string;
+    item_name: string;
+    menu_item_code: string | null;
+    quantity: number;
+    total_revenue: number | null;
+  };
+  for (const h of (historical ?? []) as unknown as RawHistorical[]) {
+    const revenue = Number(h.total_revenue ?? 0);
+    historicalRevenue += revenue;
+    totalRevenue += revenue;
+
+    const day = dailyMap.get(h.sale_date) ?? { orderCount: 0, revenue: 0 };
+    day.revenue += revenue;
+    dailyMap.set(h.sale_date, day);
+
+    // Matched items merge into the same bucket a live order for that code
+    // would use, so a bestseller's total reflects both eras. Unmatched
+    // items get their own synthetic key (never collides with a real
+    // menu_items.code) and are flagged offMenu for the UI to highlight.
+    const key = h.menu_item_code ?? `hist:${h.item_name}`;
+    const existing = itemMap.get(key) ?? { code: key, name: h.item_name, qty: 0, revenue: 0, offMenu: !h.menu_item_code };
+    existing.qty += h.quantity;
+    existing.revenue += revenue;
+    itemMap.set(key, existing);
+
+    const category = h.menu_item_code ? categoryByCode.get(h.menu_item_code) ?? "Other" : "Off-menu (historical)";
+    categoryMap.set(category, (categoryMap.get(category) ?? 0) + revenue);
+  }
+
   const rankedItems = Array.from(itemMap.values()).sort((a, b) => b.qty - a.qty);
 
   return {
@@ -683,6 +763,7 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
     topPairs: Array.from(pairCounts.values())
       .sort((a, b) => b.count - a.count)
       .slice(0, 10),
+    historicalRevenue,
   };
 }
 

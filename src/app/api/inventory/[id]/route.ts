@@ -7,7 +7,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   try {
     if (typeof body.delta === "number" && body.delta !== 0) {
-      await adjustIngredientStock(id, body.delta);
+      const pricePaid = typeof body.pricePaid === "number" && body.pricePaid >= 0 ? body.pricePaid : null;
+      await adjustIngredientStock(id, body.delta, pricePaid);
     }
     if (typeof body.lowStockThreshold === "number") {
       await updateIngredientThreshold(id, body.lowStockThreshold);

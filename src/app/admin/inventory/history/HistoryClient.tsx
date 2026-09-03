@@ -110,6 +110,7 @@ export default function HistoryClient() {
                   <span className={a.delta >= 0 ? "text-status-good" : "text-navy-700"}>
                     {a.delta >= 0 ? "+" : ""}
                     {a.delta} &rarr; {a.resultingStock}
+                    {a.pricePaid !== null && <span className="text-navy-600"> (฿{a.pricePaid.toLocaleString("en-US")})</span>}
                   </span>
                   <span className="shrink-0 text-xs text-navy-600">{timeAgo(a.createdAt)}</span>
                 </li>

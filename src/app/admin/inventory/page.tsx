@@ -1,11 +1,15 @@
 import StaffHeader from "@/components/StaffHeader";
-import { getIngredients, getRecentStockAdjustments } from "@/lib/data";
+import { getIngredients, getRecentStockAdjustments, getLastRestockPrices } from "@/lib/data";
 import InventoryClient from "./InventoryClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function InventoryPage() {
-  const [ingredients, adjustments] = await Promise.all([getIngredients(), getRecentStockAdjustments()]);
+  const [ingredients, adjustments, lastRestockPrices] = await Promise.all([
+    getIngredients(),
+    getRecentStockAdjustments(),
+    getLastRestockPrices(),
+  ]);
 
   return (
     <div className="flex flex-1 flex-col">
@@ -16,7 +20,11 @@ export default async function InventoryPage() {
           Stock deducts automatically as orders come in. Restock here as deliveries arrive.
         </p>
         <div className="mt-6">
-          <InventoryClient initialIngredients={ingredients} initialAdjustments={adjustments} />
+          <InventoryClient
+            initialIngredients={ingredients}
+            initialAdjustments={adjustments}
+            lastRestockPrices={lastRestockPrices}
+          />
         </div>
       </main>
     </div>

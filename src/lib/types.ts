@@ -126,6 +126,11 @@ export interface ItemRanking {
   name: string;
   qty: number;
   revenue: number;
+  // true only for historical-sales entries that never matched a current
+  // menu item (see historical_sales.menu_item_code in schema.sql) — shown
+  // in the UI as "no longer on the menu". Always false/absent for anything
+  // backed by a real menu_items row.
+  offMenu?: boolean;
 }
 
 export interface CategoryTotal {
@@ -151,6 +156,12 @@ export interface SalesAnalytics {
   leastSellers: ItemRanking[];
   categoryTotals: CategoryTotal[];
   topPairs: ItemPair[];
+  // Portion of totalRevenue that came from the imported historical sales
+  // log (pre-dates the app) rather than live orders. totalOrders does NOT
+  // include these — the source data has no order/seat boundaries, only
+  // day-level item x quantity x price lines, so there's nothing honest to
+  // count as an "order" for them.
+  historicalRevenue: number;
 }
 
 export interface MenuItemAdminView extends MenuItem {
@@ -167,5 +178,16 @@ export interface StockAdjustmentRow {
   ingredientName: string;
   delta: number;
   resultingStock: number;
+  pricePaid: number | null;
+  createdAt: string;
+}
+
+// Most recent *priced* restock (positive delta with a price_paid recorded)
+// for one ingredient -- the "last time we bought this, it cost ฿X" note
+// shown next to the restock control on /admin/inventory.
+export interface LastRestockPrice {
+  ingredientId: string;
+  delta: number;
+  pricePaid: number;
   createdAt: string;
 }

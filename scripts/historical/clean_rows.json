@@ -1,0 +1,3552 @@
+[
+ {
+  "date": "2026-05-27",
+  "raw_date": "27-May-2026",
+  "item_name": "Masala Tea",
+  "quantity": 4,
+  "unit_price": 35.0,
+  "total_revenue": 140.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-27",
+  "raw_date": "27-May-2026",
+  "item_name": "Chicken Katti Roll",
+  "quantity": 3,
+  "unit_price": 45.0,
+  "total_revenue": 135.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-27",
+  "raw_date": "27-May-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 3,
+  "unit_price": 55.0,
+  "total_revenue": 165.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-27",
+  "raw_date": "27-May-2026",
+  "item_name": "Double Trouble Burger",
+  "quantity": 1,
+  "unit_price": 75.0,
+  "total_revenue": 75.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-27",
+  "raw_date": "27-May-2026",
+  "item_name": "Lemon Iced Tea",
+  "quantity": 3,
+  "unit_price": 45.0,
+  "total_revenue": 135.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-27",
+  "raw_date": "27-May-2026",
+  "item_name": "Grilled Cheese Sandwich",
+  "quantity": 1,
+  "unit_price": 40.0,
+  "total_revenue": 40.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-27",
+  "raw_date": "27-May-2026",
+  "item_name": "Black Coffee",
+  "quantity": 1,
+  "unit_price": 30.0,
+  "total_revenue": 30.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-27",
+  "raw_date": "27-May-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 2,
+  "unit_price": 50.0,
+  "total_revenue": 100.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-28",
+  "raw_date": "28-May-2026",
+  "item_name": "Lemon Iced Tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-28",
+  "raw_date": "28-May-2026",
+  "item_name": "Chicken Katti Roll",
+  "quantity": 2,
+  "unit_price": 75.0,
+  "total_revenue": 150.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-28",
+  "raw_date": "28-May-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 2,
+  "unit_price": 50.0,
+  "total_revenue": 100.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-28",
+  "raw_date": "28-May-2026",
+  "item_name": "Maggie",
+  "quantity": 2,
+  "unit_price": 35.0,
+  "total_revenue": 70.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-28",
+  "raw_date": "28-May-2026",
+  "item_name": "Grilled Cheese Sandwich",
+  "quantity": 4,
+  "unit_price": 50.0,
+  "total_revenue": 200.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-28",
+  "raw_date": "28-May-2026",
+  "item_name": "Thai Milk Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-29",
+  "raw_date": "29-May-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-29",
+  "raw_date": "29-May-2026",
+  "item_name": "Grilled Cheese Sandwich",
+  "quantity": 2,
+  "unit_price": 50.0,
+  "total_revenue": 100.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-29",
+  "raw_date": "29-May-2026",
+  "item_name": "water",
+  "quantity": 1,
+  "unit_price": 10.0,
+  "total_revenue": 10.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-29",
+  "raw_date": "29-May-2026",
+  "item_name": "Chicken Cheese Sandwich",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-29",
+  "raw_date": "29-May-2026",
+  "item_name": "Milk Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-29",
+  "raw_date": "29-May-2026",
+  "item_name": "Milk Coffee",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": "Cash",
+  "voucher": null
+ },
+ {
+  "date": "2026-05-29",
+  "raw_date": "29-May-2026",
+  "item_name": "Lemon Iced Tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-29",
+  "raw_date": "29-May-2026",
+  "item_name": "French Fries",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-29",
+  "raw_date": "29-May-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-29",
+  "raw_date": "29-May-2026",
+  "item_name": "Thai Milk Tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-29",
+  "raw_date": "29-May-2026",
+  "item_name": "Lemon Iced Tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-29",
+  "raw_date": "29-May-2026",
+  "item_name": "Chicken Cheese Sandwich",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-05-29",
+  "raw_date": "29-May-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-03",
+  "raw_date": "3-Jun-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-03",
+  "raw_date": "3-Jun-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-03",
+  "raw_date": "3-Jun-2026",
+  "item_name": "Double Trouble Burger",
+  "quantity": 1,
+  "unit_price": 75.0,
+  "total_revenue": 75.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-03",
+  "raw_date": "3-Jun-2026",
+  "item_name": "Milk Coffee",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-03",
+  "raw_date": "3-Jun-2026",
+  "item_name": "Lemon Iced Tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-03",
+  "raw_date": "3-Jun-2026",
+  "item_name": "Milk Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-03",
+  "raw_date": "3-Jun-2026",
+  "item_name": "Chicken Katti Roll",
+  "quantity": 1,
+  "unit_price": 65.0,
+  "total_revenue": 65.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-03",
+  "raw_date": "3-Jun-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-03",
+  "raw_date": "3-Jun-2026",
+  "item_name": "Chicken Katti Roll",
+  "quantity": 1,
+  "unit_price": 65.0,
+  "total_revenue": 65.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-03",
+  "raw_date": "3-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-03",
+  "raw_date": "3-Jun-2026",
+  "item_name": "Chicken cheese sandwich",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-03",
+  "raw_date": "3-Jun-2026",
+  "item_name": "Black Coffee",
+  "quantity": 1,
+  "unit_price": 30.0,
+  "total_revenue": 30.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-03",
+  "raw_date": "3-Jun-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-04",
+  "raw_date": "4-Jun-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 2,
+  "unit_price": 60.0,
+  "total_revenue": 120.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-04",
+  "raw_date": "4-Jun-2026",
+  "item_name": "Masala tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-04",
+  "raw_date": "4-Jun-2026",
+  "item_name": "Milk Coffee",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-04",
+  "raw_date": "4-Jun-2026",
+  "item_name": "Masala tea",
+  "quantity": 4,
+  "unit_price": 35.0,
+  "total_revenue": 140.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-04",
+  "raw_date": "4-Jun-2026",
+  "item_name": "Masala tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-04",
+  "raw_date": "4-Jun-2026",
+  "item_name": "Lemon Ginger Tea",
+  "quantity": 2,
+  "unit_price": 35.0,
+  "total_revenue": 70.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-04",
+  "raw_date": "4-Jun-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-05",
+  "raw_date": "5-Jun-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 2,
+  "unit_price": 60.0,
+  "total_revenue": 120.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-05",
+  "raw_date": "5-Jun-2026",
+  "item_name": "Lemon Ginger Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-05",
+  "raw_date": "5-Jun-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-05",
+  "raw_date": "5-Jun-2026",
+  "item_name": "Masala tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-05",
+  "raw_date": "5-Jun-2026",
+  "item_name": "Black Coffee",
+  "quantity": 1,
+  "unit_price": 30.0,
+  "total_revenue": 30.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-05",
+  "raw_date": "5-Jun-2026",
+  "item_name": "Masala tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-05",
+  "raw_date": "5-Jun-2026",
+  "item_name": "Masala tea",
+  "quantity": 2,
+  "unit_price": 35.0,
+  "total_revenue": 70.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-05",
+  "raw_date": "5-Jun-2026",
+  "item_name": "Chicken Katti Roll",
+  "quantity": 1,
+  "unit_price": 65.0,
+  "total_revenue": 65.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-05",
+  "raw_date": "5-Jun-2026",
+  "item_name": "Milk Tea Iced",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-05",
+  "raw_date": "5-Jun-2026",
+  "item_name": "Mushroom Sandwich",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-05",
+  "raw_date": "5-Jun-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-05",
+  "raw_date": "5-Jun-2026",
+  "item_name": "French Fries",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-05",
+  "raw_date": "5-Jun-2026",
+  "item_name": "Masala tea",
+  "quantity": 3,
+  "unit_price": 35.0,
+  "total_revenue": 105.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-05",
+  "raw_date": "5-Jun-2026",
+  "item_name": "Chicken Cheese Sandwich",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-08",
+  "raw_date": "8-Jun-2026",
+  "item_name": "Milk Coffee",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-08",
+  "raw_date": "8-Jun-2026",
+  "item_name": "Masala tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-08",
+  "raw_date": "8-Jun-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-08",
+  "raw_date": "8-Jun-2026",
+  "item_name": "Grilled Cheese Sandwich",
+  "quantity": 2,
+  "unit_price": 50.0,
+  "total_revenue": 100.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-08",
+  "raw_date": "8-Jun-2026",
+  "item_name": "Masala tea",
+  "quantity": 2,
+  "unit_price": 35.0,
+  "total_revenue": 70.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-08",
+  "raw_date": "8-Jun-2026",
+  "item_name": "Masala tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-08",
+  "raw_date": "8-Jun-2026",
+  "item_name": "French Fries",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-08",
+  "raw_date": "8-Jun-2026",
+  "item_name": "Lemon Ginger Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-08",
+  "raw_date": "8-Jun-2026",
+  "item_name": "Mushroom Sandwich",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-08",
+  "raw_date": "8-Jun-2026",
+  "item_name": "Masala tea",
+  "quantity": 2,
+  "unit_price": 35.0,
+  "total_revenue": 70.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-08",
+  "raw_date": "8-Jun-2026",
+  "item_name": "Black Tea Lemon",
+  "quantity": 1,
+  "unit_price": 30.0,
+  "total_revenue": 30.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-09",
+  "raw_date": "9-Jun-2026",
+  "item_name": "Masala tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-09",
+  "raw_date": "9-Jun-2026",
+  "item_name": "Masala Tea Iced",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-09",
+  "raw_date": "9-Jun-2026",
+  "item_name": "Masala tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-09",
+  "raw_date": "9-Jun-2026",
+  "item_name": "Thai Milk tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-09",
+  "raw_date": "9-Jun-2026",
+  "item_name": "Grilled Cheese Sandwich",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-09",
+  "raw_date": "9-Jun-2026",
+  "item_name": "Chicken Cheese Sandwich",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-09",
+  "raw_date": "9-Jun-2026",
+  "item_name": "Masala tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-09",
+  "raw_date": "9-Jun-2026",
+  "item_name": "Masala tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-09",
+  "raw_date": "9-Jun-2026",
+  "item_name": "Grilled Cheese Sandwich",
+  "quantity": 2,
+  "unit_price": 50.0,
+  "total_revenue": 100.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-09",
+  "raw_date": "9-Jun-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-09",
+  "raw_date": "9-Jun-2026",
+  "item_name": "Water",
+  "quantity": 1,
+  "unit_price": 10.0,
+  "total_revenue": 10.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-10",
+  "raw_date": "10-Jun-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-10",
+  "raw_date": "10-Jun-2026",
+  "item_name": "Grilled Cheese Sandwich",
+  "quantity": 2,
+  "unit_price": 50.0,
+  "total_revenue": 100.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-10",
+  "raw_date": "10-Jun-2026",
+  "item_name": "Maggie",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-10",
+  "raw_date": "10-Jun-2026",
+  "item_name": "Water",
+  "quantity": 1,
+  "unit_price": 10.0,
+  "total_revenue": 10.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-10",
+  "raw_date": "10-Jun-2026",
+  "item_name": "Masala tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-10",
+  "raw_date": "10-Jun-2026",
+  "item_name": "Pasta",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-10",
+  "raw_date": "10-Jun-2026",
+  "item_name": "Masala tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-10",
+  "raw_date": "10-Jun-2026",
+  "item_name": "Black tea",
+  "quantity": 1,
+  "unit_price": 30.0,
+  "total_revenue": 30.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-10",
+  "raw_date": "10-Jun-2026",
+  "item_name": "Thai Milk tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-10",
+  "raw_date": "10-Jun-2026",
+  "item_name": "Masala tea",
+  "quantity": 2,
+  "unit_price": 35.0,
+  "total_revenue": 70.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-10",
+  "raw_date": "10-Jun-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 2,
+  "unit_price": 60.0,
+  "total_revenue": 120.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-10",
+  "raw_date": "10-Jun-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-10",
+  "raw_date": "10-Jun-2026",
+  "item_name": "Chicken Cheese Sandwich",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-10",
+  "raw_date": "10-Jun-2026",
+  "item_name": "Maggie",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-11",
+  "raw_date": "11-Jun-2026",
+  "item_name": "Lemon Ginger Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-11",
+  "raw_date": "11-Jun-2026",
+  "item_name": "Maggie",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-11",
+  "raw_date": "11-Jun-2026",
+  "item_name": "Grilled Cheese Sandwich",
+  "quantity": 2,
+  "unit_price": 50.0,
+  "total_revenue": 100.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-11",
+  "raw_date": "11-Jun-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-11",
+  "raw_date": "11-Jun-2026",
+  "item_name": "Water",
+  "quantity": 1,
+  "unit_price": 10.0,
+  "total_revenue": 10.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-11",
+  "raw_date": "11-Jun-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-11",
+  "raw_date": "11-Jun-2026",
+  "item_name": "Mushroom Sandwich",
+  "quantity": 1,
+  "unit_price": 55.0,
+  "total_revenue": 55.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-12",
+  "raw_date": "12-Jun-2026",
+  "item_name": "Lemon Iced Tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-12",
+  "raw_date": "12-Jun-2026",
+  "item_name": "Lemon Tea Hot",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-12",
+  "raw_date": "12-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 2,
+  "unit_price": 35.0,
+  "total_revenue": 70.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-12",
+  "raw_date": "12-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-12",
+  "raw_date": "12-Jun-2026",
+  "item_name": "Masala Tea Iced",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-12",
+  "raw_date": "12-Jun-2026",
+  "item_name": "Milk Coffee Iced",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-12",
+  "raw_date": "12-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-12",
+  "raw_date": "12-Jun-2026",
+  "item_name": "Milk Coffee",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-15",
+  "raw_date": "15-Jun-2026",
+  "item_name": "Hazelnut Latte",
+  "quantity": 2,
+  "unit_price": 50.0,
+  "total_revenue": 100.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-15",
+  "raw_date": "15-Jun-2026",
+  "item_name": "Cocoa",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-15",
+  "raw_date": "15-Jun-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-15",
+  "raw_date": "15-Jun-2026",
+  "item_name": "Mushroom Sandwich",
+  "quantity": 1,
+  "unit_price": 55.0,
+  "total_revenue": 55.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-15",
+  "raw_date": "15-Jun-2026",
+  "item_name": "Mocha",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-15",
+  "raw_date": "15-Jun-2026",
+  "item_name": "Black Coffee",
+  "quantity": 1,
+  "unit_price": 30.0,
+  "total_revenue": 30.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-15",
+  "raw_date": "15-Jun-2026",
+  "item_name": "lemon Ginger Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-15",
+  "raw_date": "15-Jun-2026",
+  "item_name": "Mushroom Sandwich",
+  "quantity": 1,
+  "unit_price": 55.0,
+  "total_revenue": 55.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-15",
+  "raw_date": "15-Jun-2026",
+  "item_name": "Masala tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-15",
+  "raw_date": "15-Jun-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-16",
+  "raw_date": "16-Jun-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-16",
+  "raw_date": "16-Jun-2026",
+  "item_name": "Grilled Cheese Sandwich",
+  "quantity": 2,
+  "unit_price": 50.0,
+  "total_revenue": 100.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-16",
+  "raw_date": "16-Jun-2026",
+  "item_name": "Grilled Cheese Sandwich",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-16",
+  "raw_date": "16-Jun-2026",
+  "item_name": "Maggie",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-16",
+  "raw_date": "16-Jun-2026",
+  "item_name": "Water",
+  "quantity": 2,
+  "unit_price": 20.0,
+  "total_revenue": 40.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-16",
+  "raw_date": "16-Jun-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-16",
+  "raw_date": "16-Jun-2026",
+  "item_name": "Grilled Cheese Sandwich",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-16",
+  "raw_date": "16-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 3,
+  "unit_price": 35.0,
+  "total_revenue": 105.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-16",
+  "raw_date": "16-Jun-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-16",
+  "raw_date": "16-Jun-2026",
+  "item_name": "Chicken Cheese Sandwich",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-16",
+  "raw_date": "16-Jun-2026",
+  "item_name": "Lemon Iced Tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-16",
+  "raw_date": "16-Jun-2026",
+  "item_name": "Chicken Cheese Sandwich",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-16",
+  "raw_date": "16-Jun-2026",
+  "item_name": "Mocha",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-16",
+  "raw_date": "16-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 3,
+  "unit_price": 35.0,
+  "total_revenue": 105.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-16",
+  "raw_date": "16-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-17",
+  "raw_date": "17-Jun-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 2,
+  "unit_price": 60.0,
+  "total_revenue": 120.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-17",
+  "raw_date": "17-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-17",
+  "raw_date": "17-Jun-2026",
+  "item_name": "Maggie",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-17",
+  "raw_date": "17-Jun-2026",
+  "item_name": "Black Coffee",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-17",
+  "raw_date": "17-Jun-2026",
+  "item_name": "Cocoa",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-17",
+  "raw_date": "17-Jun-2026",
+  "item_name": "Mocha",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-17",
+  "raw_date": "17-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 3,
+  "unit_price": 35.0,
+  "total_revenue": 105.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-17",
+  "raw_date": "17-Jun-2026",
+  "item_name": "Brownie",
+  "quantity": 1,
+  "unit_price": 20.0,
+  "total_revenue": 20.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-17",
+  "raw_date": "17-Jun-2026",
+  "item_name": "Thai Milk tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-17",
+  "raw_date": "17-Jun-2026",
+  "item_name": "Brownie",
+  "quantity": 2,
+  "unit_price": 20.0,
+  "total_revenue": 40.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-17",
+  "raw_date": "17-Jun-2026",
+  "item_name": "Ginger Lemon Tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-17",
+  "raw_date": "17-Jun-2026",
+  "item_name": "Mocha Hot",
+  "quantity": 3,
+  "unit_price": 40.0,
+  "total_revenue": 120.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-17",
+  "raw_date": "17-Jun-2026",
+  "item_name": "Brownie",
+  "quantity": 1,
+  "unit_price": 20.0,
+  "total_revenue": 20.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-17",
+  "raw_date": "17-Jun-2026",
+  "item_name": "Water",
+  "quantity": 1,
+  "unit_price": 10.0,
+  "total_revenue": 10.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Cappucino",
+  "quantity": 2,
+  "unit_price": 35.0,
+  "total_revenue": 70.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Green Tea Lemon",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Black Coffee",
+  "quantity": 1,
+  "unit_price": 30.0,
+  "total_revenue": 30.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Milk Coffee Iced",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Mocha",
+  "quantity": 1,
+  "unit_price": 10.0,
+  "total_revenue": 10.0,
+  "cash": null,
+  "voucher": "40 Voucher"
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Lychee Lemon Soda",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Lychee Lemon Soda",
+  "quantity": 2,
+  "unit_price": 45.0,
+  "total_revenue": 90.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Lemonade",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Double Trouble Burger",
+  "quantity": 1,
+  "unit_price": 70.0,
+  "total_revenue": 70.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Lemon Iced Tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Lemon Ginger Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Lemon Ginger Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Brownie",
+  "quantity": 1,
+  "unit_price": 25.0,
+  "total_revenue": 25.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Chicken Cheese Sandwich",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Brownie",
+  "quantity": 2,
+  "unit_price": 25.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Black Coffee",
+  "quantity": 1,
+  "unit_price": 30.0,
+  "total_revenue": 30.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Maggie",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Cappucino",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-18",
+  "raw_date": "18-Jun-2026",
+  "item_name": "Lemon Iced Tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-19",
+  "raw_date": "19-Jun-2026",
+  "item_name": "Grilled Cheese Sandwich",
+  "quantity": 2,
+  "unit_price": 50.0,
+  "total_revenue": 100.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-19",
+  "raw_date": "19-Jun-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-19",
+  "raw_date": "19-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-19",
+  "raw_date": "19-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-19",
+  "raw_date": "19-Jun-2026",
+  "item_name": "Brownie",
+  "quantity": 2,
+  "unit_price": 30.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-22",
+  "raw_date": "22-Jun-2026",
+  "item_name": "Thai Milk tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-22",
+  "raw_date": "22-Jun-2026",
+  "item_name": "Chicken Cheese Sandwich",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-22",
+  "raw_date": "22-Jun-2026",
+  "item_name": "Lemon Iced Tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-22",
+  "raw_date": "22-Jun-2026",
+  "item_name": "Double Trouble Burger",
+  "quantity": 1,
+  "unit_price": 70.0,
+  "total_revenue": 70.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-22",
+  "raw_date": "22-Jun-2026",
+  "item_name": "Lemon Iced Tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-22",
+  "raw_date": "22-Jun-2026",
+  "item_name": "Mushroom Sandwich",
+  "quantity": 1,
+  "unit_price": 55.0,
+  "total_revenue": 55.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-22",
+  "raw_date": "22-Jun-2026",
+  "item_name": "Double Trouble Burger",
+  "quantity": 1,
+  "unit_price": 70.0,
+  "total_revenue": 70.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-22",
+  "raw_date": "22-Jun-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-22",
+  "raw_date": "22-Jun-2026",
+  "item_name": "Grilled Cheese Sandwich",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-22",
+  "raw_date": "22-Jun-2026",
+  "item_name": "Thai Milk tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-22",
+  "raw_date": "22-Jun-2026",
+  "item_name": "Grilled Cheese Sandwich",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-22",
+  "raw_date": "22-Jun-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-22",
+  "raw_date": "22-Jun-2026",
+  "item_name": "Lemon Iced Tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-22",
+  "raw_date": "22-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-22",
+  "raw_date": "22-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 2,
+  "unit_price": 35.0,
+  "total_revenue": 70.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-22",
+  "raw_date": "22-Jun-2026",
+  "item_name": "Cake",
+  "quantity": 1,
+  "unit_price": 20.0,
+  "total_revenue": 20.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-22",
+  "raw_date": "22-Jun-2026",
+  "item_name": "Blue Hawai",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-22",
+  "raw_date": "22-Jun-2026",
+  "item_name": "Pasta White saucs",
+  "quantity": 1,
+  "unit_price": 65.0,
+  "total_revenue": 65.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-22",
+  "raw_date": "22-Jun-2026",
+  "item_name": "Cappucino",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-23",
+  "raw_date": "23-Jun-2026",
+  "item_name": "Passion Iced Tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-25",
+  "raw_date": "25-Jun-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-25",
+  "raw_date": "25-Jun-2026",
+  "item_name": "Thai Milk tea(hot)",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-25",
+  "raw_date": "25-Jun-2026",
+  "item_name": "Thai Milk tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-25",
+  "raw_date": "25-Jun-2026",
+  "item_name": "Doritos",
+  "quantity": 1,
+  "unit_price": 20.0,
+  "total_revenue": 20.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-25",
+  "raw_date": "25-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": "Cash",
+  "voucher": null
+ },
+ {
+  "date": "2026-06-25",
+  "raw_date": "25-Jun-2026",
+  "item_name": "Samosa",
+  "quantity": 2,
+  "unit_price": 50.0,
+  "total_revenue": 100.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-25",
+  "raw_date": "25-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-25",
+  "raw_date": "25-Jun-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-25",
+  "raw_date": "25-Jun-2026",
+  "item_name": "Cupcake",
+  "quantity": 1,
+  "unit_price": 25.0,
+  "total_revenue": 25.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-25",
+  "raw_date": "25-Jun-2026",
+  "item_name": "Mushroom Sandwich",
+  "quantity": 2,
+  "unit_price": 55.0,
+  "total_revenue": 110.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-25",
+  "raw_date": "25-Jun-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-26",
+  "raw_date": "26-Jun-2026",
+  "item_name": "Lychee Lemon Soda",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-26",
+  "raw_date": "26-Jun-2026",
+  "item_name": "Black Coffee",
+  "quantity": 1,
+  "unit_price": 30.0,
+  "total_revenue": 30.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-26",
+  "raw_date": "26-Jun-2026",
+  "item_name": "Water",
+  "quantity": 1,
+  "unit_price": 10.0,
+  "total_revenue": 10.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-26",
+  "raw_date": "26-Jun-2026",
+  "item_name": "Cappucino",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-26",
+  "raw_date": "26-Jun-2026",
+  "item_name": "Lemon Ginger Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-26",
+  "raw_date": "26-Jun-2026",
+  "item_name": "Black Coffee",
+  "quantity": 1,
+  "unit_price": 30.0,
+  "total_revenue": 30.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-26",
+  "raw_date": "26-Jun-2026",
+  "item_name": "Grilled Cheese Sandwich",
+  "quantity": 2,
+  "unit_price": 50.0,
+  "total_revenue": 100.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-26",
+  "raw_date": "26-Jun-2026",
+  "item_name": "Grilled Cheese Sandwich",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-26",
+  "raw_date": "26-Jun-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-26",
+  "raw_date": "26-Jun-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-26",
+  "raw_date": "26-Jun-2026",
+  "item_name": "Samosa",
+  "quantity": 1,
+  "unit_price": 25.0,
+  "total_revenue": 25.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-26",
+  "raw_date": "26-Jun-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": "Cash",
+  "voucher": null
+ },
+ {
+  "date": "2026-06-26",
+  "raw_date": "26-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": "Cash",
+  "voucher": null
+ },
+ {
+  "date": "2026-06-26",
+  "raw_date": "26-Jun-2026",
+  "item_name": "Thai Milk tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": "Cash",
+  "voucher": null
+ },
+ {
+  "date": "2026-06-26",
+  "raw_date": "26-Jun-2026",
+  "item_name": "Masala Tea Iced",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": "Cash",
+  "voucher": null
+ },
+ {
+  "date": "2026-06-26",
+  "raw_date": "26-Jun-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": "Cash",
+  "voucher": null
+ },
+ {
+  "date": "2026-06-29",
+  "raw_date": "29-Jun-2026",
+  "item_name": "Mushroom Sandwich",
+  "quantity": 1,
+  "unit_price": 55.0,
+  "total_revenue": 55.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-29",
+  "raw_date": "29-Jun-2026",
+  "item_name": "Maggie",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-29",
+  "raw_date": "29-Jun-2026",
+  "item_name": "Cappucino Hot",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-29",
+  "raw_date": "29-Jun-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-29",
+  "raw_date": "29-Jun-2026",
+  "item_name": "Passion Lemon Iced tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-29",
+  "raw_date": "29-Jun-2026",
+  "item_name": "Mango passion Iced tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-29",
+  "raw_date": "29-Jun-2026",
+  "item_name": "Ginger Lemon Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-29",
+  "raw_date": "29-Jun-2026",
+  "item_name": "Cocoa",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-29",
+  "raw_date": "29-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 2,
+  "unit_price": 35.0,
+  "total_revenue": 70.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-29",
+  "raw_date": "29-Jun-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-29",
+  "raw_date": "29-Jun-2026",
+  "item_name": "Hazelnut latte",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Water",
+  "quantity": 1,
+  "unit_price": 10.0,
+  "total_revenue": 10.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Alfredo Pasta",
+  "quantity": 1,
+  "unit_price": 65.0,
+  "total_revenue": 65.0,
+  "cash": "Cash",
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Thai Chilli",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": "Cash",
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Samosa",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": "Cash",
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Mocha Iced",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": "Cash",
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Black Coffee",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": "Cash",
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Thai Milk Tea Iced",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Maggie",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Passion Lemon Iced tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Hazelnut latte",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Masala Tea",
+  "quantity": 5,
+  "unit_price": 35.0,
+  "total_revenue": 175.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Masala Tea Iced",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Nachos",
+  "quantity": 1,
+  "unit_price": 65.0,
+  "total_revenue": 65.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Double Trouble Burger",
+  "quantity": 1,
+  "unit_price": 75.0,
+  "total_revenue": 75.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Coke",
+  "quantity": 2,
+  "unit_price": 20.0,
+  "total_revenue": 40.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Samosa",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Lemon Iced Tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Thai Milk Tea Hot",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Lemon Iced Tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Tuna Sandwich",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Thai Milk Tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Samosa",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Cappucino",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Lemon Iced Tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Coke",
+  "quantity": 1,
+  "unit_price": 20.0,
+  "total_revenue": 20.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Fries",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Chicken Cheese Sandwich",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Nachos",
+  "quantity": 1,
+  "unit_price": 65.0,
+  "total_revenue": 65.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Ginger Lemon Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Hazelnut Latte",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Coke",
+  "quantity": 1,
+  "unit_price": 20.0,
+  "total_revenue": 20.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-06-30",
+  "raw_date": "30-Jun-2026",
+  "item_name": "Ginger Lemon Tea",
+  "quantity": 2,
+  "unit_price": 35.0,
+  "total_revenue": 70.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Hazelnut Latte",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Black coffee",
+  "quantity": 1,
+  "unit_price": 30.0,
+  "total_revenue": 30.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Maggie",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Maggie",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Alfredo Pasta",
+  "quantity": 1,
+  "unit_price": 65.0,
+  "total_revenue": 65.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Ginger Lemon Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Hazelnut Latte",
+  "quantity": 1,
+  "unit_price": 40.0,
+  "total_revenue": 40.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": "Cash",
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Coke",
+  "quantity": 1,
+  "unit_price": 20.0,
+  "total_revenue": 20.0,
+  "cash": "Cash",
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Masala Tea",
+  "quantity": 2,
+  "unit_price": 35.0,
+  "total_revenue": 70.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Maggie",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Nachos",
+  "quantity": 1,
+  "unit_price": 65.0,
+  "total_revenue": 65.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Samosa",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Masala Tea",
+  "quantity": 2,
+  "unit_price": 35.0,
+  "total_revenue": 70.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Cocoa",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Mocha",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Samosa",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 2,
+  "unit_price": 60.0,
+  "total_revenue": 120.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Ginger Lemon Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Nachos",
+  "quantity": 1,
+  "unit_price": 65.0,
+  "total_revenue": 65.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Samosa",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-01",
+  "raw_date": "1-Jul-2026",
+  "item_name": "Ginger Lemon Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-02",
+  "raw_date": "2-Jul-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": "Cash",
+  "voucher": null
+ },
+ {
+  "date": "2026-07-02",
+  "raw_date": "2-Jul-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-02",
+  "raw_date": "2-Jul-2026",
+  "item_name": "Brownie",
+  "quantity": 1,
+  "unit_price": 25.0,
+  "total_revenue": 25.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-02",
+  "raw_date": "2-Jul-2026",
+  "item_name": "Mixberry Soda",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-02",
+  "raw_date": "2-Jul-2026",
+  "item_name": "Samosa",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-02",
+  "raw_date": "2-Jul-2026",
+  "item_name": "Passionfruit Iced Tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-02",
+  "raw_date": "2-Jul-2026",
+  "item_name": "Lemon Iced Tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-02",
+  "raw_date": "2-Jul-2026",
+  "item_name": "Mushroom Sandwich",
+  "quantity": 1,
+  "unit_price": 55.0,
+  "total_revenue": 55.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-02",
+  "raw_date": "2-Jul-2026",
+  "item_name": "Brownie",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-03",
+  "raw_date": "3-Jul-2026",
+  "item_name": "Water",
+  "quantity": 1,
+  "unit_price": 10.0,
+  "total_revenue": 10.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-03",
+  "raw_date": "3-Jul-2026",
+  "item_name": "French Fries",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-03",
+  "raw_date": "3-Jul-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-03",
+  "raw_date": "3-Jul-2026",
+  "item_name": "Peri Peri Fries",
+  "quantity": 2,
+  "unit_price": 50.0,
+  "total_revenue": 100.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-03",
+  "raw_date": "3-Jul-2026",
+  "item_name": "Grilled Cheese Sandwich",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-03",
+  "raw_date": "3-Jul-2026",
+  "item_name": "Grilled Cheese Sandwich",
+  "quantity": 2,
+  "unit_price": 50.0,
+  "total_revenue": 100.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-03",
+  "raw_date": "3-Jul-2026",
+  "item_name": "Nachos",
+  "quantity": 1,
+  "unit_price": 65.0,
+  "total_revenue": 65.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-03",
+  "raw_date": "3-Jul-2026",
+  "item_name": "Cocoa",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-03",
+  "raw_date": "3-Jul-2026",
+  "item_name": "Cocoa",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-03",
+  "raw_date": "3-Jul-2026",
+  "item_name": "Brownie",
+  "quantity": 1,
+  "unit_price": 25.0,
+  "total_revenue": 25.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-03",
+  "raw_date": "3-Jul-2026",
+  "item_name": "Samosa",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Water",
+  "quantity": 1,
+  "unit_price": 10.0,
+  "total_revenue": 10.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Ginger Lemon Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Brownie",
+  "quantity": 1,
+  "unit_price": 25.0,
+  "total_revenue": 25.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Grilled Cheese Sandwich",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Cocoa",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": "Cash",
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Hazelnut Latte",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Samosa",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Passion Fruit Iced Tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Grilled Cheese Sandwich",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Lemon Iced Tea",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Mocha",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Nachos",
+  "quantity": 1,
+  "unit_price": 65.0,
+  "total_revenue": 65.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Grilled Cheese Sandwich",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": "Cash",
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Thai Milk Tea Hot",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": "Cash",
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Nachos",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Thai Milk Tea Cold",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Mocha",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Mushroom Sandwich",
+  "quantity": 1,
+  "unit_price": 55.0,
+  "total_revenue": 55.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Masala Tea",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Samosa",
+  "quantity": 1,
+  "unit_price": 35.0,
+  "total_revenue": 35.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Hazelnut Latte Hot",
+  "quantity": 1,
+  "unit_price": 40.0,
+  "total_revenue": 40.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-06",
+  "raw_date": "6-Jul-2026",
+  "item_name": "Pani Puri",
+  "quantity": 1,
+  "unit_price": 60.0,
+  "total_revenue": 60.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-07",
+  "raw_date": "7-Jul-2026",
+  "item_name": "Water",
+  "quantity": 1,
+  "unit_price": 10.0,
+  "total_revenue": 10.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-07",
+  "raw_date": "7-Jul-2026",
+  "item_name": "Mushroom Sandwich",
+  "quantity": 1,
+  "unit_price": 55.0,
+  "total_revenue": 55.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-07",
+  "raw_date": "7-Jul-2026",
+  "item_name": "Chicken Burger",
+  "quantity": 2,
+  "unit_price": 60.0,
+  "total_revenue": 120.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-07",
+  "raw_date": "7-Jul-2026",
+  "item_name": "Hazelnut Latte",
+  "quantity": 1,
+  "unit_price": 50.0,
+  "total_revenue": 50.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-07",
+  "raw_date": "7-Jul-2026",
+  "item_name": "Thai Milk Tea Cold",
+  "quantity": 1,
+  "unit_price": 45.0,
+  "total_revenue": 45.0,
+  "cash": null,
+  "voucher": null
+ },
+ {
+  "date": "2026-07-07",
+  "raw_date": "7-Jul-2026",
+  "item_name": "Coke",
+  "quantity": 1,
+  "unit_price": 30.0,
+  "total_revenue": 30.0,
+  "cash": null,
+  "voucher": null
+ }
+]
