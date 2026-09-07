@@ -1,14 +1,15 @@
 import StaffHeader from "@/components/StaffHeader";
-import { getIngredients, getRecentStockAdjustments, getLastRestockPrices } from "@/lib/data";
+import { getIngredients, getRecentStockAdjustments, getLastRestockPrices, getIngredientUsage } from "@/lib/data";
 import InventoryClient from "./InventoryClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function InventoryPage() {
-  const [ingredients, adjustments, lastRestockPrices] = await Promise.all([
+  const [ingredients, adjustments, lastRestockPrices, usage] = await Promise.all([
     getIngredients(),
     getRecentStockAdjustments(),
     getLastRestockPrices(),
+    getIngredientUsage(),
   ]);
 
   return (
@@ -24,6 +25,7 @@ export default async function InventoryPage() {
             initialIngredients={ingredients}
             initialAdjustments={adjustments}
             lastRestockPrices={lastRestockPrices}
+            usage={usage}
           />
         </div>
       </main>

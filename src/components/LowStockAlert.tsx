@@ -1,9 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 
 const POLL_MS = 20000;
 const STORAGE_KEY = "tan90_lowstock_ack_ids";
+// Per-tab (not per-browser) flag: set the first time this component shows
+// the alert after this tab was opened, so it always pops "first thing after
+// log in" (staff open a fresh tab to log in) even if every item in it was
+// already acknowledged on a previous visit -- separate from STORAGE_KEY's
+// longer-lived "don't re-alert for the same still-low item" tracking, which
+// keeps governing every alert *after* this first one this session.
+const SESSION_SHOWN_KEY = "tan90_lowstock_shown_this_session";
 
 type Alert = {
   id: string;
@@ -40,8 +48,15 @@ function writeAcknowledged(ids: Set<string>) {
 // treated as "new" if it happens again).
 export default function LowStockAlert() {
   const [visible, setVisible] = useState<Alert[]>([]);
+  const shownThisSession = useRef(false);
 
   useEffect(() => {
+    try {
+      shownThisSession.current = window.sessionStorage.getItem(SESSION_SHOWN_KEY) === "1";
+    } catch {
+      // private window / blocked storage — treat as "not shown yet", same as a fresh tab
+    }
+
     let cancelled = false;
 
     async function poll() {
@@ -57,10 +72,23 @@ export default function LowStockAlert() {
         // later, it should alert again rather than staying silenced forever.
         const pruned = new Set(Array.from(acknowledged).filter((id) => currentIds.has(id)));
 
+        // The very first check this tab makes always pops the alert if
+        // anything is low/out — right after logging in, staff should see
+        // today's stock situation up front, even if every item in it was
+        // already acknowledged on an earlier visit.
+        const isFirstCheckThisSession = !shownThisSession.current;
         const hasNewAlert = alerts.some((a) => !pruned.has(a.id));
-        if (hasNewAlert) {
+        if (alerts.length > 0 && (isFirstCheckThisSession || hasNewAlert)) {
           // Show the full current list for context, not just the new item(s).
           setVisible(alerts);
+        }
+        if (isFirstCheckThisSession) {
+          shownThisSession.current = true;
+          try {
+            window.sessionStorage.setItem(SESSION_SHOWN_KEY, "1");
+          } catch {
+            // best-effort — worst case it just re-shows on the next poll too
+          }
         }
         writeAcknowledged(pruned);
       } catch {
@@ -106,6 +134,13 @@ export default function LowStockAlert() {
         >
           OK
         </button>
+        <Link
+          href="/admin/inventory"
+          onClick={dismiss}
+          className="mt-2 block w-full rounded-lg border border-card-border px-4 py-2.5 text-center text-sm font-medium text-navy-900 transition hover:bg-navy-100"
+        >
+          Go to inventory
+        </Link>
       </div>
     </div>
   );

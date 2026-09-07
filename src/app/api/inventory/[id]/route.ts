@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adjustIngredientStock, updateIngredientThreshold } from "@/lib/data";
+import { adjustIngredientStock, updateIngredientThreshold, updateIngredient } from "@/lib/data";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -13,9 +13,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (typeof body.lowStockThreshold === "number") {
       await updateIngredientThreshold(id, body.lowStockThreshold);
     }
+
+    // Round 18's "Edit ingredient" fields -- name/unit/brand and, per the
+    // owner's explicit choice, a direct current-stock correction (routed
+    // through updateIngredient -> adjustIngredientStock so it still logs).
+    const edits: { name?: string; unit?: string; brand?: string | null; currentStock?: number } = {};
+    if (typeof body.name === "string" && body.name.trim()) edits.name = body.name.trim();
+    if (typeof body.unit === "string" && body.unit.trim()) edits.unit = body.unit.trim();
+    if (body.brand !== undefined) {
+      edits.brand = typeof body.brand === "string" && body.brand.trim() ? body.brand.trim() : null;
+    }
+    if (typeof body.currentStock === "number" && body.currentStock >= 0) edits.currentStock = body.currentStock;
+    if (Object.keys(edits).length > 0) await updateIngredient(id, edits);
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("inventory update failed", err);
-    return NextResponse.json({ error: "Could not update this ingredient." }, { status: 500 });
+    return NextResponse.json({ error: "Could not update this ingredient (maybe that name is already taken?)." }, { status: 500 });
   }
 }

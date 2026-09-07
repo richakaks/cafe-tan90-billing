@@ -148,10 +148,19 @@ export async function getMenuForCustomer(): Promise<MenuItemWithAvailability[]> 
   if (ingErr) throw ingErr;
   if (linkErr) throw linkErr;
 
+  // brand isn't selected/needed here -- this map only feeds stock-availability
+  // math for the customer menu, so it's stubbed null rather than fetched.
   const ingredientsById = new Map<string, Ingredient>(
     (ingredients ?? []).map((i) => [
       i.id,
-      { id: i.id, name: i.name, unit: i.unit, currentStock: Number(i.current_stock), lowStockThreshold: Number(i.low_stock_threshold) },
+      {
+        id: i.id,
+        name: i.name,
+        brand: null,
+        unit: i.unit,
+        currentStock: Number(i.current_stock),
+        lowStockThreshold: Number(i.low_stock_threshold),
+      },
     ])
   );
 
@@ -393,21 +402,81 @@ export async function getCouponBatches(): Promise<CouponBatch[]> {
 export async function getIngredients(): Promise<Ingredient[]> {
   const { data, error } = await db()
     .from("ingredients")
-    .select("id, name, unit, current_stock, low_stock_threshold")
+    .select("id, name, brand, unit, current_stock, low_stock_threshold")
     .order("name");
   if (error) throw error;
   return (data ?? []).map((i) => ({
     id: i.id,
     name: i.name,
+    brand: i.brand ?? null,
     unit: i.unit,
     currentStock: Number(i.current_stock),
     lowStockThreshold: Number(i.low_stock_threshold),
   }));
 }
 
-export async function createIngredient(name: string, unit: string, currentStock: number, lowStockThreshold: number): Promise<void> {
-  const { error } = await db().from("ingredients").insert({ name, unit, current_stock: currentStock, low_stock_threshold: lowStockThreshold });
+export async function createIngredient(
+  name: string,
+  unit: string,
+  currentStock: number,
+  lowStockThreshold: number,
+  brand?: string | null,
+): Promise<void> {
+  const { error } = await db()
+    .from("ingredients")
+    .insert({ name, brand: brand ?? null, unit, current_stock: currentStock, low_stock_threshold: lowStockThreshold });
   if (error) throw error;
+}
+
+// Which menu items each ingredient is used in -- powers the small "Used in:
+// ..." note under the ingredient name on /admin/inventory (Round 18). Two
+// plain queries + an in-memory join, same pattern getMenuItemsAdmin already
+// uses, rather than a nested-select join (keeps the FK relationship explicit
+// and avoids any ambiguity if a second FK to menu_items is ever added).
+export async function getIngredientUsage(): Promise<Record<string, string[]>> {
+  const [{ data: links, error: linkErr }, { data: items, error: itemErr }] = await Promise.all([
+    db().from("menu_item_ingredients").select("ingredient_id, menu_item_code"),
+    db().from("menu_items").select("code, name"),
+  ]);
+  if (linkErr) throw linkErr;
+  if (itemErr) throw itemErr;
+
+  const nameByCode = new Map((items ?? []).map((m) => [m.code, m.name]));
+  const result: Record<string, string[]> = {};
+  for (const link of links ?? []) {
+    const name = nameByCode.get(link.menu_item_code);
+    if (!name) continue;
+    (result[link.ingredient_id] ??= []).push(name);
+  }
+  for (const names of Object.values(result)) names.sort((a, b) => a.localeCompare(b));
+  return result;
+}
+
+// Edits an ingredient's metadata (name/brand/unit) and, optionally, sets its
+// current stock directly to an absolute number (Round 18's "Edit" option on
+// /admin/inventory) -- per the owner's explicit choice, this bypasses the
+// +Restock/-Use amount entry, but a direct stock edit is still routed
+// through adjustIngredientStock() below as a computed delta, so it still
+// shows up in the stock-history log like every other stock change (just
+// with no price, since it's a correction rather than a purchase).
+export async function updateIngredient(
+  id: string,
+  updates: { name?: string; unit?: string; brand?: string | null; currentStock?: number },
+): Promise<void> {
+  const fields: Record<string, unknown> = {};
+  if (updates.name !== undefined) fields.name = updates.name;
+  if (updates.unit !== undefined) fields.unit = updates.unit;
+  if (updates.brand !== undefined) fields.brand = updates.brand;
+  if (Object.keys(fields).length > 0) {
+    const { error } = await db().from("ingredients").update(fields).eq("id", id);
+    if (error) throw error;
+  }
+  if (updates.currentStock !== undefined) {
+    const { data, error: readErr } = await db().from("ingredients").select("current_stock").eq("id", id).single();
+    if (readErr) throw readErr;
+    const delta = updates.currentStock - Number(data.current_stock);
+    if (delta !== 0) await adjustIngredientStock(id, delta, null);
+  }
 }
 
 // pricePaid: total THB paid for this restock (not a per-unit rate), owner's

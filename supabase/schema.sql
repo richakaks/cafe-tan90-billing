@@ -25,6 +25,9 @@ create table if not exists seats (
 create table if not exists ingredients (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
+  -- Optional supplier/brand name (Round 18) -- purely informational, shown
+  -- under the ingredient name on /admin/inventory.
+  brand text,
   unit text not null,
   current_stock numeric not null default 0 check (current_stock >= 0),
   low_stock_threshold numeric not null default 0 check (low_stock_threshold >= 0),
@@ -744,6 +747,13 @@ alter table orders
 alter table orders drop constraint if exists orders_payment_method_check;
 alter table orders add constraint orders_payment_method_check
   check (payment_method is null or payment_method in ('cash', 'online'));
+
+-- ---------------------------------------------------------------------------
+-- Round 18: optional brand/supplier name on an ingredient, editable from
+-- /admin/inventory's new Edit option.
+-- ---------------------------------------------------------------------------
+alter table ingredients
+  add column if not exists brand text;
 
 -- ---------------------------------------------------------------------------
 -- Explicit grants for the service role. Newer Supabase projects no longer

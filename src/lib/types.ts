@@ -9,6 +9,9 @@ export interface Seat {
 export interface Ingredient {
   id: string;
   name: string;
+  // Optional supplier/brand name (e.g. "Meiji", "Lays") -- Round 18, shown
+  // in small text under the ingredient name, purely informational.
+  brand: string | null;
   unit: string;
   currentStock: number;
   lowStockThreshold: number;

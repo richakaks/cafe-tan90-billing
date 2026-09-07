@@ -5,6 +5,7 @@ import type { Ingredient, MenuItemIngredientLink } from "./types";
 function ingredient(overrides: Partial<Ingredient> & { id: string }): Ingredient {
   return {
     name: overrides.id,
+    brand: null,
     unit: "g",
     currentStock: 0,
     lowStockThreshold: 0,

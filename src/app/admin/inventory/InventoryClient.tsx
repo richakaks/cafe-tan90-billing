@@ -23,19 +23,129 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+function EditIngredientForm({
+  ingredient,
+  onCancel,
+  onSaved,
+}: {
+  ingredient: Ingredient;
+  onCancel: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(ingredient.name);
+  const [brand, setBrand] = useState(ingredient.brand ?? "");
+  const [unit, setUnit] = useState(ingredient.unit);
+  const [stock, setStock] = useState(String(ingredient.currentStock));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    if (!name.trim() || !unit.trim()) {
+      setError("Name and unit can't be empty.");
+      return;
+    }
+    const stockNum = Number(stock);
+    if (Number.isNaN(stockNum) || stockNum < 0) {
+      setError("Current stock must be a number, 0 or more.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const body: Record<string, unknown> = {};
+      if (name.trim() !== ingredient.name) body.name = name.trim();
+      if (unit.trim() !== ingredient.unit) body.unit = unit.trim();
+      const trimmedBrand = brand.trim();
+      if (trimmedBrand !== (ingredient.brand ?? "")) body.brand = trimmedBrand || null;
+      if (stockNum !== ingredient.currentStock) body.currentStock = stockNum;
+
+      if (Object.keys(body).length === 0) {
+        onCancel();
+        return;
+      }
+      const res = await fetch(`/api/inventory/${ingredient.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const b = await res.json();
+        setError(b.error ?? "Could not save changes.");
+        return;
+      }
+      onSaved();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Name"
+        className="w-full rounded-md border border-card-border px-2 py-1 text-sm"
+      />
+      <input
+        value={brand}
+        onChange={(e) => setBrand(e.target.value)}
+        placeholder="Brand (optional)"
+        className="w-full rounded-md border border-card-border px-2 py-1 text-sm"
+      />
+      <div className="flex gap-1.5">
+        <input
+          value={unit}
+          onChange={(e) => setUnit(e.target.value)}
+          placeholder="Unit"
+          className="w-1/2 rounded-md border border-card-border px-2 py-1 text-sm"
+        />
+        <input
+          type="number"
+          min={0}
+          value={stock}
+          onChange={(e) => setStock(e.target.value)}
+          placeholder="Current stock"
+          className="w-1/2 rounded-md border border-card-border px-2 py-1 text-sm"
+        />
+      </div>
+      {error && <p className="text-xs text-status-out">{error}</p>}
+      <div className="flex gap-1.5">
+        <button
+          disabled={busy}
+          onClick={save}
+          className="rounded-md bg-navy-900 px-2 py-1 text-xs font-medium text-white hover:bg-navy-800 disabled:opacity-50"
+        >
+          Save
+        </button>
+        <button
+          disabled={busy}
+          onClick={onCancel}
+          className="rounded-md border border-card-border px-2 py-1 text-xs font-medium text-navy-900 hover:bg-navy-100 disabled:opacity-50"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Row({
   ingredient,
   lastRestock,
+  usedIn,
   onChanged,
 }: {
   ingredient: Ingredient;
   lastRestock?: LastRestockPrice;
+  usedIn: string[];
   onChanged: () => void;
 }) {
   const [amount, setAmount] = useState("");
   const [price, setPrice] = useState("");
   const [threshold, setThreshold] = useState(String(ingredient.lowStockThreshold));
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
   const status = statusFor(ingredient);
 
   async function restock(sign: 1 | -1) {
@@ -79,9 +189,22 @@ function Row({
 
   return (
     <tr className="border-t border-card-border">
-      <td className="py-3 pr-3">
-        <p className="font-medium text-navy-950">{ingredient.name}</p>
-        <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs ${status.className}`}>{status.label}</span>
+      <td className="py-3 pr-3 align-top">
+        {editing ? (
+          <EditIngredientForm ingredient={ingredient} onCancel={() => setEditing(false)} onSaved={onChanged} />
+        ) : (
+          <>
+            <p className="font-medium text-navy-950">{ingredient.name}</p>
+            {ingredient.brand && <p className="text-xs text-navy-500">{ingredient.brand}</p>}
+            {usedIn.length > 0 && <p className="text-xs text-navy-500">Used in: {usedIn.join(", ")}</p>}
+            <div className="mt-1 flex items-center gap-2">
+              <span className={`inline-block rounded-full px-2 py-0.5 text-xs ${status.className}`}>{status.label}</span>
+              <button onClick={() => setEditing(true)} className="text-xs font-medium text-navy-700 underline decoration-dotted">
+                Edit
+              </button>
+            </div>
+          </>
+        )}
       </td>
       <td className="py-3 pr-3 text-sm text-navy-800">
         {ingredient.currentStock} {ingredient.unit}
@@ -186,20 +309,37 @@ export default function InventoryClient({
   initialIngredients,
   initialAdjustments,
   lastRestockPrices,
+  usage,
 }: {
   initialIngredients: Ingredient[];
   initialAdjustments: StockAdjustmentRow[];
   lastRestockPrices: Record<string, LastRestockPrice>;
+  usage: Record<string, string[]>;
 }) {
   const [ingredients] = useState(initialIngredients);
   const [adjustments] = useState(initialAdjustments);
-  const lowOrOut = ingredients.filter((ing) => ingredientAlertStatus(ing) !== null);
+  // Priority = how many menu items this ingredient is used in -- an
+  // ingredient that's out of stock on a bestseller-heavy item is worth
+  // restocking before a niche one, even if both are equally "out."
+  // Ties (including two ingredients used in zero recipes) fall back to name.
+  const lowOrOut = ingredients
+    .filter((ing) => ingredientAlertStatus(ing) !== null)
+    .sort((a, b) => (usage[b.id]?.length ?? 0) - (usage[a.id]?.length ?? 0) || a.name.localeCompare(b.name));
+  const [query, setQuery] = useState("");
   const [newName, setNewName] = useState("");
+  const [newBrand, setNewBrand] = useState("");
   const [newUnit, setNewUnit] = useState("");
   const [newStock, setNewStock] = useState("");
   const [newThreshold, setNewThreshold] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleIngredients = normalizedQuery
+    ? ingredients.filter(
+        (ing) => ing.name.toLowerCase().includes(normalizedQuery) || (ing.brand ?? "").toLowerCase().includes(normalizedQuery),
+      )
+    : ingredients;
 
   function refresh() {
     window.location.reload();
@@ -215,6 +355,7 @@ export default function InventoryClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: newName.trim(),
+          brand: newBrand.trim() || null,
           unit: newUnit.trim(),
           currentStock: Number(newStock) || 0,
           lowStockThreshold: Number(newThreshold) || 0,
@@ -226,6 +367,7 @@ export default function InventoryClient({
         return;
       }
       setNewName("");
+      setNewBrand("");
       setNewUnit("");
       setNewStock("");
       setNewThreshold("");
@@ -242,32 +384,55 @@ export default function InventoryClient({
           <p className="text-sm font-semibold text-status-low">
             {lowOrOut.length} ingredient{lowOrOut.length === 1 ? "" : "s"} need{lowOrOut.length === 1 ? "s" : ""} attention
           </p>
-          <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-navy-800">
-            {lowOrOut.map((ing) => (
-              <li key={ing.id}>
-                {ing.name} — {ing.currentStock <= 0 ? "out" : `${ing.currentStock} ${ing.unit} left`}
-              </li>
-            ))}
+          <p className="mt-0.5 text-xs text-navy-600">Listed by how many menu items rely on them — most-used first.</p>
+          <ul className="mt-3 divide-y divide-amber-200/60 text-sm text-navy-800">
+            {lowOrOut.map((ing) => {
+              const usedInCount = usage[ing.id]?.length ?? 0;
+              return (
+                <li key={ing.id} className="flex items-center justify-between gap-3 py-1.5">
+                  <span>
+                    {ing.name}
+                    {usedInCount > 0 && (
+                      <span className="ml-2 text-xs text-navy-500">
+                        used in {usedInCount} item{usedInCount === 1 ? "" : "s"}
+                      </span>
+                    )}
+                  </span>
+                  <span className={ing.currentStock <= 0 ? "font-medium text-status-out" : "text-status-low"}>
+                    {ing.currentStock <= 0 ? "Out" : `${ing.currentStock} ${ing.unit} left`}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
 
-      <div className="card overflow-x-auto p-5">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="text-xs font-semibold uppercase tracking-wide text-navy-600">
-              <th className="pb-2">Ingredient</th>
-              <th className="pb-2">Current stock</th>
-              <th className="pb-2">Restock / use</th>
-              <th className="pb-2">Low-stock threshold</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ingredients.map((ing) => (
-              <Row key={ing.id} ingredient={ing} lastRestock={lastRestockPrices[ing.id]} onChanged={refresh} />
-            ))}
-          </tbody>
-        </table>
+      <div className="card p-5">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Find an ingredient…"
+          className="w-full rounded-md border border-card-border px-3 py-2 text-sm"
+        />
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="text-xs font-semibold uppercase tracking-wide text-navy-600">
+                <th className="pb-2">Ingredient</th>
+                <th className="pb-2">Current stock</th>
+                <th className="pb-2">Restock / use</th>
+                <th className="pb-2">Low-stock threshold</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleIngredients.map((ing) => (
+                <Row key={ing.id} ingredient={ing} lastRestock={lastRestockPrices[ing.id]} usedIn={usage[ing.id] ?? []} onChanged={refresh} />
+              ))}
+            </tbody>
+          </table>
+          {visibleIngredients.length === 0 && <p className="py-4 text-sm text-navy-600">No ingredient matches “{query}”.</p>}
+        </div>
       </div>
 
       <div className="card p-5">
@@ -278,6 +443,12 @@ export default function InventoryClient({
             onChange={(e) => setNewName(e.target.value)}
             placeholder="Name"
             className="col-span-2 rounded-md border border-card-border px-3 py-2 text-sm sm:col-span-1"
+          />
+          <input
+            value={newBrand}
+            onChange={(e) => setNewBrand(e.target.value)}
+            placeholder="Brand (optional)"
+            className="rounded-md border border-card-border px-3 py-2 text-sm"
           />
           <input
             value={newUnit}
