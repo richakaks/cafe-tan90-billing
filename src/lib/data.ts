@@ -479,6 +479,17 @@ export async function updateIngredient(
   }
 }
 
+// Round 18's "Delete" option on /admin/inventory. Both menu_item_ingredients
+// and stock_adjustments already have `ingredient_id ... on delete cascade`
+// in schema.sql, so a plain delete here also removes every recipe link that
+// used this ingredient and its entire restock/use history log -- the UI is
+// responsible for warning about that (how many recipes, that history is
+// lost) before calling this, since neither is recoverable afterward.
+export async function deleteIngredient(id: string): Promise<void> {
+  const { error } = await db().from("ingredients").delete().eq("id", id);
+  if (error) throw error;
+}
+
 // pricePaid: total THB paid for this restock (not a per-unit rate), owner's
 // Round 13 request so the next restock can show "last time this cost ฿X."
 // Optional — pass null/undefined for a plain restock or any "-Use" entry;
@@ -618,7 +629,7 @@ export async function updateIngredientThreshold(id: string, lowStockThreshold: n
 
 export async function getMenuItemsAdmin(): Promise<MenuItemAdminView[]> {
   const [{ data: items, error: itemsErr }, { data: links, error: linkErr }, { data: ingredients, error: ingErr }] = await Promise.all([
-    db().from("menu_items").select("code, name, category, price, active").order("sort_order"),
+    db().from("menu_items").select("code, name, category, price, active, yield_servings").order("sort_order"),
     db().from("menu_item_ingredients").select("menu_item_code, ingredient_id, qty_per_order"),
     db().from("ingredients").select("id, name, unit"),
   ]);
@@ -634,6 +645,7 @@ export async function getMenuItemsAdmin(): Promise<MenuItemAdminView[]> {
     category: item.category,
     price: Number(item.price),
     active: item.active,
+    yieldServings: Number(item.yield_servings ?? 1),
     ingredients: (links ?? [])
       .filter((l) => l.menu_item_code === item.code)
       .map((l) => {
@@ -648,7 +660,28 @@ export async function getMenuItemsAdmin(): Promise<MenuItemAdminView[]> {
   }));
 }
 
-export async function upsertMenuItem(item: { code: string; name: string; category: string; price: number; active: boolean }): Promise<void> {
+// Round 18's "Delete" option on /admin/menu. menu_item_ingredients already
+// cascades on delete (its recipe links go with it) and historical_sales
+// already sets menu_item_code to null on delete (old sales stay, just
+// unmatched, same as any other off-menu historical row). order_items has no
+// FK to menu_items at all -- past orders keep their own frozen item_name/
+// price_at_order snapshot regardless, so deleting the menu item never
+// touches what a past receipt shows.
+export async function deleteMenuItem(code: string): Promise<void> {
+  const { error } = await db().from("menu_items").delete().eq("code", code);
+  if (error) throw error;
+}
+
+// Round 18's "edit the code" option. code is menu_items' primary key, so
+// this goes through the rename_menu_item_code() Postgres function rather
+// than a plain update -- see schema.sql for why (it also has to touch
+// order_items, which has no FK to cascade automatically).
+export async function renameMenuItemCode(oldCode: string, newCode: string): Promise<void> {
+  const { error } = await db().rpc("rename_menu_item_code", { p_old_code: oldCode, p_new_code: newCode });
+  if (error) throw error;
+}
+
+export async function upsertMenuItem(item: { code: string; name: string; category: string; price: number; active: boolean; yieldServings?: number }): Promise<void> {
   const { data: existing } = await db().from("menu_items").select("code").eq("code", item.code).maybeSingle();
 
   // Only a genuinely new item needs a sort_order assigned — editing an
@@ -667,8 +700,23 @@ export async function upsertMenuItem(item: { code: string; name: string; categor
     sortOrder = sameCategoryMax ? sameCategoryMax.sort_order + 10 : (overallMax?.sort_order ?? 0) + 1000;
   }
 
-  const payload: { code: string; name: string; category: string; price: number; active: boolean; sort_order?: number } =
-    sortOrder === undefined ? item : { ...item, sort_order: sortOrder };
+  const payload: {
+    code: string;
+    name: string;
+    category: string;
+    price: number;
+    active: boolean;
+    sort_order?: number;
+    yield_servings?: number;
+  } = {
+    code: item.code,
+    name: item.name,
+    category: item.category,
+    price: item.price,
+    active: item.active,
+    ...(sortOrder !== undefined ? { sort_order: sortOrder } : {}),
+    ...(item.yieldServings !== undefined ? { yield_servings: item.yieldServings } : {}),
+  };
   const { error } = await db().from("menu_items").upsert(payload);
   if (error) throw error;
 }

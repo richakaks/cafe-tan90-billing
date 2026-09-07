@@ -756,6 +756,56 @@ alter table ingredients
   add column if not exists brand text;
 
 -- ---------------------------------------------------------------------------
+-- Round 18: how many servings one order of this item's recipe actually
+-- produces (usually 1) -- editable from /admin/menu's Edit panel. Purely
+-- informational; nothing currently multiplies stock deduction by it.
+-- ---------------------------------------------------------------------------
+alter table menu_items
+  add column if not exists yield_servings integer not null default 1;
+alter table menu_items drop constraint if exists menu_items_yield_servings_check;
+alter table menu_items add constraint menu_items_yield_servings_check check (yield_servings > 0);
+
+-- ---------------------------------------------------------------------------
+-- Round 18: editing a menu item's code (its permanent ID). The owner chose a
+-- full rename -- recipe links and historical sales rows should follow the
+-- item to its new code, and past live orders should retroactively show it
+-- under the new code too. menu_item_ingredients/historical_sales already
+-- reference menu_items(code) with ON DELETE behavior; adding ON UPDATE
+-- CASCADE here lets a plain `update menu_items set code = ...` propagate to
+-- both automatically. order_items.menu_item_code is deliberately NOT a
+-- foreign key (Round 1's decision, so a receipt survives even if the item is
+-- later deleted) -- rename_menu_item_code() below updates it by hand so past
+-- orders follow the rename too, per the owner's explicit choice.
+-- ---------------------------------------------------------------------------
+alter table menu_item_ingredients drop constraint if exists menu_item_ingredients_menu_item_code_fkey;
+alter table menu_item_ingredients add constraint menu_item_ingredients_menu_item_code_fkey
+  foreign key (menu_item_code) references menu_items(code) on delete cascade on update cascade;
+
+alter table historical_sales drop constraint if exists historical_sales_menu_item_code_fkey;
+alter table historical_sales add constraint historical_sales_menu_item_code_fkey
+  foreign key (menu_item_code) references menu_items(code) on delete set null on update cascade;
+
+create or replace function rename_menu_item_code(p_old_code text, p_new_code text)
+returns void
+language plpgsql
+as $$
+begin
+  if p_old_code = p_new_code then
+    return;
+  end if;
+  if exists (select 1 from menu_items where code = p_new_code) then
+    raise exception 'Item code % is already in use', p_new_code;
+  end if;
+
+  update menu_items set code = p_new_code where code = p_old_code;
+  -- menu_item_ingredients and historical_sales already followed via their
+  -- ON UPDATE CASCADE foreign keys above. order_items has no FK, so it's
+  -- updated explicitly here.
+  update order_items set menu_item_code = p_new_code where menu_item_code = p_old_code;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- Explicit grants for the service role. Newer Supabase projects no longer
 -- auto-grant service_role access to tables created by hand (the "Automatically
 -- expose new tables" project setting) — these grants make this schema work
@@ -774,3 +824,4 @@ grant execute on function reset_all_orders() to service_role;
 grant execute on function reset_all_stock() to service_role;
 grant execute on function clear_stock_history() to service_role;
 grant execute on function reset_orders_in_range(date, date) to service_role;
+grant execute on function rename_menu_item_code(text, text) to service_role;

@@ -135,18 +135,38 @@ function Row({
   lastRestock,
   usedIn,
   onChanged,
+  highlighted,
 }: {
   ingredient: Ingredient;
   lastRestock?: LastRestockPrice;
   usedIn: string[];
   onChanged: () => void;
+  highlighted?: boolean;
 }) {
   const [amount, setAmount] = useState("");
   const [price, setPrice] = useState("");
   const [threshold, setThreshold] = useState(String(ingredient.lowStockThreshold));
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const status = statusFor(ingredient);
+
+  async function confirmDelete() {
+    setBusy(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/inventory/${ingredient.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const b = await res.json();
+        setDeleteError(b.error ?? "Could not delete this ingredient.");
+        return;
+      }
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function restock(sign: 1 | -1) {
     const n = Number(amount);
@@ -188,19 +208,51 @@ function Row({
   }
 
   return (
-    <tr className="border-t border-card-border">
+    <tr
+      id={`ingredient-row-${ingredient.id}`}
+      className={`border-t border-card-border transition-colors ${highlighted ? "bg-amber-100" : ""}`}
+    >
       <td className="py-3 pr-3 align-top">
         {editing ? (
           <EditIngredientForm ingredient={ingredient} onCancel={() => setEditing(false)} onSaved={onChanged} />
+        ) : confirmingDelete ? (
+          <div className="max-w-[260px] rounded-md border border-status-out/40 bg-red-50 p-2.5">
+            <p className="text-xs font-semibold text-status-out">Delete {ingredient.name}?</p>
+            <p className="mt-1 text-xs text-navy-700">
+              {usedIn.length > 0
+                ? `This removes it from ${usedIn.length} recipe${usedIn.length === 1 ? "" : "s"} (${usedIn.join(", ")}) and deletes its restock/use history. This can't be undone.`
+                : "This deletes its restock/use history too. This can't be undone."}
+            </p>
+            {deleteError && <p className="mt-1 text-xs text-status-out">{deleteError}</p>}
+            <div className="mt-2 flex gap-1.5">
+              <button
+                disabled={busy}
+                onClick={confirmDelete}
+                className="rounded-md bg-status-out px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+              >
+                Yes, delete
+              </button>
+              <button
+                disabled={busy}
+                onClick={() => setConfirmingDelete(false)}
+                className="rounded-md border border-card-border px-2 py-1 text-xs font-medium text-navy-900 hover:bg-navy-100 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         ) : (
           <>
             <p className="font-medium text-navy-950">{ingredient.name}</p>
             {ingredient.brand && <p className="text-xs text-navy-500">{ingredient.brand}</p>}
             {usedIn.length > 0 && <p className="text-xs text-navy-500">Used in: {usedIn.join(", ")}</p>}
-            <div className="mt-1 flex items-center gap-2">
+            <div className="mt-1 flex items-center gap-3">
               <span className={`inline-block rounded-full px-2 py-0.5 text-xs ${status.className}`}>{status.label}</span>
               <button onClick={() => setEditing(true)} className="text-xs font-medium text-navy-700 underline decoration-dotted">
                 Edit
+              </button>
+              <button onClick={() => setConfirmingDelete(true)} className="text-xs font-medium text-status-out underline decoration-dotted">
+                Delete
               </button>
             </div>
           </>
@@ -210,14 +262,14 @@ function Row({
         {ingredient.currentStock} {ingredient.unit}
       </td>
       <td className="py-3 pr-3">
-        <div className="flex flex-wrap items-center gap-1">
+        <div className="flex max-w-[240px] flex-col gap-1.5">
           <input
             type="number"
             min={0}
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="Amount"
-            className="w-20 rounded-md border border-card-border px-2 py-1 text-sm"
+            className="w-full rounded-md border border-card-border px-2 py-1.5 text-sm"
           />
           <input
             type="number"
@@ -226,22 +278,24 @@ function Row({
             onChange={(e) => setPrice(e.target.value)}
             placeholder="฿ paid (optional)"
             title="Total price paid for this restock — leave blank if unknown"
-            className="w-28 rounded-md border border-card-border px-2 py-1 text-sm"
+            className="w-full rounded-md border border-card-border px-2 py-1.5 text-sm"
           />
-          <button
-            disabled={busy}
-            onClick={() => restock(1)}
-            className="rounded-md bg-navy-900 px-2 py-1 text-xs font-medium text-white hover:bg-navy-800 disabled:opacity-50"
-          >
-            + Restock
-          </button>
-          <button
-            disabled={busy}
-            onClick={() => restock(-1)}
-            className="rounded-md border border-card-border px-2 py-1 text-xs font-medium text-navy-900 hover:bg-navy-100 disabled:opacity-50"
-          >
-            − Use
-          </button>
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              disabled={busy}
+              onClick={() => restock(1)}
+              className="rounded-md bg-navy-900 px-2 py-1.5 text-xs font-medium text-white hover:bg-navy-800 disabled:opacity-50"
+            >
+              + Restock
+            </button>
+            <button
+              disabled={busy}
+              onClick={() => restock(-1)}
+              className="rounded-md border border-card-border px-2 py-1.5 text-xs font-medium text-navy-900 hover:bg-navy-100 disabled:opacity-50"
+            >
+              − Use
+            </button>
+          </div>
         </div>
         {lastRestock && (
           <p className="mt-1 text-xs text-navy-600">
@@ -333,6 +387,22 @@ export default function InventoryClient({
   const [newThreshold, setNewThreshold] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+
+  // Jumps from a "needs attention" banner row down to that ingredient's row
+  // in the table below -- clears any active search first (the row could be
+  // filtered out), waits a tick for the table to re-render with it visible,
+  // then scrolls it into view and briefly highlights it.
+  function goToIngredient(id: string) {
+    setQuery("");
+    setHighlightedId(id);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.getElementById(`ingredient-row-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    });
+    setTimeout(() => setHighlightedId((current) => (current === id ? null : current)), 2500);
+  }
 
   const normalizedQuery = query.trim().toLowerCase();
   const visibleIngredients = normalizedQuery
@@ -377,6 +447,15 @@ export default function InventoryClient({
     }
   }
 
+  function clearNewIngredientForm() {
+    setNewName("");
+    setNewBrand("");
+    setNewUnit("");
+    setNewStock("");
+    setNewThreshold("");
+    setError(null);
+  }
+
   return (
     <div className="space-y-8">
       {lowOrOut.length > 0 && (
@@ -398,8 +477,13 @@ export default function InventoryClient({
                       </span>
                     )}
                   </span>
-                  <span className={ing.currentStock <= 0 ? "font-medium text-status-out" : "text-status-low"}>
-                    {ing.currentStock <= 0 ? "Out" : `${ing.currentStock} ${ing.unit} left`}
+                  <span className="flex shrink-0 items-center gap-2">
+                    <span className={ing.currentStock <= 0 ? "font-medium text-status-out" : "text-status-low"}>
+                      {ing.currentStock <= 0 ? "Out" : `${ing.currentStock} ${ing.unit} left`}
+                    </span>
+                    <button onClick={() => goToIngredient(ing.id)} className="text-xs font-medium text-navy-700 underline hover:text-navy-950">
+                      Go to ingredient
+                    </button>
                   </span>
                 </li>
               );
@@ -427,7 +511,14 @@ export default function InventoryClient({
             </thead>
             <tbody>
               {visibleIngredients.map((ing) => (
-                <Row key={ing.id} ingredient={ing} lastRestock={lastRestockPrices[ing.id]} usedIn={usage[ing.id] ?? []} onChanged={refresh} />
+                <Row
+                  key={ing.id}
+                  ingredient={ing}
+                  lastRestock={lastRestockPrices[ing.id]}
+                  usedIn={usage[ing.id] ?? []}
+                  onChanged={refresh}
+                  highlighted={highlightedId === ing.id}
+                />
               ))}
             </tbody>
           </table>
@@ -437,48 +528,74 @@ export default function InventoryClient({
 
       <div className="card p-5">
         <h2 className="text-sm font-semibold text-navy-950">Add a new ingredient</h2>
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="Name"
-            className="col-span-2 rounded-md border border-card-border px-3 py-2 text-sm sm:col-span-1"
-          />
-          <input
-            value={newBrand}
-            onChange={(e) => setNewBrand(e.target.value)}
-            placeholder="Brand (optional)"
-            className="rounded-md border border-card-border px-3 py-2 text-sm"
-          />
-          <input
-            value={newUnit}
-            onChange={(e) => setNewUnit(e.target.value)}
-            placeholder="Unit (g, ml, pcs…)"
-            className="rounded-md border border-card-border px-3 py-2 text-sm"
-          />
-          <input
-            value={newStock}
-            onChange={(e) => setNewStock(e.target.value)}
-            type="number"
-            placeholder="Starting stock"
-            className="rounded-md border border-card-border px-3 py-2 text-sm"
-          />
-          <input
-            value={newThreshold}
-            onChange={(e) => setNewThreshold(e.target.value)}
-            type="number"
-            placeholder="Low-stock threshold"
-            className="rounded-md border border-card-border px-3 py-2 text-sm"
-          />
+        <div className="mt-4 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-3">
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs font-medium text-navy-600">Name</span>
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="e.g. Frozen Fries"
+              className="w-full rounded-md border border-card-border px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs font-medium text-navy-600">Brand (optional)</span>
+            <input
+              value={newBrand}
+              onChange={(e) => setNewBrand(e.target.value)}
+              placeholder="e.g. Lays"
+              className="w-full rounded-md border border-card-border px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs font-medium text-navy-600">Unit</span>
+            <input
+              value={newUnit}
+              onChange={(e) => setNewUnit(e.target.value)}
+              placeholder="g, ml, pcs…"
+              className="w-full rounded-md border border-card-border px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs font-medium text-navy-600">Starting stock</span>
+            <input
+              value={newStock}
+              onChange={(e) => setNewStock(e.target.value)}
+              type="number"
+              min={0}
+              placeholder="0"
+              className="w-full rounded-md border border-card-border px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs font-medium text-navy-600">Low-stock threshold</span>
+            <input
+              value={newThreshold}
+              onChange={(e) => setNewThreshold(e.target.value)}
+              type="number"
+              min={0}
+              placeholder="0"
+              className="w-full rounded-md border border-card-border px-3 py-2 text-sm"
+            />
+          </label>
         </div>
-        {error && <p className="mt-2 text-sm text-status-out">{error}</p>}
-        <button
-          onClick={addIngredient}
-          disabled={creating}
-          className="mt-4 rounded-lg bg-navy-900 px-4 py-2 text-sm font-medium text-white hover:bg-navy-800 disabled:opacity-50"
-        >
-          Add ingredient
-        </button>
+        {error && <p className="mt-3 text-sm text-status-out">{error}</p>}
+        <div className="mt-4 flex gap-2">
+          <button
+            onClick={addIngredient}
+            disabled={creating}
+            className="rounded-lg bg-navy-900 px-4 py-2 text-sm font-medium text-white hover:bg-navy-800 disabled:opacity-50"
+          >
+            Add ingredient
+          </button>
+          <button
+            onClick={clearNewIngredientForm}
+            disabled={creating}
+            className="rounded-lg border border-card-border px-4 py-2 text-sm font-medium text-navy-900 hover:bg-navy-100 disabled:opacity-50"
+          >
+            Clear
+          </button>
+        </div>
       </div>
 
       <div className="card p-5">

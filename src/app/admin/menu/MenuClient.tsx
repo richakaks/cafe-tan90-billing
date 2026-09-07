@@ -132,27 +132,82 @@ function ItemCard({ item, ingredients, onChanged }: { item: MenuItemAdminView; i
   const [name, setName] = useState(item.name);
   const [category, setCategory] = useState(item.category);
   const [price, setPrice] = useState(String(item.price));
+  const [yieldServings, setYieldServings] = useState(String(item.yieldServings));
   const [active, setActive] = useState(item.active);
   const [busy, setBusy] = useState(false);
   const [linkIngredientId, setLinkIngredientId] = useState("");
   const [linkQty, setLinkQty] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  const [codeInput, setCodeInput] = useState(item.code);
+  const [codeBusy, setCodeBusy] = useState(false);
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [confirmingCode, setConfirmingCode] = useState(false);
+
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   const linkedIds = new Set(item.ingredients.map((l) => l.ingredientId));
   const availableToLink = ingredients.filter((i) => !linkedIds.has(i.id));
 
   async function saveDetails() {
+    const yieldNum = Number(yieldServings);
+    if (!yieldNum || yieldNum <= 0) {
+      setError("Yield (servings) must be a number greater than 0.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       const res = await fetch("/api/menu", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: item.code, name, category, price: Number(price), active }),
+        body: JSON.stringify({ code: item.code, name, category, price: Number(price), active, yieldServings: yieldNum }),
       });
       if (!res.ok) {
         const body = await res.json();
         setError(body.error ?? "Could not save.");
+        return;
+      }
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveCode() {
+    const trimmed = codeInput.trim();
+    if (!trimmed || trimmed === item.code) {
+      setConfirmingCode(false);
+      return;
+    }
+    setCodeBusy(true);
+    setCodeError(null);
+    try {
+      const res = await fetch(`/api/menu/${item.code}/rename`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newCode: trimmed }),
+      });
+      if (!res.ok) {
+        const body = await res.json();
+        setCodeError(body.error ?? "Could not change this item's code.");
+        return;
+      }
+      onChanged();
+    } finally {
+      setCodeBusy(false);
+    }
+  }
+
+  async function confirmDelete() {
+    setBusy(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/menu/${item.code}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json();
+        setDeleteError(body.error ?? "Could not delete this item.");
         return;
       }
       onChanged();
@@ -233,10 +288,68 @@ function ItemCard({ item, ingredients, onChanged }: { item: MenuItemAdminView; i
 
       {expanded && (
         <div className="mt-4 space-y-4 border-t border-card-border pt-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-navy-600">Item code</p>
+            <p className="mt-1 text-xs text-navy-600">
+              This is the item&rsquo;s permanent ID. Changing it updates its recipe links, historical sales, and every past order that used it.
+            </p>
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                value={codeInput}
+                onChange={(e) => {
+                  setCodeInput(e.target.value);
+                  setConfirmingCode(false);
+                }}
+                className="w-40 rounded-md border border-card-border px-2 py-1.5 font-mono text-sm"
+              />
+              {!confirmingCode ? (
+                <button
+                  onClick={() => setConfirmingCode(true)}
+                  disabled={codeBusy || !codeInput.trim() || codeInput.trim() === item.code}
+                  className="rounded-md border border-card-border px-2 py-1.5 text-xs font-medium text-navy-900 hover:bg-navy-100 disabled:opacity-50"
+                >
+                  Change code
+                </button>
+              ) : (
+                <>
+                  <span className="text-xs text-status-out">Change {item.code} &rarr; {codeInput.trim()}?</span>
+                  <button
+                    onClick={saveCode}
+                    disabled={codeBusy}
+                    className="rounded-md bg-status-out px-2 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    onClick={() => {
+                      setConfirmingCode(false);
+                      setCodeInput(item.code);
+                    }}
+                    disabled={codeBusy}
+                    className="rounded-md border border-card-border px-2 py-1.5 text-xs font-medium text-navy-900 hover:bg-navy-100 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
+            </div>
+            {codeError && <p className="mt-1 text-xs text-status-out">{codeError}</p>}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" className="rounded-md border border-card-border px-3 py-2 text-sm" />
             <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Category" className="rounded-md border border-card-border px-3 py-2 text-sm" />
             <input value={price} onChange={(e) => setPrice(e.target.value)} type="number" placeholder="Price" className="rounded-md border border-card-border px-3 py-2 text-sm" />
+            <input
+              value={yieldServings}
+              onChange={(e) => setYieldServings(e.target.value)}
+              type="number"
+              min={1}
+              step="1"
+              placeholder="Yield (servings)"
+              title="How many servings one order of this recipe actually produces"
+              className="rounded-md border border-card-border px-3 py-2 text-sm"
+            />
           </div>
           <button onClick={saveDetails} disabled={busy} className="rounded-lg bg-navy-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-navy-800 disabled:opacity-50">
             Save details
@@ -283,6 +396,39 @@ function ItemCard({ item, ingredients, onChanged }: { item: MenuItemAdminView; i
           </div>
 
           {error && <p className="text-sm text-status-out">{error}</p>}
+
+          <div className="border-t border-card-border pt-4">
+            {confirmingDelete ? (
+              <div className="max-w-[360px] rounded-md border border-status-out/40 bg-red-50 p-2.5">
+                <p className="text-xs font-semibold text-status-out">Delete {item.name}?</p>
+                <p className="mt-1 text-xs text-navy-700">
+                  This removes its recipe links and unlinks it from historical sales. Past orders and receipts that
+                  included it are unaffected. This can&rsquo;t be undone.
+                </p>
+                {deleteError && <p className="mt-1 text-xs text-status-out">{deleteError}</p>}
+                <div className="mt-2 flex gap-1.5">
+                  <button
+                    disabled={busy}
+                    onClick={confirmDelete}
+                    className="rounded-md bg-status-out px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+                  >
+                    Yes, delete
+                  </button>
+                  <button
+                    disabled={busy}
+                    onClick={() => setConfirmingDelete(false)}
+                    className="rounded-md border border-card-border px-2 py-1 text-xs font-medium text-navy-900 hover:bg-navy-100 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmingDelete(true)} className="text-xs font-medium text-status-out hover:underline">
+                Delete item
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

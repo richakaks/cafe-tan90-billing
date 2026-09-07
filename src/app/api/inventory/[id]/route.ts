@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adjustIngredientStock, updateIngredientThreshold, updateIngredient } from "@/lib/data";
+import { adjustIngredientStock, updateIngredientThreshold, updateIngredient, deleteIngredient } from "@/lib/data";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -30,5 +30,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   } catch (err) {
     console.error("inventory update failed", err);
     return NextResponse.json({ error: "Could not update this ingredient (maybe that name is already taken?)." }, { status: 500 });
+  }
+}
+
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  try {
+    await deleteIngredient(id);
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("deleteIngredient failed", err);
+    return NextResponse.json({ error: "Could not delete this ingredient." }, { status: 500 });
   }
 }

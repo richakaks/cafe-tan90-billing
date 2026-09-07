@@ -240,6 +240,10 @@ export interface SalesAnalytics {
 }
 
 export interface MenuItemAdminView extends MenuItem {
+  // How many servings one order of this recipe actually produces (usually
+  // 1) -- Round 18, editable from the item's Edit panel, purely
+  // informational (nothing currently multiplies stock deduction by it).
+  yieldServings: number;
   ingredients: Array<{ ingredientId: string; ingredientName: string; unit: string; qtyPerOrder: number }>;
 }
 
