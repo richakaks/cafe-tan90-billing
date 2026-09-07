@@ -8,6 +8,10 @@ function formatBaht(amount: number): string {
   return `฿${amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
+function pct(part: number, total: number): number {
+  return total > 0 ? Math.round((part / total) * 100) : 0;
+}
+
 // ---------------------------------------------------------------------------
 // Pure calendar-date helpers, Asia/Bangkok for anything anchored to "today"
 // (Today/This month jump targets), otherwise plain UTC date-string math —
@@ -118,6 +122,13 @@ export default function AnalyticsClient() {
   const daysWithSales = useMemo(() => data?.dailyTotals.filter((d) => d.revenue > 0).length ?? 0, [data]);
   const hasAnySales = useMemo(() => (data?.dailyTotals.some((d) => d.revenue > 0) ?? false), [data]);
   const hasLiveHourlyData = useMemo(() => (data?.hourlyTotals.some((h) => h.orderCount > 0) ?? false), [data]);
+  // Percentages are of cash+online only (so the two shown figures sum to
+  // 100%) — "not yet recorded" orders are shown separately as a raw amount,
+  // not folded into that percentage.
+  const paidSplitTotal = useMemo(
+    () => (data ? data.paymentSplit.cash + data.paymentSplit.online : 0),
+    [data]
+  );
   const sortedWeekdays = useMemo(
     () => (data ? [...data.weekdayTotals].sort((a, b) => b.revenue - a.revenue) : []),
     [data]
@@ -410,7 +421,7 @@ export default function AnalyticsClient() {
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="card p-5">
               <h2 className="text-sm font-semibold text-navy-950">Peak ordering hours</h2>
               <p className="mt-1 text-xs text-navy-600">
@@ -448,6 +459,46 @@ export default function AnalyticsClient() {
                   </span>
                 </li>
               </ul>
+            </div>
+
+            <div className="card p-5">
+              <h2 className="text-sm font-semibold text-navy-950">Payment method</h2>
+              <p className="mt-1 text-xs text-navy-600">Live orders, recorded when a bill is marked paid.</p>
+              {data.paymentSplit.cashOrders + data.paymentSplit.onlineOrders + data.paymentSplit.unknownOrders === 0 ? (
+                <p className="mt-2 text-sm text-navy-600">No orders in this range yet.</p>
+              ) : (
+                <ul className="mt-3 space-y-1.5 text-sm text-navy-800">
+                  <li className="flex justify-between">
+                    <span>💵 Cash</span>
+                    <span className="text-navy-600">
+                      {formatBaht(data.paymentSplit.cash)} &middot; {pct(data.paymentSplit.cash, paidSplitTotal)}%
+                    </span>
+                  </li>
+                  <li className="flex justify-between">
+                    <span>💳 Online</span>
+                    <span className="text-navy-600">
+                      {formatBaht(data.paymentSplit.online)} &middot; {pct(data.paymentSplit.online, paidSplitTotal)}%
+                    </span>
+                  </li>
+                  {data.paymentSplit.unknownOrders > 0 && (
+                    <li className="flex justify-between text-navy-500">
+                      <span>Not yet recorded</span>
+                      <span>
+                        {formatBaht(data.paymentSplit.unknown)} &middot; {data.paymentSplit.unknownOrders} order
+                        {data.paymentSplit.unknownOrders === 1 ? "" : "s"}
+                      </span>
+                    </li>
+                  )}
+                </ul>
+              )}
+              {data.historicalCashNote.count > 0 && (
+                <p className="mt-3 text-xs text-navy-500">
+                  Separately, the imported historical spreadsheet notes {data.historicalCashNote.count} sale line
+                  {data.historicalCashNote.count === 1 ? "" : "s"} ({formatBaht(data.historicalCashNote.revenue)}) as
+                  Cash — that source never recorded &quot;Online&quot;, so this isn&apos;t folded into the split
+                  above.
+                </p>
+              )}
             </div>
           </div>
 

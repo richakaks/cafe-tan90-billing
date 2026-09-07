@@ -57,6 +57,7 @@ export interface PlacedOrder {
 
 export type OrderStatus = "pending_pickup" | "placed" | "served" | "paid";
 export type OrderType = "immediate" | "pre_order";
+export type PaymentMethod = "cash" | "online";
 
 export interface OrderItemRow {
   id: number;
@@ -77,6 +78,10 @@ export interface OrderRow {
   requestedTime: string | null;
   couponCode: string | null;
   discountAmount: number;
+  // Set when staff mark an order paid (Round 17) — Cash or Online, chosen at
+  // that moment. Null for any order still open, and for orders paid before
+  // this feature existed (never guessed at retroactively).
+  paymentMethod: PaymentMethod | null;
   createdAt: string;
   items: OrderItemRow[];
 }
@@ -179,6 +184,29 @@ export interface CouponSummary {
   redeemedValue: number;
 }
 
+// Round 17: cash vs online split for live orders paid within the selected
+// range. "unknown" covers orders marked paid before this feature existed —
+// deliberately not guessed into cash or online.
+export interface PaymentSplit {
+  cash: number;
+  cashOrders: number;
+  online: number;
+  onlineOrders: number;
+  unknown: number;
+  unknownOrders: number;
+}
+
+// A separate, much looser signal from the imported historical spreadsheet
+// (Round 14/16): how many of its rows had "Cash" written in their own
+// payment_note within the range, and how much revenue those rows total.
+// This is NOT folded into paymentSplit above — the sheet only ever noted
+// "Cash" some of the time (never "Online"), so an absent note doesn't mean
+// online, it usually just means unnoted. Shown as a separate FYI figure.
+export interface HistoricalCashNote {
+  count: number;
+  revenue: number;
+}
+
 export interface SalesAnalytics {
   from: string;
   to: string;
@@ -204,6 +232,8 @@ export interface SalesAnalytics {
   // Live + historical revenue combined, grouped by weekday.
   weekdayTotals: WeekdayTotal[];
   couponSummary: CouponSummary;
+  paymentSplit: PaymentSplit;
+  historicalCashNote: HistoricalCashNote;
 }
 
 export interface MenuItemAdminView extends MenuItem {

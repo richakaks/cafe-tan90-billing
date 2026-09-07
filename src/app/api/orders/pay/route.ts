@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { markOrdersPaid } from "@/lib/data";
+import type { PaymentMethod } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
-  let body: { orderIds?: string[] };
+  let body: { orderIds?: string[]; paymentMethod?: string };
   try {
     body = await req.json();
   } catch {
@@ -14,8 +15,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No orders to mark paid." }, { status: 400 });
   }
 
+  if (body.paymentMethod !== "cash" && body.paymentMethod !== "online") {
+    return NextResponse.json({ error: "Pick how this bill was paid — Cash or Online." }, { status: 400 });
+  }
+  const paymentMethod: PaymentMethod = body.paymentMethod;
+
   try {
-    await markOrdersPaid(orderIds);
+    await markOrdersPaid(orderIds, paymentMethod);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("markOrdersPaid failed", err);

@@ -76,6 +76,27 @@ function CouponBox({ order, onApplied }: { order: OrderRow; onApplied: () => voi
   );
 }
 
+type PaymentMethod = "cash" | "online";
+
+// Two side-by-side buttons rather than one "mark paid" button plus a
+// separate method picker — payment method is required at the moment of
+// marking paid (Round 17), so the choice itself is the action.
+function PayButtons({ busy, filled, onPick }: { busy: boolean; filled?: boolean; onPick: (method: PaymentMethod) => void }) {
+  const base = filled
+    ? "flex-1 rounded-lg bg-navy-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-navy-800 disabled:opacity-50"
+    : "flex-1 rounded-lg border border-card-border px-3 py-2 text-sm font-medium text-navy-900 transition hover:bg-navy-100 disabled:opacity-50";
+  return (
+    <div className="mt-2 flex gap-2">
+      <button onClick={() => onPick("cash")} disabled={busy} className={base}>
+        {busy ? "…" : "💵 Cash"}
+      </button>
+      <button onClick={() => onPick("online")} disabled={busy} className={base}>
+        {busy ? "…" : "💳 Online"}
+      </button>
+    </div>
+  );
+}
+
 export default function BillingClient({ initialOrders }: { initialOrders: OrderRow[] }) {
   const [orders, setOrders] = useState(initialOrders);
   const [payingIds, setPayingIds] = useState<Set<string>>(new Set());
@@ -109,14 +130,14 @@ export default function BillingClient({ initialOrders }: { initialOrders: OrderR
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [orders]);
 
-  async function pay(orderIds: string[]) {
+  async function pay(orderIds: string[], paymentMethod: PaymentMethod) {
     setPayingIds((prev) => new Set([...prev, ...orderIds]));
     setPayError(null);
     try {
       const res = await fetch("/api/orders/pay", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderIds }),
+        body: JSON.stringify({ orderIds, paymentMethod }),
       });
       const body = await res.json();
       if (!res.ok) {
@@ -177,13 +198,8 @@ export default function BillingClient({ initialOrders }: { initialOrders: OrderR
                         )}
                       </div>
                       <CouponBox order={order} onApplied={refresh} />
-                      <button
-                        onClick={() => pay([order.id])}
-                        disabled={payingIds.has(order.id)}
-                        className="mt-2 w-full rounded-lg border border-card-border px-3 py-2 text-sm font-medium text-navy-900 transition hover:bg-navy-100 disabled:opacity-50"
-                      >
-                        {payingIds.has(order.id) ? "Marking paid…" : "Mark this order paid"}
-                      </button>
+                      <p className="mt-2 text-xs text-navy-600">Mark paid — how?</p>
+                      <PayButtons busy={payingIds.has(order.id)} onPick={(method) => pay([order.id], method)} />
                     </div>
                   );
                 })}
@@ -204,13 +220,8 @@ export default function BillingClient({ initialOrders }: { initialOrders: OrderR
                       )}
                     </span>
                   </div>
-                  <button
-                    onClick={() => pay(allIds)}
-                    disabled={anyBusy}
-                    className="mt-2 w-full rounded-lg bg-navy-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-navy-800 disabled:opacity-50"
-                  >
-                    {anyBusy ? "Marking paid…" : "Bill together — mark all paid"}
-                  </button>
+                  <p className="mt-2 text-xs text-navy-600">Bill together — mark all paid, how?</p>
+                  <PayButtons busy={anyBusy} filled onPick={(method) => pay(allIds, method)} />
                 </div>
               )}
             </div>

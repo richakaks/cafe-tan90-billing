@@ -610,7 +610,13 @@ begin
   set redeemed = false, redeemed_at = null, redeemed_order_id = null
   where redeemed_order_id is not null;
 
-  delete from orders;
+  -- `where true`: some Postgres setups (this project's included) load a
+  -- safeupdate-style guard that rejects any UPDATE/DELETE with no WHERE
+  -- clause at all, even when "everything" is genuinely the intent. This is
+  -- an unconditional delete by design (that's the whole point of "reset
+  -- all orders") -- the always-true condition satisfies the guard without
+  -- changing behavior.
+  delete from orders where true;
 end;
 $$;
 
@@ -629,7 +635,10 @@ begin
   insert into stock_adjustments (ingredient_id, delta, resulting_stock)
   select id, -current_stock, 0 from ingredients where current_stock <> 0;
 
-  update ingredients set current_stock = 0;
+  -- `where true`: see the matching note in reset_all_orders above -- this
+  -- guards against the same "no WHERE clause at all" rejection while
+  -- staying an unconditional zero-out of every ingredient, as intended.
+  update ingredients set current_stock = 0 where true;
 end;
 $$;
 
@@ -646,7 +655,10 @@ returns void
 language plpgsql
 as $$
 begin
-  delete from stock_adjustments;
+  -- `where true`: see the matching note in reset_all_orders above -- this
+  -- guards against the same "no WHERE clause at all" rejection while
+  -- staying an unconditional wipe of the whole log, as intended.
+  delete from stock_adjustments where true;
 end;
 $$;
 
@@ -718,6 +730,20 @@ create index if not exists historical_sales_sale_date_idx on historical_sales(sa
 create index if not exists historical_sales_menu_item_code_idx on historical_sales(menu_item_code);
 
 alter table historical_sales enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- Round 17: payment method (cash vs online), recorded when staff mark a bill
+-- paid on /billing. Nullable — every order marked paid before this feature
+-- existed stays unlabeled rather than guessed at, and it's left unset while
+-- an order is still open (only set at the same moment status flips to
+-- 'paid', in markOrdersPaid in data.ts).
+-- ---------------------------------------------------------------------------
+alter table orders
+  add column if not exists payment_method text;
+
+alter table orders drop constraint if exists orders_payment_method_check;
+alter table orders add constraint orders_payment_method_check
+  check (payment_method is null or payment_method in ('cash', 'online'));
 
 -- ---------------------------------------------------------------------------
 -- Explicit grants for the service role. Newer Supabase projects no longer

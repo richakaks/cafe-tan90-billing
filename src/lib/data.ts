@@ -13,6 +13,7 @@ import type {
   MenuItemWithAvailability,
   OrderItemRow,
   OrderRow,
+  PaymentMethod,
   PeriodTotals,
   PlacedOrder,
   PlacedPreOrder,
@@ -215,7 +216,7 @@ export async function placePreOrder(items: CartItem[], requestedDate: string, re
 // ---------------------------------------------------------------------------
 
 const ORDER_ROW_SELECT =
-  "id, daily_order_number, order_date, seat_id, status, order_type, requested_date, requested_time, coupon_code, discount_amount, created_at, order_items(id, menu_item_code, item_name, qty, price_at_order)";
+  "id, daily_order_number, order_date, seat_id, status, order_type, requested_date, requested_time, coupon_code, discount_amount, payment_method, created_at, order_items(id, menu_item_code, item_name, qty, price_at_order)";
 
 type RawOrderRow = {
   id: string;
@@ -228,6 +229,7 @@ type RawOrderRow = {
   requested_time: string | null;
   coupon_code: string | null;
   discount_amount: number;
+  payment_method: string | null;
   created_at: string;
   order_items:
     | { id: number; menu_item_code: string; item_name: string; qty: number; price_at_order: number }[]
@@ -246,6 +248,7 @@ function mapOrderRow(o: RawOrderRow): OrderRow {
     requestedTime: o.requested_time,
     couponCode: o.coupon_code,
     discountAmount: Number(o.discount_amount),
+    paymentMethod: (o.payment_method as OrderRow["paymentMethod"]) ?? null,
     createdAt: o.created_at,
     items: (o.order_items ?? []).map(
       (it): OrderItemRow => ({
@@ -310,10 +313,16 @@ export async function getServedOrders(): Promise<OrderRow[]> {
 // Marks one or several orders paid at once (staff's choice — one order at a
 // time, or a whole table's tab together). Only flips orders that are
 // currently 'served', so this can't accidentally "pay" something still
-// cooking or already paid.
-export async function markOrdersPaid(orderIds: string[]): Promise<void> {
+// cooking or already paid. paymentMethod is required (Round 17) — a
+// combined bill is one real-world transaction, so every order in the same
+// call gets the same method.
+export async function markOrdersPaid(orderIds: string[], paymentMethod: PaymentMethod): Promise<void> {
   if (orderIds.length === 0) return;
-  const { error } = await db().from("orders").update({ status: "paid" }).in("id", orderIds).eq("status", "served");
+  const { error } = await db()
+    .from("orders")
+    .update({ status: "paid", payment_method: paymentMethod })
+    .in("id", orderIds)
+    .eq("status", "served");
   if (error) throw error;
 }
 
@@ -721,14 +730,14 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
   ] = await Promise.all([
     db()
       .from("orders")
-      .select("id, order_date, discount_amount, created_at, order_items(menu_item_code, item_name, qty, price_at_order)")
+      .select("id, order_date, discount_amount, payment_method, created_at, order_items(menu_item_code, item_name, qty, price_at_order)")
       .in("status", ["placed", "served", "paid"])
       .gte("order_date", from)
       .lte("order_date", to),
     db().from("menu_items").select("code, category"),
     db()
       .from("historical_sales")
-      .select("sale_date, item_name, menu_item_code, quantity, total_revenue")
+      .select("sale_date, item_name, menu_item_code, quantity, total_revenue, payment_note")
       .gte("sale_date", from)
       .lte("sale_date", to),
     db()
@@ -754,12 +763,18 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
   const weekdayRevenue = new Array(7).fill(0);
   let totalRevenue = 0;
   let totalDiscount = 0;
+  // Round 17: cash vs online, for live orders only — the source data behind
+  // paid orders is the only place this is actually recorded. "unknown"
+  // covers both an order not yet marked paid and one paid before this
+  // feature existed; either way there's no real payment method to report.
+  const paymentSplit = { cash: 0, cashOrders: 0, online: 0, onlineOrders: 0, unknown: 0, unknownOrders: 0 };
 
   type RawItem = { menu_item_code: string; item_name: string; qty: number; price_at_order: number };
   type RawOrder = {
     id: string;
     order_date: string | null;
     discount_amount: number;
+    payment_method: string | null;
     created_at: string;
     order_items: RawItem[] | null;
   };
@@ -772,6 +787,17 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
     const orderNet = Math.max(0, orderGross - discount);
     totalRevenue += orderNet;
     totalDiscount += discount;
+
+    if (order.payment_method === "cash") {
+      paymentSplit.cash += orderNet;
+      paymentSplit.cashOrders += 1;
+    } else if (order.payment_method === "online") {
+      paymentSplit.online += orderNet;
+      paymentSplit.onlineOrders += 1;
+    } else {
+      paymentSplit.unknown += orderNet;
+      paymentSplit.unknownOrders += 1;
+    }
 
     const day = dailyMap.get(order.order_date) ?? { orderCount: 0, revenue: 0 };
     day.orderCount += 1;
@@ -818,17 +844,29 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
   // schema.sql), only day-level item x quantity x price lines, so there's
   // nothing honest to count as an "order", a pairing, or a time of day.
   let historicalRevenue = 0;
+  // Separate from paymentSplit above — the spreadsheet only ever wrote
+  // "Cash" as a free-text note some of the time (see payment_note in
+  // scripts/historical/build_import*.py), never "Online" (that concept
+  // didn't exist pre-launch), so an absent note means unnoted, not online.
+  // Just a count/total of what the sheet itself flagged as cash.
+  let historicalCashCount = 0;
+  let historicalCashRevenue = 0;
   type RawHistorical = {
     sale_date: string;
     item_name: string;
     menu_item_code: string | null;
     quantity: number;
     total_revenue: number | null;
+    payment_note: string | null;
   };
   for (const h of (historical ?? []) as unknown as RawHistorical[]) {
     const revenue = Number(h.total_revenue ?? 0);
     historicalRevenue += revenue;
     totalRevenue += revenue;
+    if (h.payment_note && h.payment_note.toLowerCase().includes("cash")) {
+      historicalCashCount += 1;
+      historicalCashRevenue += revenue;
+    }
 
     const day = dailyMap.get(h.sale_date) ?? { orderCount: 0, revenue: 0 };
     day.revenue += revenue;
@@ -913,6 +951,8 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
       redeemedCount: (redeemedCoupons ?? []).length,
       redeemedValue: (redeemedCoupons ?? []).reduce((sum, c) => sum + Number((c as { value: number }).value), 0),
     },
+    paymentSplit,
+    historicalCashNote: { count: historicalCashCount, revenue: historicalCashRevenue },
   };
 }
 
