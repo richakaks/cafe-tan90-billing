@@ -284,14 +284,14 @@ function Row({
             <button
               disabled={busy}
               onClick={() => restock(1)}
-              className="rounded-md bg-navy-900 px-2 py-1.5 text-xs font-medium text-white hover:bg-navy-800 disabled:opacity-50"
+              className="whitespace-nowrap rounded-md bg-navy-900 px-2 py-1.5 text-xs font-medium text-white hover:bg-navy-800 disabled:opacity-50"
             >
               + Restock
             </button>
             <button
               disabled={busy}
               onClick={() => restock(-1)}
-              className="rounded-md border border-card-border px-2 py-1.5 text-xs font-medium text-navy-900 hover:bg-navy-100 disabled:opacity-50"
+              className="whitespace-nowrap rounded-md border border-card-border px-2 py-1.5 text-xs font-medium text-navy-900 hover:bg-navy-100 disabled:opacity-50"
             >
               − Use
             </button>
@@ -305,19 +305,19 @@ function Row({
         )}
       </td>
       <td className="py-3">
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1">
           <input
             type="number"
             min={0}
             value={threshold}
             onChange={(e) => setThreshold(e.target.value)}
-            className="w-16 rounded-md border border-card-border px-2 py-1 text-sm"
+            className="w-16 shrink-0 rounded-md border border-card-border px-2 py-1 text-sm"
           />
-          <span className="text-xs text-navy-600">{ingredient.unit}</span>
+          <span className="shrink-0 whitespace-nowrap text-xs text-navy-600">{ingredient.unit}</span>
           <button
             disabled={busy}
             onClick={saveThreshold}
-            className="rounded-md border border-card-border px-2 py-1 text-xs font-medium text-navy-900 hover:bg-navy-100 disabled:opacity-50"
+            className="shrink-0 whitespace-nowrap rounded-md border border-card-border px-2 py-1 text-xs font-medium text-navy-900 hover:bg-navy-100 disabled:opacity-50"
           >
             Save
           </button>
@@ -500,13 +500,22 @@ export default function InventoryClient({
           className="w-full rounded-md border border-card-border px-3 py-2 text-sm"
         />
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-left">
+          {/* table-fixed + explicit column widths: a long "Used in" list on one
+              row (e.g. an ingredient used in a dozen recipes) must NOT be able
+              to steal width from the Restock/Use or Threshold columns on every
+              other row -- with the browser's default auto layout, one cell's
+              long content can do exactly that, which is what was squeezing the
+              +Restock/-Use buttons on some rows but not others. Fixed layout
+              makes every row share the same column widths regardless of any
+              single cell's content; min-w plus the overflow-x-auto wrapper
+              above means a narrow viewport scrolls instead of compressing. */}
+          <table className="w-full min-w-[820px] table-fixed text-left">
             <thead>
               <tr className="text-xs font-semibold uppercase tracking-wide text-navy-600">
-                <th className="pb-2">Ingredient</th>
-                <th className="pb-2">Current stock</th>
-                <th className="pb-2">Restock / use</th>
-                <th className="pb-2">Low-stock threshold</th>
+                <th className="w-[34%] pb-2">Ingredient</th>
+                <th className="w-[12%] pb-2">Current stock</th>
+                <th className="w-[32%] pb-2">Restock / use</th>
+                <th className="w-[22%] pb-2">Low-stock threshold</th>
               </tr>
             </thead>
             <tbody>
