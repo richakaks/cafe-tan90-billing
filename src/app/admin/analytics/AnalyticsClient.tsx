@@ -295,7 +295,7 @@ export default function AnalyticsClient() {
               {data.profit.excludedLineItems > 0 && (
                 <p className="mt-0.5 text-[11px] leading-tight text-navy-500">
                   Excludes {data.profit.excludedLineItems} line item{data.profit.excludedLineItems === 1 ? "" : "s"} (
-                  {formatBaht(data.profit.excludedRevenue)} revenue) with no priced restock yet
+                  {formatBaht(data.profit.excludedRevenue)} revenue) with no costing-table price on file
                 </p>
               )}
             </div>
@@ -322,14 +322,14 @@ export default function AnalyticsClient() {
           {data.historicalRevenue > 0 && (
             <p className="-mt-4 text-xs text-navy-600">
               Includes {formatBaht(data.historicalRevenue)} from imported historical sales (before online ordering
-              started) — those don&apos;t have per-order data, so Orders/Avg. order, Profit, and the trend badges
-              above only count real orders placed through the app.
+              started) — those don&apos;t have per-order data, so Orders, Avg. order, and the trend badges above
+              only count real orders placed through the app (Profit and Revenue both include historical sales).
             </p>
           )}
           <p className="-mt-4 text-xs text-navy-600">
-            Profit is an estimate: revenue from real orders in this range minus ingredient cost, based on each
-            recipe and the average price paid on restocks so far. Trend badges compare this period to the
-            same-length period right before it.
+            Profit is an estimate: revenue (live orders + historical sales) minus cost of goods, using each
+            item&apos;s cost from the Tan90 Costing Table. Trend badges compare this period to the same-length
+            period right before it.
           </p>
 
           <div className="card p-5">

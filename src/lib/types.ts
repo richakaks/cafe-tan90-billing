@@ -258,12 +258,15 @@ export interface HistoricalCashNote {
   revenue: number;
 }
 
-// Round 21: estimated gross profit for the selected period. Live app orders
-// only (see the "Profit view next to Revenue" decision in project notes) --
-// ingredient cost is the average cost-per-unit from priced restocks
-// (stock_adjustments.price_paid) times each recipe's qty, summed per order
-// line. Any line whose recipe includes an ingredient with no priced restock
-// yet (or has no recipe at all) is excluded from both revenueCounted and
+// Round 21, reworked Round 24: estimated gross profit for the selected
+// period. Cost comes from menu_items.cogs_thb -- one known cost per item,
+// taken verbatim from the owner's Tan90 Costing Table PDF -- rather than the
+// original restock-price average, which undercounted anything never
+// restocked with a price attached and couldn't reach historical_sales at
+// all. Covers both live orders and historical_sales now, since a PDF cost
+// has no restock-history dependency to exclude historical rows over. Any
+// line for a menu item with no cogs_thb on file (or, for historical rows, no
+// matched menu_item_code at all) is excluded from both revenueCounted and
 // costCounted rather than guessed at as free -- excludedRevenue/
 // excludedLineItems say how much and how many, so the estimate is never a
 // silent undercount presented as complete.

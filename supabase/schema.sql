@@ -1266,6 +1266,80 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- Round 24: costing-table-based profit estimate. The Round 21 profit figure
+-- averaged real restock prices per ingredient, which undercounted the moment
+-- an ingredient had never had a priced restock recorded, and couldn't reach
+-- historical_sales at all (no restock history predates the app going live).
+-- This switches the Profit (est.) card on /admin/analytics to the owner's
+-- own Tan90 Costing Table instead -- one known cost per menu item, straight
+-- from the PDF's "Total ฿" column, with no restock-history dependency.
+-- ---------------------------------------------------------------------------
+
+-- Cost of goods, in Baht, to produce ONE unit of this menu item, taken
+-- verbatim from the Tan90 Costing Table PDF's "Total ฿" column. Nullable: an
+-- item the costing table didn't cover has no entry here, and the profit
+-- computation below excludes it from both revenueCounted and costCounted
+-- rather than guessing at zero -- same exclusion contract the Round 21
+-- estimate used, just keyed off this column instead of restock prices now.
+alter table menu_items
+  add column if not exists cogs_thb numeric;
+
+alter table menu_items drop constraint if exists menu_items_cogs_thb_check;
+alter table menu_items add constraint menu_items_cogs_thb_check check (cogs_thb is null or cogs_thb >= 0);
+
+-- Seed from the Tan90 Costing Table PDF. 44 of the 47 current items were
+-- costed there; Spaghetti Alfredo (Mushroom), Spaghetti Alfredo (Chicken),
+-- and Crispy Coke were added to the menu after the table was drawn up and
+-- stay null (excluded from profit) until the owner supplies a cost for
+-- them. Unconditional updates, not "where cogs_thb is null" -- there's no
+-- admin UI to edit this column, so nothing else ever writes to it, and a
+-- corrected PDF transcription should always win on the next schema.sql run.
+update menu_items set cogs_thb = 9.26 where code = 'SN-FRF';
+update menu_items set cogs_thb = 11.21 where code = 'SN-PPF';
+update menu_items set cogs_thb = 10.7 where code = 'SN-ZAF';
+update menu_items set cogs_thb = 16.36 where code = 'SN-SMT';
+update menu_items set cogs_thb = 22.6 where code = 'SN-MGN';
+update menu_items set cogs_thb = 26.99 where code = 'SN-ECM';
+update menu_items set cogs_thb = 51.64 where code = 'SN-CLN';
+update menu_items set cogs_thb = 18.86 where code = 'M-VMM';
+update menu_items set cogs_thb = 25.35 where code = 'M-CMM';
+update menu_items set cogs_thb = 44.12 where code = 'SD-MUS';
+update menu_items set cogs_thb = 22.08 where code = 'SD-GCS';
+update menu_items set cogs_thb = 31.94 where code = 'SD-CHS';
+update menu_items set cogs_thb = 32.11 where code = 'B-CVB';
+update menu_items set cogs_thb = 30.12 where code = 'B-CCB';
+update menu_items set cogs_thb = 44.86 where code = 'B-DTB';
+update menu_items set cogs_thb = 29.04 where code = 'B-GCB';
+update menu_items set cogs_thb = 34.38 where code = 'B-SCB';
+update menu_items set cogs_thb = 17.31 where code = 'T-GLT0';
+update menu_items set cogs_thb = 17.62 where code = 'T-GLT1';
+update menu_items set cogs_thb = 5.85 where code = 'T-BLT0';
+update menu_items set cogs_thb = 8.27 where code = 'T-BLT1';
+update menu_items set cogs_thb = 11.43 where code = 'T-TMT0';
+update menu_items set cogs_thb = 12.69 where code = 'T-TMT1';
+update menu_items set cogs_thb = 14.45 where code = 'T-MST0';
+update menu_items set cogs_thb = 18.11 where code = 'T-MST1';
+update menu_items set cogs_thb = 8.04 where code = 'T-BPT0';
+update menu_items set cogs_thb = 8.34 where code = 'T-BPT1';
+update menu_items set cogs_thb = 8.81 where code = 'C-BLC0';
+update menu_items set cogs_thb = 14.59 where code = 'C-BLC1';
+update menu_items set cogs_thb = 8.56 where code = 'C-CPN0';
+update menu_items set cogs_thb = 11.91 where code = 'C-CPN1';
+update menu_items set cogs_thb = 17.03 where code = 'C-HZL0';
+update menu_items set cogs_thb = 18.85 where code = 'C-HZL1';
+update menu_items set cogs_thb = 12.48 where code = 'C-MCH0';
+update menu_items set cogs_thb = 17.01 where code = 'C-MCH1';
+update menu_items set cogs_thb = 11.61 where code = 'C-CCA0';
+update menu_items set cogs_thb = 17.0 where code = 'C-CCA1';
+update menu_items set cogs_thb = 8.96 where code = 'I-LIT';
+update menu_items set cogs_thb = 12.16 where code = 'I-PIT';
+update menu_items set cogs_thb = 25.84 where code = 'SO-SLS';
+update menu_items set cogs_thb = 17.07 where code = 'SO-MPS';
+update menu_items set cogs_thb = 20.8 where code = 'SO-MBS';
+update menu_items set cogs_thb = 25.72 where code = 'SO-LLS';
+update menu_items set cogs_thb = 18.9 where code = 'SO-BHS';
+
+-- ---------------------------------------------------------------------------
 -- Explicit grants for the service role. Newer Supabase projects no longer
 -- auto-grant service_role access to tables created by hand (the "Automatically
 -- expose new tables" project setting) — these grants make this schema work

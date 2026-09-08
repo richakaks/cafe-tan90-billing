@@ -1024,8 +1024,6 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
     { data: menuItems, error: menuErr },
     { data: historical, error: histErr },
     { data: redeemedCoupons, error: couponErr },
-    { data: recipeLinks, error: recipeErr },
-    { data: pricedRestocks, error: restockErr },
     previousPeriod,
   ] = await Promise.all([
     db()
@@ -1034,7 +1032,9 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
       .in("status", ["placed", "served", "paid"])
       .gte("order_date", from)
       .lte("order_date", to),
-    db().from("menu_items").select("code, category"),
+    // Round 24: category for the category-totals chart, cogs_thb for the
+    // costing-table-based profit estimate below (see the ProfitEstimate type).
+    db().from("menu_items").select("code, category, cogs_thb"),
     db()
       .from("historical_sales")
       .select("sale_date, item_name, menu_item_code, quantity, total_revenue, payment_note")
@@ -1046,56 +1046,25 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
       .eq("redeemed", true)
       .gte("redeemed_at", `${from}T00:00:00`)
       .lte("redeemed_at", `${to}T23:59:59.999`),
-    // Round 21 profit estimate — see the ProfitEstimate type and the block
-    // below the main order loop for the full computation.
-    db().from("menu_item_ingredients").select("menu_item_code, ingredient_id, qty_per_order"),
-    db().from("stock_adjustments").select("ingredient_id, delta, price_paid").not("price_paid", "is", null).gt("delta", 0),
     getPeriodTotals(prevFrom, prevTo),
   ]);
   if (ordersErr) throw ordersErr;
   if (menuErr) throw menuErr;
   if (histErr) throw histErr;
   if (couponErr) throw couponErr;
-  if (recipeErr) throw recipeErr;
-  if (restockErr) throw restockErr;
 
   const categoryByCode = new Map((menuItems ?? []).map((m) => [m.code, m.category]));
 
-  // Average cost-per-unit per ingredient, from every priced restock ever
-  // recorded (stock_adjustments.price_paid, Round 13+) -- sum(price paid) /
-  // sum(quantity bought). An ingredient that's never had a priced restock
-  // (including everything bought before Round 13 shipped) simply has no
-  // entry here, which is exactly the signal the profit loop below uses to
-  // exclude a line rather than guess its cost as zero.
-  const costTotals = new Map<string, { cost: number; units: number }>();
-  for (const r of (pricedRestocks ?? []) as { ingredient_id: string; delta: number; price_paid: number }[]) {
-    const t = costTotals.get(r.ingredient_id) ?? { cost: 0, units: 0 };
-    t.cost += Number(r.price_paid);
-    t.units += Number(r.delta);
-    costTotals.set(r.ingredient_id, t);
+  // Round 24: cost per unit sold, straight from the Tan90 Costing Table PDF
+  // (menu_items.cogs_thb, seeded in schema.sql). No entry means the costing
+  // table didn't cover that item -- the profit loop below excludes those
+  // lines rather than guessing their cost as zero.
+  const cogsByCode = new Map<string, number>();
+  for (const m of (menuItems ?? []) as { code: string; cogs_thb: number | string | null }[]) {
+    if (m.cogs_thb !== null && m.cogs_thb !== undefined) cogsByCode.set(m.code, Number(m.cogs_thb));
   }
-  const costPerUnit = new Map<string, number>();
-  for (const [id, t] of costTotals) if (t.units > 0) costPerUnit.set(id, t.cost / t.units);
-
-  const recipeByCode = new Map<string, { ingredientId: string; qty: number }[]>();
-  for (const l of (recipeLinks ?? []) as { menu_item_code: string; ingredient_id: string; qty_per_order: number }[]) {
-    const list = recipeByCode.get(l.menu_item_code) ?? [];
-    list.push({ ingredientId: l.ingredient_id, qty: Number(l.qty_per_order) });
-    recipeByCode.set(l.menu_item_code, list);
-  }
-  // null = can't cost this recipe at all (no recipe, or an ingredient with
-  // no priced restock yet) -- the caller excludes it rather than treating a
-  // missing cost as free.
   function estimateLineCost(code: string): number | null {
-    const recipe = recipeByCode.get(code);
-    if (!recipe || recipe.length === 0) return null;
-    let cost = 0;
-    for (const { ingredientId, qty } of recipe) {
-      const perUnit = costPerUnit.get(ingredientId);
-      if (perUnit === undefined) return null;
-      cost += perUnit * qty;
-    }
-    return cost;
+    return cogsByCode.get(code) ?? null;
   }
   let profitRevenueCounted = 0;
   let profitCostCounted = 0;
@@ -1249,6 +1218,21 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
       ? categoryByCode.get(h.menu_item_code) ?? "Other"
       : HISTORICAL_CATEGORY_HINTS[h.item_name] ?? "Other (no longer on menu)";
     categoryMap.set(category, (categoryMap.get(category) ?? 0) + revenue);
+
+    // Round 24: historical rows now feed the profit estimate too -- a PDF
+    // costing-table price has no restock-history dependency the way the old
+    // restock-price average did, so there's no reason to keep excluding the
+    // pre-launch era wholesale. Still excluded per-line when there's no
+    // matched menu_item_code (nothing to look a cost up by) or no cogs_thb
+    // on file for that item, same as a live order line.
+    const histCost = h.menu_item_code ? estimateLineCost(h.menu_item_code) : null;
+    if (histCost === null) {
+      profitExcludedRevenue += revenue;
+      profitExcludedLineItems += 1;
+    } else {
+      profitRevenueCounted += revenue;
+      profitCostCounted += histCost * h.quantity;
+    }
   }
 
   const rankedItems = Array.from(itemMap.values()).sort((a, b) => b.qty - a.qty);
