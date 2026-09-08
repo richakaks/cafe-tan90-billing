@@ -29,7 +29,12 @@ PRIMARIES = {
     "Homemade Mayo": ("ml", 750, 150),
     "Fresh Salsa": ("ml", 300, 60),
     "Gochujang Sauce": ("ml", 300, 60),
-    "Caramelised Onions": ("tbsp", 40, 10),
+    # Round 23: was tracked directly in tbsp; converted to g (1 tbsp = 15g,
+    # the owner's own conversion rule) so it deducts in the same unit as
+    # everything else. unit_label="tbsp" is set on each recipe link below so
+    # staff still SEE "tbsp" on screen -- only the underlying stock math
+    # changed, per the Round 22 unit_label design (display-only override).
+    "Caramelised Onions": ("g", 600, 150),
     "Sugar Syrup": ("ml", 1200, 200),
     "Coffee Concentrate": ("ml", 1000, 200),
     "Black Tea Concentrate": ("ml", 1000, 200),
@@ -116,17 +121,188 @@ RAW = {
     # Added for the new Mixed Berry Soda menu item.
     "Mixed Berry Syrup": ("ml", 800, 150),
     # Round 21: the Drinks SOP replaced Lemon/Passionfruit Iced Tea's Black
-    # Tea Concentrate base with a dedicated instant powder mix. Tracked
-    # directly in tbsp (same precedent as Caramelised Onions) since that's
-    # the SOP's own unit and there's no reliable g-per-tbsp density to
-    # convert from without guessing.
-    "Lemon Iced Tea Powder": ("tbsp", 200, 40),
+    # Tea Concentrate base with a dedicated instant powder mix -- originally
+    # tracked directly in tbsp since that was the SOP's own unit and there
+    # was no owner-approved g-per-tbsp conversion yet.
+    # Round 23: the owner gave an explicit conversion rule (1 tbsp = 15g), so
+    # this converted from tbsp to g like everything else. unit_label="tbsp"
+    # on each recipe link below preserves the on-screen display.
+    "Lemon Iced Tea Powder": ("g", 3000, 600),
     "Blue Curacao Syrup (Non-Alcoholic)": ("ml", 500, 100),
     "Coconut Syrup": ("ml", 500, 100),
     "Soda Water": ("ml", 5000, 1000),
     "Cola": ("can", 48, 12),
     "Pink Salt": ("g", 200, 40),
     "Lemon Slice": ("pcs", 200, 40),
+
+    # ------------------------------------------------------------------
+    # Round 23: raw sub-ingredients behind the batch-prep primaries above.
+    # Until now, a primary's own raw components were deliberately NOT
+    # tracked (see PRIMARY_RECIPES below and the schema.sql prep_batch()
+    # function for the reversal of that call) -- these are new per the
+    # owner's explicit request to go through both SOPs and track every
+    # ingredient behind every primary, food and drink. Quantities in
+    # PRIMARY_RECIPES were converted from the SOPs' tbsp/tsp/pinch amounts
+    # using the owner's own rule: 1 tbsp = 15g/ml, 1 tsp = 5g/ml, 1 pinch =
+    # 0.3g, "to taste" = 1 pinch. Starting stock/threshold are placeholder
+    # par levels, same convention as every other ingredient in this file.
+    # ------------------------------------------------------------------
+    "All-Purpose Flour": ("g", 3000, 600),
+    "Cream Cheese": ("g", 1000, 200),
+    "Salt": ("g", 5000, 1000),
+    "White Pepper": ("g", 200, 40),
+    "Nutmeg": ("g", 100, 20),
+    "Button Mushrooms (Raw)": ("g", 3000, 600),
+    "Black Pepper": ("g", 500, 100),
+    "Corn Flour": ("g", 2000, 400),
+    "Onion": ("g", 5000, 1000),
+    "Fresh Coriander": ("g", 500, 100),
+    "Cumin Powder": ("g", 300, 60),
+    "Coriander Powder": ("g", 300, 60),
+    "Garam Masala": ("g", 300, 60),
+    "Red Chilli Powder": ("g", 300, 60),
+    # Distinct from the existing "Frozen Chicken Patty" (a preformed patty
+    # product) -- this is loose raw mince, used only in Tikka Marinated Mince.
+    "Raw Chicken Breast Mince": ("g", 5000, 1000),
+    "Eggs": ("pcs", 200, 40),
+    "Mustard Powder": ("g", 100, 20),
+    "Tomatoes": ("g", 3000, 600),
+    # Named "(Store-Bought)" to distinguish the purchased base sauce from the
+    # "Gochujang Sauce" primary it's mixed into -- same product name in the
+    # SOP, different inventory rows.
+    "Gochujang Paste (Store-Bought)": ("ml", 1000, 200),
+    "Light Soy Sauce": ("ml", 1000, 200),
+    # Distinct SKU from the "Homemade Mayo" primary -- a separate
+    # store-bought jar used only inside Gochujang Sauce.
+    "Store-Bought Mayo": ("ml", 1000, 200),
+    # Distinct from "Raw Chicken Breast Mince" above -- the SOP's Chicken
+    # Keema recipe uses a coarser/cheaper momo-filling grade mince, bought
+    # separately. Named to avoid colliding with the "Chicken Keema" primary
+    # itself, which is the finished, seasoned product made FROM this.
+    "Raw Chicken Mince (Momo Grade)": ("g", 5000, 1000),
+    "Spring Onion": ("g", 500, 100),
+    # A combined paste, distinct from the separate "Ginger Paste"/"Garlic
+    # Paste" used in Veg Keema and from whole "Garlic"/"Fresh Ginger" used
+    # elsewhere -- three genuinely different SOP ingredients, not the same
+    # product under different names.
+    "Ginger-Garlic Paste": ("g", 500, 100),
+    "MSG": ("g", 100, 20),
+    "Sesame Oil": ("ml", 500, 100),
+    # Generic cooking oil, distinct from "Olive Oil" (which the SOP calls out
+    # by name specifically where that's what's meant).
+    "Cooking Oil": ("ml", 3000, 500),
+    "Carrot": ("g", 2000, 400),
+    "Cabbage": ("g", 2000, 400),
+    # Shared between Potato Patty and Veg Keema.
+    "Potato": ("g", 5000, 1000),
+    "Cauliflower": ("g", 1500, 300),
+    "Ginger Paste": ("g", 500, 100),
+    "Garlic Paste": ("g", 500, 100),
+    "Turmeric": ("g", 300, 60),
+    "Paprika": ("g", 300, 60),
+    "Timur Pepper": ("g", 100, 20),
+    # Base Milk's three named brand components -- kept as their own SKUs
+    # rather than merged into the existing "Full-Fat Milk"/dairy ingredients,
+    # since they're specific bar-purchased products the SOP names directly.
+    "Meiji Milk": ("ml", 6000, 1000),
+    "Carnation Evaporated Milk": ("ml", 3000, 500),
+    "Mali Condensed Milk": ("ml", 3000, 500),
+    "Instant Coffee": ("g", 2000, 400),
+    # Plain granulated sugar, used inside Sugar Syrup and Chocolate Syrup's
+    # own recipes -- distinct from the "Sugar Syrup" primary itself.
+    "Sugar": ("g", 10000, 2000),
+    "Breadcrumbs (Dry)": ("g", 2000, 400),
+}
+
+# ---------------------------------------------------------------------------
+# Round 23: nested bill-of-materials for batch-prep primaries. Each entry is
+# primary_name -> (reference_batch_qty, [(raw_ingredient_name, qty), ...]),
+# where reference_batch_qty is in the primary's own tracked unit (see
+# PRIMARIES above) and qty is the SOP's amount for that exact reference
+# batch. schema.sql's prep_batch() scales these to whatever batch size staff
+# actually record: qty_per_unit = qty / reference_batch_qty.
+#
+# Sourced from a full re-read of both SOPs (Food section 1, Drinks batch-prep
+# section + the Black Tea recipe's embedded concentrate instructions).
+# Several entries are judgment calls the owner should know about:
+#   - Chicken Keema's and Veg Keema's own ingredient tables don't sum to
+#     their own stated yields (likely a source-spreadsheet error) -- used the
+#     SOP's literal ingredient amounts against its literal stated yield
+#     anyway, per instruction, rather than silently reconciling the gap.
+#   - Gochujang Sauce's stated "2 servings" doesn't match its own ingredient
+#     total (65ml) or the burger's "15ml per serving" note (65ml / 15ml =
+#     ~4.3 servings) -- used the actual 65ml ingredient total as the
+#     reference batch.
+#   - Garlic is tracked in cloves; Tomato Sauce's "40g" garlic was converted
+#     at 1 clove ~= 5g (an approximation, not an SOP-stated fact).
+#   - Fresh Salsa's "1/2 medium onion" and "1-2 green chilli" have no exact
+#     SOP gram figure -- used ~60g for the onion (matching Potato Patty's own
+#     60g/"1 small" estimate) and the top of the chilli range (2).
+#   - Chocolate Syrup's true finished ml yield isn't stated (SOP just says
+#     "a little less" than the milk you start with) -- used the 1000ml
+#     Base-Milk-in figure as the reference batch on an input basis.
+#   - Caramelised Onions has NO ingredient table in the SOP at all (only
+#     prose: "cook in a small amount of butter or oil") despite being used
+#     in nearly every burger -- deliberately left out of this dict rather
+#     than inventing a recipe. It stays a directly-restocked primary with no
+#     nested deduction until the SOP is updated with real quantities.
+# ---------------------------------------------------------------------------
+PRIMARY_RECIPES = {
+    "White Sauce": (250, [
+        ("Butter", 15), ("All-Purpose Flour", 15), ("Full-Fat Milk", 200),
+        ("Cream Cheese", 25), ("Salt", 2.5), ("White Pepper", 0.3), ("Nutmeg", 0.3),
+    ]),
+    "Sautéed Mushrooms": (200, [
+        ("Button Mushrooms (Raw)", 300), ("Garlic", 3), ("Green Chilli", 2),
+        ("Butter", 15), ("Olive Oil", 10), ("Salt", 2.5), ("Black Pepper", 1.25),
+    ]),
+    "Potato Patty": (8, [
+        ("Potato", 750), ("Breadcrumbs (Dry)", 60), ("Corn Flour", 20), ("Onion", 60),
+        ("Green Chilli", 2), ("Fresh Coriander", 30), ("Cumin Powder", 2.5),
+        ("Coriander Powder", 2.5), ("Garam Masala", 1.25), ("Red Chilli Powder", 2.5),
+        ("Salt", 3.75), ("Fresh Lemon Juice", 5),
+    ]),
+    "Tikka Marinated Mince": (400, [
+        ("Raw Chicken Breast Mince", 400), ("Tikka Masala Paste", 30), ("Garlic", 3),
+        ("Fresh Ginger", 5), ("Fresh Lemon Juice", 15), ("Salt", 2.5), ("Cooking Oil", 15),
+    ]),
+    "Homemade Mayo": (250, [
+        ("Eggs", 2), ("Garlic", 2), ("Fresh Lemon Juice", 22.5), ("Olive Oil", 160),
+        ("Salt", 2.5), ("White Pepper", 0.3), ("Mustard Powder", 1.25),
+    ]),
+    "Fresh Salsa": (150, [
+        ("Tomatoes", 300), ("Onion", 60), ("Garlic", 3), ("Green Chilli", 2),
+        ("Salt", 2.5), ("Black Pepper", 1.25), ("Fresh Lime Juice", 15), ("Fresh Coriander", 30),
+    ]),
+    "Gochujang Sauce": (65, [
+        ("Gochujang Paste (Store-Bought)", 45), ("Light Soy Sauce", 5), ("Store-Bought Mayo", 15),
+    ]),
+    "Chicken Keema": (1160, [
+        ("Raw Chicken Mince (Momo Grade)", 1000), ("Onion", 588), ("Spring Onion", 59),
+        ("Ginger-Garlic Paste", 10), ("Salt", 3.6), ("Black Pepper", 3.6), ("MSG", 3.6),
+        ("Coriander Powder", 3.6), ("Fresh Coriander", 59), ("Cumin Powder", 3.6),
+        ("Butter", 24), ("Sesame Oil", 24), ("Cooking Oil", 24),
+    ]),
+    "Veg Keema": (2145, [
+        ("Carrot", 400), ("Cabbage", 400), ("Potato", 300), ("Cauliflower", 200),
+        ("Onion", 300), ("Fresh Coriander", 50), ("Spring Onion", 50), ("Salt", 15),
+        ("Black Pepper", 7.5), ("Garam Masala", 7.5), ("Butter", 20), ("Cumin Powder", 5),
+        ("Coriander Powder", 5), ("Ginger Paste", 5), ("Garlic Paste", 5),
+        ("Light Soy Sauce", 10), ("Sesame Oil", 20),
+    ]),
+    "Tomato Sauce": (700, [
+        ("Tomatoes", 400), ("Fresh Ginger", 40), ("Garlic", 8), ("Turmeric", 15),
+        ("Salt", 15), ("Paprika", 15), ("Timur Pepper", 5),
+    ]),
+    "Base Milk": (1000, [
+        ("Meiji Milk", 700), ("Carnation Evaporated Milk", 200), ("Mali Condensed Milk", 100),
+    ]),
+    "Coffee Concentrate": (1000, [("Instant Coffee", 330)]),
+    "Sugar Syrup": (1000, [("Sugar", 500)]),
+    # Uses the Base Milk primary as one of its own inputs -- a primary can be
+    # an ingredient of another primary, same as any raw ingredient.
+    "Chocolate Syrup": (1000, [("Base Milk", 1000), ("Cocoa Powder", 133), ("Sugar", 533)]),
+    "Black Tea Concentrate": (110, [("Black Tea Leaves", 10)]),
 }
 
 # Ingredients that exist for manual/visibility restock tracking only --
@@ -151,11 +327,14 @@ UNLINKED_VISIBILITY_ONLY = {
 # cover chilli flakes, black pepper, condensed milk, and whipped cream,
 # since none of those had a usable SOP quantity anyway. Purely documentation
 # here -- nothing in this script creates rows for any of these.
+# Round 23: Salt, Black Pepper, and Sugar were moved OUT of this set -- they
+# now have real quantified uses inside primary recipes (PRIMARY_RECIPES,
+# below), converted from the SOPs' tbsp/tsp/pinch amounts per the owner's own
+# conversion rule, so they're tracked ingredients now. Condensed Milk,
+# Whipped Cream, and Chilli Flakes stay excluded -- no quantified use was
+# found for any of them in either SOP's batch-prep sections.
 EXCLUDED_MANUAL_PAR_STOCK = {
-    "Salt",
-    "Sugar",
     "Chilli Flakes",
-    "Black Pepper",
     "Condensed Milk",
     "Whipped Cream",
 }
@@ -175,6 +354,9 @@ CONSUMABLES = {
     # Given with every cold drink regardless of dine-in/takeaway, so it turns
     # over faster than the takeaway-only containers above.
     "Straw": ("pcs", 300, 75),
+    # Round 23: goes out with every Takeaway Food Box (deducted alongside it
+    # in schema.sql -- same par level, since it turns over 1:1 with the box).
+    "Plastic Cutlery Set": ("pcs", 200, 50),
 }
 
 ALL_INGREDIENTS = {**PRIMARIES, **RAW, **CONSUMABLES}
@@ -268,15 +450,15 @@ MAPPINGS = {
     "SD-GCS": [("Sandwich Bread", 2), ("Butter", 10), ("Cheese Slice", 2), ("Mozzarella Cheese Shredded", 20)],
     "SD-CHS": [("Sandwich Bread", 2), ("Butter", 5), ("Tikka Marinated Mince", 70), ("Homemade Mayo", 45), ("Tikka Masala Paste", 5), ("Fresh Lemon Juice", 2.5), ("Iceberg Lettuce", 30)],
 
-    "B-CVB": [("Burger Bun", 1), ("Butter", 5), ("Potato Patty", 1), ("Cheese Slice", 2), ("Iceberg Lettuce", 20), ("Tomato Slices", 2), ("Caramelised Onions", 2), ("Ketchup", 15), ("Homemade Mayo", 10)],
-    "B-CCB": [("Burger Bun", 1), ("Butter", 5), ("Frozen Chicken Patty", 1), ("Cheese Slice", 1), ("Iceberg Lettuce", 20), ("Tomato Slices", 2), ("Caramelised Onions", 2), ("Ketchup", 15), ("Homemade Mayo", 10)],
+    "B-CVB": [("Burger Bun", 1), ("Butter", 5), ("Potato Patty", 1), ("Cheese Slice", 2), ("Iceberg Lettuce", 20), ("Tomato Slices", 2), ("Caramelised Onions", 30, "tbsp"), ("Ketchup", 15), ("Homemade Mayo", 10)],
+    "B-CCB": [("Burger Bun", 1), ("Butter", 5), ("Frozen Chicken Patty", 1), ("Cheese Slice", 1), ("Iceberg Lettuce", 20), ("Tomato Slices", 2), ("Caramelised Onions", 30, "tbsp"), ("Ketchup", 15), ("Homemade Mayo", 10)],
     # Round 21: SOP's Double Trouble Burger table no longer lists Pickled
     # Cucumber Slices -- removed rather than guessed as still-current.
-    "B-DTB": [("Burger Bun", 1), ("Butter", 5), ("Frozen Chicken Patty", 2), ("Cheese Slice", 2), ("Iceberg Lettuce", 20), ("Tomato Slices", 2), ("Caramelised Onions", 2), ("Ketchup", 20), ("Homemade Mayo", 15)],
+    "B-DTB": [("Burger Bun", 1), ("Butter", 5), ("Frozen Chicken Patty", 2), ("Cheese Slice", 2), ("Iceberg Lettuce", 20), ("Tomato Slices", 2), ("Caramelised Onions", 30, "tbsp"), ("Ketchup", 20), ("Homemade Mayo", 15)],
     # Round 21: SOP swapped Pickled Cabbage/Coleslaw for Caramelised Onions
     # (2 tbsp, same as every other burger); cucumber unchanged.
-    "B-GCB": [("Burger Bun", 1), ("Butter", 5), ("Frozen Chicken Patty", 1), ("Gochujang Sauce", 15), ("Caramelised Onions", 2), ("Fresh Cucumber Slices", 3)],
-    "B-SCB": [("Burger Bun", 1), ("Butter", 5), ("Frozen Chicken Patty", 1), ("Cheese Slice", 1), ("Iceberg Lettuce", 20), ("Tomato Slices", 2), ("Caramelised Onions", 2), ("Ketchup", 15), ("Homemade Mayo", 10), ("Chilli Oil", 15)],
+    "B-GCB": [("Burger Bun", 1), ("Butter", 5), ("Frozen Chicken Patty", 1), ("Gochujang Sauce", 15), ("Caramelised Onions", 30, "tbsp"), ("Fresh Cucumber Slices", 3)],
+    "B-SCB": [("Burger Bun", 1), ("Butter", 5), ("Frozen Chicken Patty", 1), ("Cheese Slice", 1), ("Iceberg Lettuce", 20), ("Tomato Slices", 2), ("Caramelised Onions", 30, "tbsp"), ("Ketchup", 15), ("Homemade Mayo", 10), ("Chilli Oil", 15)],
 
     "SP-AWS0": [("Spaghetti (Dry)", 90), ("White Sauce", 120), ("Sautéed Mushrooms", 75), ("Butter", 5), ("Garlic", 1), ("Garlic Powder", 0.75), ("Grated Parmesan Cheese", 10), ("Olive Oil", 5)],
     "SP-AWS1": [("Spaghetti (Dry)", 90), ("White Sauce", 120), ("Tikka Marinated Mince", 70), ("Butter", 5), ("Garlic", 1), ("Garlic Powder", 0.75), ("Green Chilli", 1), ("Grated Parmesan Cheese", 10), ("Olive Oil", 5)],
@@ -325,10 +507,10 @@ MAPPINGS = {
     # Round 21: SOP replaced the Black Tea Concentrate base entirely with a
     # dedicated Lemon Iced Tea Powder mix; lemon juice and sugar syrup
     # quantities both changed too.
-    "I-LIT": [("Lemon Iced Tea Powder", 1.5), ("Fresh Lemon Juice", 5), ("Sugar Syrup", 10), ("Lemon Slice", 1)],
+    "I-LIT": [("Lemon Iced Tea Powder", 22.5, "tbsp"), ("Fresh Lemon Juice", 5), ("Sugar Syrup", 10), ("Lemon Slice", 1)],
     # Round 21: same base swap; syrup is 1 tbsp mixed in + 1 tbsp garnish on
     # top per the SOP (2 tbsp / 30ml total, both drawn from stock).
-    "I-PIT": [("Lemon Iced Tea Powder", 1.5), ("Passionfruit Syrup", 30), ("Sugar Syrup", 10), ("Fresh Lemon Juice", 5)],
+    "I-PIT": [("Lemon Iced Tea Powder", 22.5, "tbsp"), ("Passionfruit Syrup", 30), ("Sugar Syrup", 10), ("Fresh Lemon Juice", 5)],
 
     "SO-SLS": [("Strawberry Syrup", 35), ("Fresh Lemon Juice", 15), ("Sugar Syrup", 10), ("Soda Water", 180), ("Lemon Slice", 1)],
     "SO-MPS": [("Mango Syrup", 20), ("Passionfruit Syrup", 15), ("Fresh Lemon Juice", 5), ("Soda Water", 180)],
@@ -450,9 +632,32 @@ def main():
         pairs = MAPPINGS.get(code)
         if not pairs:
             continue
-        out.append(f"insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)")
-        selects = [f"select {sql_str(code)}, id, {num(qty)} from ingredients where name = {sql_str(iname)}" for iname, qty in pairs]
+        # A pair is (ingredient_name, qty) or, since Round 23, (ingredient_name,
+        # qty, unit_label) when the recipe's real deduction unit differs from
+        # what should show on screen (e.g. Caramelised Onions/Lemon Iced Tea
+        # Powder deduct in g but display as "tbsp" -- see their comments above).
+        out.append(f"insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order, unit_label)")
+        selects = []
+        for pair in pairs:
+            iname, qty = pair[0], pair[1]
+            unit_label = pair[2] if len(pair) > 2 else None
+            label_sql = sql_str(unit_label) if unit_label is not None else "null"
+            selects.append(f"select {sql_str(code)}, id, {num(qty)}, {label_sql} from ingredients where name = {sql_str(iname)}")
         out.append("\nunion all\n".join(selects) + "\non conflict (menu_item_code, ingredient_id) do nothing;")
+        out.append("")
+
+    out.append("-- Round 23: nested bill-of-materials -- primary -> its own raw-ingredient")
+    out.append("-- recipe, scaled to a per-unit ratio (qty / reference batch size) so")
+    out.append("-- prep_batch() in schema.sql can scale it to any batch size staff record.")
+    for primary_name, (reference_qty, pairs) in PRIMARY_RECIPES.items():
+        out.append(f"insert into primary_ingredients (primary_id, raw_ingredient_id, qty_per_unit)")
+        selects = [
+            f"select p.id, r.id, {num(qty)}::numeric / {num(reference_qty)}\n"
+            f"from ingredients p, ingredients r\n"
+            f"where p.name = {sql_str(primary_name)} and r.name = {sql_str(raw_name)}"
+            for raw_name, qty in pairs
+        ]
+        out.append("\nunion all\n".join(selects) + "\non conflict (primary_id, raw_ingredient_id) do nothing;")
         out.append("")
 
     print("\n".join(out))
@@ -472,7 +677,9 @@ if __name__ == "__main__":
         assert code not in MAPPINGS, f"{code} marked no-recipe but has mappings"
     all_names = set(PRIMARIES) | set(RAW)
     for code, pairs in MAPPINGS.items():
-        for iname, qty in pairs:
+        for pair in pairs:
+            iname, qty = pair[0], pair[1]
+            assert len(pair) in (2, 3), f"{code} / {iname} has an unexpected tuple shape {pair!r}"
             assert iname in all_names, f"{code} references unknown ingredient {iname!r}"
             assert qty > 0, f"{code} / {iname} has non-positive qty"
     for n in UNLINKED_VISIBILITY_ONLY:
@@ -480,8 +687,20 @@ if __name__ == "__main__":
         for code, pairs in MAPPINGS.items():
             assert n not in [p[0] for p in pairs], f"{n} should be unlinked but is used by {code}"
     for code, pairs in MAPPINGS.items():
-        for iname, _qty in pairs:
+        for pair in pairs:
+            iname = pair[0]
             assert iname not in CONSUMABLES, f"{code} links packaging consumable {iname!r} as a recipe ingredient -- packaging is deducted automatically, never via menu_item_ingredients"
+
+    # Round 23: primary nested-BOM sanity checks.
+    all_primary_and_raw_names = set(PRIMARIES) | set(RAW)
+    for primary_name, (reference_qty, pairs) in PRIMARY_RECIPES.items():
+        assert primary_name in PRIMARIES, f"PRIMARY_RECIPES has an entry for unknown primary {primary_name!r}"
+        assert reference_qty > 0, f"{primary_name} has a non-positive reference batch qty"
+        for raw_name, qty in pairs:
+            assert raw_name in all_primary_and_raw_names, f"{primary_name} references unknown ingredient {raw_name!r}"
+            assert raw_name not in CONSUMABLES, f"{primary_name} references packaging consumable {raw_name!r} as a recipe ingredient"
+            assert raw_name != primary_name, f"{primary_name} references itself as its own ingredient"
+            assert qty > 0, f"{primary_name} / {raw_name} has non-positive qty"
     for code, _name, cat, _price in MENU_ITEMS:
         packaging_type_for(code, cat)  # raises if a code/category has no classification rule
     main()

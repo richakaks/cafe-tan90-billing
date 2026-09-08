@@ -259,6 +259,10 @@ begin
       insert into _required (ingredient_id, needed)
       select id, v_qty from ingredients where name = 'Takeaway Food Box'
       on conflict (ingredient_id) do update set needed = _required.needed + excluded.needed;
+      -- Round 23: a cutlery set goes out with every takeaway food box.
+      insert into _required (ingredient_id, needed)
+      select id, v_qty from ingredients where name = 'Plastic Cutlery Set'
+      on conflict (ingredient_id) do update set needed = _required.needed + excluded.needed;
     elsif v_fulfillment = 'takeaway' and v_packaging = 'hot_drink' then
       insert into _required (ingredient_id, needed)
       select id, v_qty from ingredients where name = 'Hot Takeaway Glass'
@@ -533,6 +537,14 @@ begin
     select
       oi.qty as qty_needed,
       case when mi.packaging_type = 'cold_drink' then 'Straw' end as ingredient_name
+    from order_items oi
+    join menu_items mi on mi.code = oi.menu_item_code
+    where oi.order_id = p_order_id
+    union all
+    -- Round 23: a cutlery set goes out with every takeaway food box.
+    select
+      oi.qty as qty_needed,
+      case when oi.fulfillment_type = 'takeaway' and mi.packaging_type = 'food' then 'Plastic Cutlery Set' end as ingredient_name
     from order_items oi
     join menu_items mi on mi.code = oi.menu_item_code
     where oi.order_id = p_order_id
@@ -1117,6 +1129,143 @@ alter table order_items add constraint order_items_fulfillment_type_check
   check (fulfillment_type in ('dine_in', 'takeaway'));
 
 -- ---------------------------------------------------------------------------
+-- Round 23: Caramelised Onions and Lemon Iced Tea Powder were tracked
+-- directly in tbsp (no owner-approved g conversion existed yet at the time).
+-- The owner has since given an explicit rule (1 tbsp = 15g), so both convert
+-- to g like every other dry/liquid ingredient -- unit_label='tbsp' on each
+-- existing recipe link keeps the on-screen display unchanged even though the
+-- real deduction unit changed. Guarded by `unit = 'tbsp'` / `unit_label is
+-- null` so re-running this file never re-multiplies an already-converted row.
+-- ---------------------------------------------------------------------------
+update ingredients
+set unit = 'g', current_stock = current_stock * 15, low_stock_threshold = low_stock_threshold * 15
+where name in ('Caramelised Onions', 'Lemon Iced Tea Powder') and unit = 'tbsp';
+
+update menu_item_ingredients mii
+set qty_per_order = mii.qty_per_order * 15, unit_label = 'tbsp'
+from ingredients i
+where mii.ingredient_id = i.id
+  and i.name in ('Caramelised Onions', 'Lemon Iced Tea Powder')
+  and mii.unit_label is null;
+
+-- ---------------------------------------------------------------------------
+-- Round 23: nested bill-of-materials. Until now a batch-prep primary's own
+-- raw sub-ingredients were deliberately untracked (making a fresh batch of
+-- White Sauce didn't touch Butter/flour/milk stock at all) -- the owner has
+-- reversed that decision and wants full nested deduction: prepping a batch
+-- of a primary should check and deduct its real raw ingredients, the same
+-- atomic check-then-deduct pattern place_order() already uses.
+--
+-- primary_ingredients: one row per (primary, raw ingredient) it's made from,
+-- with qty_per_unit = how much of that raw ingredient one single unit of the
+-- primary's own stock (1ml of White Sauce, 1g of Chicken Keema, 1pcs of
+-- Potato Patty, etc.) requires. See scripts/gen_seed.py's PRIMARY_RECIPES
+-- for where these ratios come from (each SOP's stated recipe amount divided
+-- by its stated reference batch size). A primary can itself be listed as
+-- another primary's raw_ingredient_id (e.g. Chocolate Syrup is made from
+-- Base Milk) -- both columns reference the same ingredients table, no kind
+-- restriction, so this is allowed by design.
+-- ---------------------------------------------------------------------------
+create table if not exists primary_ingredients (
+  primary_id uuid not null references ingredients(id) on delete cascade,
+  raw_ingredient_id uuid not null references ingredients(id) on delete restrict,
+  qty_per_unit numeric not null check (qty_per_unit > 0),
+  primary key (primary_id, raw_ingredient_id),
+  check (primary_id <> raw_ingredient_id)
+);
+
+create index if not exists primary_ingredients_raw_ingredient_id_idx on primary_ingredients(raw_ingredient_id);
+
+alter table primary_ingredients enable row level security;
+
+-- prep_batch: staff record "I just made p_batch_qty units of this primary"
+-- (e.g. 1000ml of White Sauce). Atomically checks every linked raw
+-- ingredient has enough stock (same temp-table + row-lock pattern as
+-- place_order/fulfill_pre_order, so two staff prepping batches at once can't
+-- oversell a shared raw ingredient), deducts each one, and credits the
+-- primary's own current_stock by p_batch_qty -- logging every one of those
+-- deltas to stock_adjustments so the prep shows up in the normal restock
+-- history, not just as an unexplained stock jump. A primary with no
+-- recipe rows yet (nothing in primary_ingredients for it) simply deducts
+-- nothing and only credits the primary -- same graceful-no-op design as
+-- Round 22's packaging lookups, so this is safe to call even before every
+-- primary has a recipe (e.g. Caramelised Onions, which has none).
+create or replace function prep_batch(p_primary_id uuid, p_batch_qty numeric)
+returns jsonb
+language plpgsql
+as $$
+declare
+  v_primary_name text;
+  v_primary_stock numeric;
+  v_new_primary_stock numeric;
+  v_out_of_stock text[];
+begin
+  if p_batch_qty is null or p_batch_qty <= 0 then
+    raise exception 'invalid_batch_qty' using errcode = 'P0001';
+  end if;
+
+  select name, current_stock into v_primary_name, v_primary_stock
+  from ingredients where id = p_primary_id
+  for update;
+
+  if v_primary_name is null then
+    raise exception 'unknown_primary' using errcode = 'P0001';
+  end if;
+
+  create temporary table _required (
+    ingredient_id uuid primary key,
+    needed numeric not null
+  ) on commit drop;
+
+  insert into _required (ingredient_id, needed)
+  select pi.raw_ingredient_id, pi.qty_per_unit * p_batch_qty
+  from primary_ingredients pi
+  where pi.primary_id = p_primary_id;
+
+  -- Lock every involved raw ingredient row (stable order avoids deadlocks
+  -- against a concurrent order or another prep_batch call), then check each
+  -- has enough stock before deducting any of them.
+  perform 1 from ingredients i
+  join _required r on r.ingredient_id = i.id
+  order by i.id
+  for update;
+
+  select array_agg(i.name order by i.name)
+  into v_out_of_stock
+  from ingredients i
+  join _required r on r.ingredient_id = i.id
+  where i.current_stock < r.needed;
+
+  if v_out_of_stock is not null and array_length(v_out_of_stock, 1) > 0 then
+    raise exception 'out_of_stock: %', array_to_string(v_out_of_stock, ', ') using errcode = 'P0001';
+  end if;
+
+  update ingredients i
+  set current_stock = i.current_stock - r.needed
+  from _required r
+  where r.ingredient_id = i.id;
+
+  insert into stock_adjustments (ingredient_id, delta, resulting_stock)
+  select r.ingredient_id, -r.needed, i.current_stock
+  from _required r
+  join ingredients i on i.id = r.ingredient_id;
+
+  v_new_primary_stock := v_primary_stock + p_batch_qty;
+  update ingredients set current_stock = v_new_primary_stock where id = p_primary_id;
+
+  insert into stock_adjustments (ingredient_id, delta, resulting_stock)
+  values (p_primary_id, p_batch_qty, v_new_primary_stock);
+
+  return jsonb_build_object(
+    'primary_id', p_primary_id,
+    'primary_name', v_primary_name,
+    'batch_qty', p_batch_qty,
+    'new_stock', v_new_primary_stock
+  );
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- Explicit grants for the service role. Newer Supabase projects no longer
 -- auto-grant service_role access to tables created by hand (the "Automatically
 -- expose new tables" project setting) — these grants make this schema work
@@ -1136,3 +1285,4 @@ grant execute on function reset_all_stock() to service_role;
 grant execute on function clear_stock_history() to service_role;
 grant execute on function reset_orders_in_range(date, date) to service_role;
 grant execute on function rename_menu_item_code(text, text) to service_role;
+grant execute on function prep_batch(uuid, numeric) to service_role;

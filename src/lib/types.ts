@@ -59,6 +59,18 @@ export interface MenuItemIngredientLink {
   unitLabel: string | null;
 }
 
+// Round 23: one raw ingredient in a batch-prep primary's own recipe (nested
+// bill-of-materials -- e.g. Chocolate Syrup is made from Base Milk, Cocoa
+// Powder, Sugar). qtyPerUnit is "how much of this raw ingredient it takes to
+// make 1 unit of the primary" -- prep_batch() multiplies by the batch qty.
+export interface PrimaryRecipeLink {
+  primaryId: string;
+  rawIngredientId: string;
+  rawIngredientName: string;
+  rawIngredientUnit: string;
+  qtyPerUnit: number;
+}
+
 export type AvailabilityStatus = "in_stock" | "low_stock" | "out_of_stock";
 
 export interface MenuItemWithAvailability extends MenuItem {

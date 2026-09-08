@@ -56,17 +56,24 @@ type ViewMode = "day" | "month" | "custom";
 // number for the immediately preceding period of equal length. Null previous
 // value with a nonzero current one reads as "New" (nothing to compare
 // against, e.g. the very first tracked period); both zero renders nothing.
+// Rendered as its own line below the card's number (not inline right after
+// it) so it can never overflow/clip past the card edge on a narrow 2-column
+// grid -- that clipping is what made it look like a stray floating circle.
 function TrendBadge({ current, previous }: { current: number; previous: number }) {
   if (previous === 0 && current === 0) return null;
   if (previous === 0) {
-    return <span className="ml-2 rounded-full bg-status-good/15 px-1.5 py-0.5 text-[10px] font-medium text-status-good">New</span>;
+    return (
+      <span className="mt-1 inline-block rounded-full bg-status-good/15 px-1.5 py-0.5 text-[10px] font-medium text-status-good">
+        New
+      </span>
+    );
   }
   const pct = ((current - previous) / previous) * 100;
   const flat = Math.abs(pct) < 0.5;
   const positive = pct >= 0;
   return (
     <span
-      className={`ml-2 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+      className={`mt-1 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
         flat ? "bg-navy-100 text-navy-600" : positive ? "bg-status-good/15 text-status-good" : "bg-status-out/15 text-status-out"
       }`}
       title="vs. the same-length period right before this one"
@@ -279,10 +286,8 @@ export default function AnalyticsClient() {
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
             <div className="card p-4">
               <p className="text-xs text-navy-600">Revenue</p>
-              <p className="mt-1 flex items-baseline text-lg font-semibold text-navy-950">
-                {formatBaht(data.totalRevenue)}
-                <TrendBadge current={data.totalRevenue} previous={data.previousPeriod.revenue} />
-              </p>
+              <p className="mt-1 text-lg font-semibold text-navy-950">{formatBaht(data.totalRevenue)}</p>
+              <TrendBadge current={data.totalRevenue} previous={data.previousPeriod.revenue} />
             </div>
             <div className="card p-4">
               <p className="text-xs text-navy-600">Profit (est.)</p>
@@ -296,20 +301,18 @@ export default function AnalyticsClient() {
             </div>
             <div className="card p-4">
               <p className="text-xs text-navy-600">Orders</p>
-              <p className="mt-1 flex items-baseline text-lg font-semibold text-navy-950">
-                {data.totalOrders}
-                <TrendBadge current={data.totalOrders} previous={data.previousPeriod.orders} />
-              </p>
+              <p className="mt-1 text-lg font-semibold text-navy-950">{data.totalOrders}</p>
+              <TrendBadge current={data.totalOrders} previous={data.previousPeriod.orders} />
             </div>
             <div className="card p-4">
               <p className="text-xs text-navy-600">Avg. order</p>
-              <p className="mt-1 flex items-baseline text-lg font-semibold text-navy-950">
+              <p className="mt-1 text-lg font-semibold text-navy-950">
                 {formatBaht(data.totalOrders ? data.totalRevenue / data.totalOrders : 0)}
-                <TrendBadge
-                  current={data.totalOrders ? data.totalRevenue / data.totalOrders : 0}
-                  previous={data.previousPeriod.orders ? data.previousPeriod.revenue / data.previousPeriod.orders : 0}
-                />
               </p>
+              <TrendBadge
+                current={data.totalOrders ? data.totalRevenue / data.totalOrders : 0}
+                previous={data.previousPeriod.orders ? data.previousPeriod.revenue / data.previousPeriod.orders : 0}
+              />
             </div>
             <div className="card p-4">
               <p className="text-xs text-navy-600">Days with sales</p>

@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   const ingredientKind = kind === "batch_prep" || kind === "consumable" ? kind : "raw";
 
   try {
-    await createIngredient(
+    const created = await createIngredient(
       name.trim(),
       unit.trim(),
       Number(currentStock) || 0,
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       trimmedBrand,
       ingredientKind,
     );
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, id: created.id });
   } catch (err) {
     console.error("createIngredient failed", err);
     return NextResponse.json({ error: "Could not create ingredient (maybe the name already exists?)." }, { status: 500 });

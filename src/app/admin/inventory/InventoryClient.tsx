@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import type { Ingredient, IngredientKind, LastRestockPrice, StockAdjustmentRow } from "@/lib/types";
+import type { Ingredient, IngredientKind, LastRestockPrice, PrimaryRecipeLink, StockAdjustmentRow } from "@/lib/types";
 import { ingredientAlertStatus } from "@/lib/stock";
 import { RangeResetOrdersButton, ResetButton } from "@/components/OrdersDangerZone";
 
@@ -336,10 +336,115 @@ function UsedInEditor({
   );
 }
 
+// Round 23: nested bill-of-materials -- lets staff record "I just prepped a
+// batch of this primary" right from its Batch Prep row. Calls prep_batch(),
+// which atomically deducts the primary's own raw ingredients (scaled to the
+// entered batch qty) and credits that qty onto the primary's own stock --
+// same all-or-nothing semantics as placing an order. The recipe preview
+// below the qty input shows exactly what a batch will consume, scaled live
+// as the qty is typed, so staff can catch a shortage before submitting (the
+// server still enforces it either way via the out_of_stock error).
+function PrepBatchControl({
+  ingredient,
+  recipe,
+  onChanged,
+}: {
+  ingredient: Ingredient;
+  recipe: PrimaryRecipeLink[];
+  onChanged: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [qty, setQty] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const n = Number(qty);
+  const previewValid = qty.trim() !== "" && !Number.isNaN(n) && n > 0;
+
+  async function prep() {
+    if (!previewValid) return;
+    setBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await fetch(`/api/inventory/${ingredient.id}/prep-batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ batchQty: n }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setError(body.error ?? "Could not record this batch prep.");
+        return;
+      }
+      setSuccess(`Prepped ${n} ${ingredient.unit} of ${ingredient.name} — stock updated.`);
+      setQty("");
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <button onClick={() => setOpen((o) => !o)} className="text-xs font-medium text-navy-700 underline decoration-dotted">
+        {open ? "Hide prep a batch" : "Prep a batch"}
+      </button>
+      {open && (
+        <div className="mt-2 rounded-md border border-card-border bg-navy-50/60 p-2.5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-navy-600">Record a batch prep</p>
+          {recipe.length === 0 ? (
+            <p className="mt-1 text-xs text-navy-500">
+              No raw-ingredient recipe on file for this primary yet — prepping a batch will only credit its own stock.
+            </p>
+          ) : (
+            <ul className="mt-1.5 space-y-0.5 text-xs text-navy-700">
+              {recipe.map((r) => (
+                <li key={r.rawIngredientId}>
+                  {(previewValid ? r.qtyPerUnit * n : r.qtyPerUnit).toLocaleString("en-US", { maximumFractionDigits: 2 })}{" "}
+                  {r.rawIngredientUnit} {r.rawIngredientName}
+                  {!previewValid && <span className="text-navy-400"> per {ingredient.unit}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <input
+              type="number"
+              min={0}
+              step="any"
+              value={qty}
+              onChange={(e) => {
+                setQty(e.target.value);
+                setError(null);
+                setSuccess(null);
+              }}
+              placeholder="Batch qty"
+              className="w-24 rounded-md border border-card-border px-1.5 py-1 text-xs"
+            />
+            <span className="text-xs text-navy-500">{ingredient.unit}</span>
+            <button
+              onClick={prep}
+              disabled={busy || !previewValid}
+              className="rounded-md bg-navy-900 px-2 py-1 text-xs font-medium text-white hover:bg-navy-800 disabled:opacity-50"
+            >
+              Prep batch
+            </button>
+          </div>
+          {error && <p className="mt-1 text-xs text-status-out">{error}</p>}
+          {success && <p className="mt-1 text-xs text-status-good">{success}</p>}
+        </div>
+      )}
+    </>
+  );
+}
+
 function Row({
   ingredient,
   lastRestock,
   recipeLinks,
+  primaryRecipe,
   menuItems,
   onChanged,
   highlighted,
@@ -347,6 +452,7 @@ function Row({
   ingredient: Ingredient;
   lastRestock?: LastRestockPrice;
   recipeLinks: RecipeLink[];
+  primaryRecipe: PrimaryRecipeLink[];
   menuItems: MenuItemOption[];
   onChanged: () => void;
   highlighted?: boolean;
@@ -461,21 +567,36 @@ function Row({
               <button onClick={() => setEditing(true)} className="text-xs font-medium text-navy-700 underline decoration-dotted">
                 Edit
               </button>
-              <button onClick={() => setShowUsedIn((s) => !s)} className="text-xs font-medium text-navy-700 underline decoration-dotted">
-                {showUsedIn ? "Hide used-in editor" : "Manage used-in"}
-              </button>
+              {!showUsedIn && (
+                <button onClick={() => setShowUsedIn(true)} className="text-xs font-medium text-navy-700 underline decoration-dotted">
+                  Manage used-in
+                </button>
+              )}
               <button onClick={() => setConfirmingDelete(true)} className="text-xs font-medium text-status-out underline decoration-dotted">
                 Delete
               </button>
             </div>
+            {ingredient.kind === "batch_prep" && (
+              <div className="mt-2">
+                <PrepBatchControl ingredient={ingredient} recipe={primaryRecipe} onChanged={onChanged} />
+              </div>
+            )}
             {showUsedIn && (
-              <UsedInEditor
-                ingredientId={ingredient.id}
-                ingredientUnit={ingredient.unit}
-                links={recipeLinks}
-                menuItems={menuItems}
-                onChanged={onChanged}
-              />
+              <>
+                <UsedInEditor
+                  ingredientId={ingredient.id}
+                  ingredientUnit={ingredient.unit}
+                  links={recipeLinks}
+                  menuItems={menuItems}
+                  onChanged={onChanged}
+                />
+                <button
+                  onClick={() => setShowUsedIn(false)}
+                  className="mt-2 rounded-md border border-card-border px-2.5 py-1 text-xs font-medium text-navy-900 hover:bg-navy-100"
+                >
+                  Done
+                </button>
+              </>
             )}
           </>
         )}
@@ -586,12 +707,14 @@ export default function InventoryClient({
   initialAdjustments,
   lastRestockPrices,
   recipeLinks,
+  primaryRecipeLinks,
   menuItems,
 }: {
   initialIngredients: Ingredient[];
   initialAdjustments: StockAdjustmentRow[];
   lastRestockPrices: Record<string, LastRestockPrice>;
   recipeLinks: Record<string, RecipeLink[]>;
+  primaryRecipeLinks: Record<string, PrimaryRecipeLink[]>;
   menuItems: MenuItemOption[];
 }) {
   const [ingredients] = useState(initialIngredients);
@@ -610,6 +733,11 @@ export default function InventoryClient({
   const [newStock, setNewStock] = useState("");
   const [newThreshold, setNewThreshold] = useState("");
   const [newKind, setNewKind] = useState<IngredientKind>("raw");
+  // Round 23: link the new ingredient into a menu item's recipe right at
+  // creation time, instead of only via "Manage used-in" after the fact --
+  // both optional, both blank by default.
+  const [newLinkCode, setNewLinkCode] = useState("");
+  const [newLinkQty, setNewLinkQty] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
@@ -680,6 +808,7 @@ export default function InventoryClient({
                 ingredient={ing}
                 lastRestock={lastRestockPrices[ing.id]}
                 recipeLinks={recipeLinks[ing.id] ?? []}
+                primaryRecipe={primaryRecipeLinks[ing.id] ?? []}
                 menuItems={menuItems}
                 onChanged={refresh}
                 highlighted={highlightedId === ing.id}
@@ -694,6 +823,10 @@ export default function InventoryClient({
 
   async function addIngredient() {
     if (!newName.trim() || !newUnit.trim()) return;
+    if (newLinkCode && (!newLinkQty || Number(newLinkQty) <= 0)) {
+      setError("Enter a qty per order for the menu item you picked (or clear the menu item to skip linking).");
+      return;
+    }
     setCreating(true);
     setError(null);
     try {
@@ -714,12 +847,30 @@ export default function InventoryClient({
         setError(body.error ?? "Could not add ingredient.");
         return;
       }
+      // Optional immediate recipe link, same endpoint the "used in" editor
+      // and the menu-side editor already both use -- best-effort: the
+      // ingredient itself is already created and saved at this point, so a
+      // failure here surfaces as a message but doesn't roll anything back.
+      if (newLinkCode && body.id) {
+        const linkRes = await fetch(`/api/menu/${newLinkCode}/ingredients`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ingredientId: body.id, qtyPerOrder: Number(newLinkQty) }),
+        });
+        if (!linkRes.ok) {
+          const linkBody = await linkRes.json();
+          setError(`Ingredient added, but couldn't link it to that menu item: ${linkBody.error ?? "unknown error"}`);
+          return;
+        }
+      }
       setNewName("");
       setNewBrand("");
       setNewUnit("");
       setNewStock("");
       setNewThreshold("");
       setNewKind("raw");
+      setNewLinkCode("");
+      setNewLinkQty("");
       window.location.reload();
     } finally {
       setCreating(false);
@@ -733,6 +884,8 @@ export default function InventoryClient({
     setNewStock("");
     setNewThreshold("");
     setNewKind("raw");
+    setNewLinkCode("");
+    setNewLinkQty("");
     setError(null);
   }
 
@@ -779,19 +932,24 @@ export default function InventoryClient({
           placeholder="Find an ingredient…"
           className="w-full rounded-md border border-card-border px-3 py-2 text-sm"
         />
+      </div>
 
-        <h2 className="mb-2 mt-5 text-sm font-semibold text-navy-950">Batch Prep</h2>
+      {/* Each section is its own card now (not one long list with a border
+          between them) -- easier to tell where one ends and the next begins
+          while scrolling. */}
+      <div className="card p-5">
+        <h2 className="mb-2 text-sm font-semibold text-navy-950">Batch Prep</h2>
         {renderTable(batchPrepIngredients, query ? `No batch prep item matches “${query}”.` : "No batch prep items yet.")}
+      </div>
 
-        <div className="mt-8 border-t border-card-border pt-6">
-          <h2 className="mb-2 text-sm font-semibold text-navy-950">Raw Ingredients</h2>
-          {renderTable(rawIngredients, query ? `No raw ingredient matches “${query}”.` : "No raw ingredients yet.")}
-        </div>
+      <div className="card p-5">
+        <h2 className="mb-2 text-sm font-semibold text-navy-950">Raw Ingredients</h2>
+        {renderTable(rawIngredients, query ? `No raw ingredient matches “${query}”.` : "No raw ingredients yet.")}
+      </div>
 
-        <div className="mt-8 border-t border-card-border pt-6">
-          <h2 className="mb-2 text-sm font-semibold text-navy-950">Consumables</h2>
-          {renderTable(consumableIngredients, query ? `No consumable matches “${query}”.` : "No consumables yet.")}
-        </div>
+      <div className="card p-5">
+        <h2 className="mb-2 text-sm font-semibold text-navy-950">Consumables</h2>
+        {renderTable(consumableIngredients, query ? `No consumable matches “${query}”.` : "No consumables yet.")}
       </div>
 
       <div className="card p-5">
@@ -861,6 +1019,37 @@ export default function InventoryClient({
                 <input type="radio" checked={newKind === "consumable"} onChange={() => setNewKind("consumable")} />
                 Consumable
               </label>
+            </div>
+          </label>
+          <label className="block text-sm sm:col-span-2">
+            <span className="mb-1 block text-xs font-medium text-navy-600">Used in (optional)</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={newLinkCode}
+                onChange={(e) => setNewLinkCode(e.target.value)}
+                className="rounded-md border border-card-border px-3 py-2 text-sm"
+              >
+                <option value="">Not linked to a menu item yet…</option>
+                {menuItems.map((m) => (
+                  <option key={m.code} value={m.code}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+              {newLinkCode && (
+                <>
+                  <input
+                    value={newLinkQty}
+                    onChange={(e) => setNewLinkQty(e.target.value)}
+                    type="number"
+                    min={0}
+                    step="any"
+                    placeholder="Qty per order"
+                    className="w-32 rounded-md border border-card-border px-3 py-2 text-sm"
+                  />
+                  <span className="text-xs text-navy-500">{newUnit.trim() || "unit"}</span>
+                </>
+              )}
             </div>
           </label>
         </div>

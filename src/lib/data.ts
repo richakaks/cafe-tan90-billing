@@ -18,6 +18,7 @@ import type {
   PeriodTotals,
   PlacedOrder,
   PlacedPreOrder,
+  PrimaryRecipeLink,
   SalesAnalytics,
   Seat,
   StockAdjustmentRow,
@@ -93,6 +94,35 @@ export class CouponError extends Error {
         return "This order already has a coupon applied.";
       default:
         return "Couldn't apply that coupon. Please try again.";
+    }
+  }
+}
+
+// Round 23: errors from prep_batch() -- recording a batch prep of a primary
+// (nested bill-of-materials deduction of its own raw ingredients). Same
+// "code: detail" convention as OrderError/FulfillError above.
+export class PrepBatchError extends Error {
+  code: "invalid_batch_qty" | "unknown_primary" | "out_of_stock" | "unknown";
+  detail?: string;
+
+  constructor(rawMessage: string) {
+    super(rawMessage);
+    const [code, detail] = rawMessage.split(":").map((s) => s.trim());
+    const known = ["invalid_batch_qty", "unknown_primary", "out_of_stock"];
+    this.code = (known.includes(code) ? code : "unknown") as PrepBatchError["code"];
+    this.detail = detail;
+  }
+
+  get friendlyMessage(): string {
+    switch (this.code) {
+      case "invalid_batch_qty":
+        return "Enter a batch quantity greater than 0.";
+      case "unknown_primary":
+        return "That ingredient couldn't be found.";
+      case "out_of_stock":
+        return `Not enough stock to prep this batch -- short on: ${this.detail ?? "a raw ingredient"}.`;
+      default:
+        return "Couldn't record this batch prep. Please try again.";
     }
   }
 }
@@ -445,6 +475,9 @@ export async function getIngredients(): Promise<Ingredient[]> {
   }));
 }
 
+// Returns the new row's id -- Round 23's "link this to a menu item at
+// creation time" form on /admin/inventory needs it immediately after
+// creating, to make one follow-up setMenuItemIngredient() call.
 export async function createIngredient(
   name: string,
   unit: string,
@@ -452,8 +485,8 @@ export async function createIngredient(
   lowStockThreshold: number,
   brand?: string | null,
   kind?: Ingredient["kind"],
-): Promise<void> {
-  const { error } = await db()
+): Promise<{ id: string }> {
+  const { data, error } = await db()
     .from("ingredients")
     .insert({
       name,
@@ -462,8 +495,11 @@ export async function createIngredient(
       current_stock: currentStock,
       low_stock_threshold: lowStockThreshold,
       kind: kind ?? "raw",
-    });
+    })
+    .select("id")
+    .single();
   if (error) throw error;
+  return { id: data.id };
 }
 
 // Which menu items each ingredient is used in, with the qty/unit-label detail
@@ -498,6 +534,55 @@ export async function getIngredientRecipeLinks(): Promise<
   }
   for (const list of Object.values(result)) list.sort((a, b) => a.menuItemName.localeCompare(b.menuItemName));
   return result;
+}
+
+// Round 23: which raw ingredients each batch-prep primary is itself made
+// from (the nested bill-of-materials) -- e.g. Chocolate Syrup <- Base Milk +
+// Cocoa Powder + Sugar. Keyed by primary_id, mirrors getIngredientRecipeLinks
+// above (plain query + in-memory join against ingredients for names/units,
+// same reasoning: keeps the FK relationship explicit). Powers both the
+// "what does a batch of this use?" preview and the /admin/inventory
+// "Prep a batch" control. A primary with no rows here (e.g. Caramelised
+// Onions, which has no documented SOP recipe) simply has an empty list --
+// prep_batch() still works for it, crediting only its own stock.
+export async function getPrimaryRecipeLinks(): Promise<Record<string, PrimaryRecipeLink[]>> {
+  const [{ data: links, error: linkErr }, { data: ingredients, error: ingErr }] = await Promise.all([
+    db().from("primary_ingredients").select("primary_id, raw_ingredient_id, qty_per_unit"),
+    db().from("ingredients").select("id, name, unit"),
+  ]);
+  if (linkErr) throw linkErr;
+  if (ingErr) throw ingErr;
+
+  const byId = new Map((ingredients ?? []).map((i) => [i.id, i]));
+  const result: Record<string, PrimaryRecipeLink[]> = {};
+  for (const link of links ?? []) {
+    const raw = byId.get(link.raw_ingredient_id);
+    if (!raw) continue;
+    (result[link.primary_id] ??= []).push({
+      primaryId: link.primary_id,
+      rawIngredientId: link.raw_ingredient_id,
+      rawIngredientName: raw.name,
+      rawIngredientUnit: raw.unit,
+      qtyPerUnit: Number(link.qty_per_unit),
+    });
+  }
+  for (const list of Object.values(result)) list.sort((a, b) => a.rawIngredientName.localeCompare(b.rawIngredientName));
+  return result;
+}
+
+// Round 23: record a batch prep of a primary -- calls prep_batch(), which
+// atomically deducts this primary's own raw ingredients (scaled to
+// batchQty) and credits batchQty onto the primary's own stock. Throws
+// PrepBatchError on any failure (invalid qty, unknown primary, or one or
+// more raw ingredients too short -- the whole batch is blocked, same
+// all-or-nothing semantics as place_order()/fulfill_pre_order()).
+export async function prepBatch(primaryId: string, batchQty: number): Promise<{ newStock: number }> {
+  const { data, error } = await db().rpc("prep_batch", {
+    p_primary_id: primaryId,
+    p_batch_qty: batchQty,
+  });
+  if (error) throw new PrepBatchError(error.message);
+  return { newStock: Number(data.new_stock) };
 }
 
 // Edits an ingredient's metadata (name/brand/unit) and, optionally, sets its
