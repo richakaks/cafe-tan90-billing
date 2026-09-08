@@ -115,6 +115,12 @@ RAW = {
     "Lychee Syrup": ("ml", 800, 150),
     # Added for the new Mixed Berry Soda menu item.
     "Mixed Berry Syrup": ("ml", 800, 150),
+    # Round 21: the Drinks SOP replaced Lemon/Passionfruit Iced Tea's Black
+    # Tea Concentrate base with a dedicated instant powder mix. Tracked
+    # directly in tbsp (same precedent as Caramelised Onions) since that's
+    # the SOP's own unit and there's no reliable g-per-tbsp density to
+    # convert from without guessing.
+    "Lemon Iced Tea Powder": ("tbsp", 200, 40),
     "Blue Curacao Syrup (Non-Alcoholic)": ("ml", 500, 100),
     "Coconut Syrup": ("ml", 500, 100),
     "Soda Water": ("ml", 5000, 1000),
@@ -227,11 +233,12 @@ MENU_ITEMS = [
 MAPPINGS = {
     "SN-FRF": [("Frozen Fries", 130), ("Ketchup", 30), ("Homemade Mayo", 15)],
     "SN-PPF": [("Frozen Fries", 130), ("Peri-Peri Seasoning", 2.25), ("Garlic Powder", 0.75), ("Smoked Paprika", 0.75), ("Homemade Mayo", 20)],
-    # Updated SOP: dropped Fresh Lime Juice + Ketchup, picked up a second dry
-    # seasoning (Lime Seasoning) and switched the fat from Ketchup to
-    # Mayonnaise (mapped to the Homemade Mayo primary, same "house mayo"
-    # convention used elsewhere -- see project notes).
-    "SN-ZAF": [("Frozen Fries", 130), ("Zab Seasoning", 4.5), ("Lime Seasoning", 3), ("Homemade Mayo", 30)],
+    # Updated SOP: dropped Fresh Lime Juice, picked up a second dry
+    # seasoning (Lime Seasoning) and Mayonnaise (mapped to the Homemade Mayo
+    # primary, same "house mayo" convention used elsewhere -- see project
+    # notes). Round 21: the SOP's own table now lists Ketchup 30ml too
+    # (previously only mentioned in the method text, not a tracked link).
+    "SN-ZAF": [("Frozen Fries", 130), ("Zab Seasoning", 4.5), ("Lime Seasoning", 3), ("Homemade Mayo", 30), ("Ketchup", 30)],
     "SN-SMT": [("Frozen Samosas", 3), ("Ketchup", 30)],
     "SN-MGN": [("Maggi Noodles", 80), ("Maggi Masala Sachet", 1), ("Frozen Corn", 10), ("Frozen Peas", 10), ("Butter", 10)],
     "SN-ECM": [("Maggi Noodles", 80), ("Maggi Masala Sachet", 1), ("Frozen Corn", 10), ("Frozen Peas", 10), ("Cheese Slice", 1), ("Butter", 10)],
@@ -246,8 +253,12 @@ MAPPINGS = {
 
     "B-CVB": [("Burger Bun", 1), ("Butter", 5), ("Potato Patty", 1), ("Cheese Slice", 2), ("Iceberg Lettuce", 20), ("Tomato Slices", 2), ("Caramelised Onions", 2), ("Ketchup", 15), ("Homemade Mayo", 10)],
     "B-CCB": [("Burger Bun", 1), ("Butter", 5), ("Frozen Chicken Patty", 1), ("Cheese Slice", 1), ("Iceberg Lettuce", 20), ("Tomato Slices", 2), ("Caramelised Onions", 2), ("Ketchup", 15), ("Homemade Mayo", 10)],
-    "B-DTB": [("Burger Bun", 1), ("Butter", 5), ("Frozen Chicken Patty", 2), ("Cheese Slice", 2), ("Iceberg Lettuce", 20), ("Tomato Slices", 2), ("Pickled Cucumber Slices", 3.5), ("Caramelised Onions", 2), ("Ketchup", 20), ("Homemade Mayo", 15)],
-    "B-GCB": [("Burger Bun", 1), ("Butter", 5), ("Frozen Chicken Patty", 1), ("Gochujang Sauce", 15), ("Pickled Cabbage / Coleslaw", 30), ("Fresh Cucumber Slices", 3)],
+    # Round 21: SOP's Double Trouble Burger table no longer lists Pickled
+    # Cucumber Slices -- removed rather than guessed as still-current.
+    "B-DTB": [("Burger Bun", 1), ("Butter", 5), ("Frozen Chicken Patty", 2), ("Cheese Slice", 2), ("Iceberg Lettuce", 20), ("Tomato Slices", 2), ("Caramelised Onions", 2), ("Ketchup", 20), ("Homemade Mayo", 15)],
+    # Round 21: SOP swapped Pickled Cabbage/Coleslaw for Caramelised Onions
+    # (2 tbsp, same as every other burger); cucumber unchanged.
+    "B-GCB": [("Burger Bun", 1), ("Butter", 5), ("Frozen Chicken Patty", 1), ("Gochujang Sauce", 15), ("Caramelised Onions", 2), ("Fresh Cucumber Slices", 3)],
     "B-SCB": [("Burger Bun", 1), ("Butter", 5), ("Frozen Chicken Patty", 1), ("Cheese Slice", 1), ("Iceberg Lettuce", 20), ("Tomato Slices", 2), ("Caramelised Onions", 2), ("Ketchup", 15), ("Homemade Mayo", 10), ("Chilli Oil", 15)],
 
     "SP-AWS0": [("Spaghetti (Dry)", 90), ("White Sauce", 120), ("Sautéed Mushrooms", 75), ("Butter", 5), ("Garlic", 1), ("Garlic Powder", 0.75), ("Grated Parmesan Cheese", 10), ("Olive Oil", 5)],
@@ -257,10 +268,14 @@ MAPPINGS = {
     "T-GLT1": [("Black Tea Leaves", 3), ("Fresh Ginger", 3), ("Fresh Lemon Juice", 20), ("Sugar Syrup", 7.5)],
     "T-BLT0": [("Black Tea Leaves", 3)],
     "T-BLT1": [("Black Tea Concentrate", 110)],
-    "T-TMT0": [("Thai Tea Powder", 18), ("Full-Fat Milk", 40)],
-    "T-TMT1": [("Thai Tea Powder", 18), ("Evaporated Milk", 30)],
-    "T-MST0": [("Red Label Tea Leaves", 4.5), ("Red Label Masala Powder", 1.5), ("Fresh Ginger", 4.5), ("Full-Fat Milk", 75)],
-    "T-MST1": [("Red Label Tea Leaves", 6), ("Red Label Masala Powder", 3), ("Fresh Ginger", 4.5), ("Full-Fat Milk", 75)],
+    # Round 21: SOP switched both Thai Milk Tea variants from Full-Fat
+    # Milk/Evaporated Milk to the Base Milk primary (same volumes as before).
+    "T-TMT0": [("Thai Tea Powder", 18), ("Base Milk", 40)],
+    "T-TMT1": [("Thai Tea Powder", 18), ("Base Milk", 30)],
+    # Round 21: SOP switched Masala Tea (hot & cold) from Full-Fat Milk to
+    # the Base Milk primary, same 75ml either way.
+    "T-MST0": [("Red Label Tea Leaves", 4.5), ("Red Label Masala Powder", 1.5), ("Fresh Ginger", 4.5), ("Base Milk", 75)],
+    "T-MST1": [("Red Label Tea Leaves", 6), ("Red Label Masala Powder", 3), ("Fresh Ginger", 4.5), ("Base Milk", 75)],
     "T-BPT0": [("Dried Butterfly Pea Flowers", 9), ("Honey", 15), ("Fresh Lemon Juice", 10)],
     "T-BPT1": [("Dried Butterfly Pea Flowers", 9), ("Sugar Syrup", 15), ("Fresh Lemon Juice", 10)],
 
@@ -276,7 +291,9 @@ MAPPINGS = {
     # Coffee Concentrate volume increased, milk stays Full-Fat Milk (not
     # switched to Base Milk like the other three), single quantity now
     # covers both hot and cold per the SOP.
-    "C-HZL0": [("Coffee Concentrate", 60), ("Hazelnut Syrup", 15), ("Full-Fat Milk", 150)],
+    # Round 21: SOP's base table gives Hot 30ml Coffee Concentrate (60ml is
+    # iced-only) -- previously both variants used 60ml.
+    "C-HZL0": [("Coffee Concentrate", 30), ("Hazelnut Syrup", 15), ("Full-Fat Milk", 150)],
     "C-HZL1": [("Coffee Concentrate", 60), ("Hazelnut Syrup", 15), ("Full-Fat Milk", 150)],
     # Chocolate Sauce + Cocoa Powder mixed-in replaced by the new Chocolate
     # Syrup primary; garnish (chocolate drizzle + instant coffee dusting) is
@@ -288,8 +305,13 @@ MAPPINGS = {
     "C-CCA0": [("Chocolate Syrup", 33), ("Base Milk", 125)],
     "C-CCA1": [("Chocolate Syrup", 50), ("Base Milk", 150)],
 
-    "I-LIT": [("Black Tea Concentrate", 150), ("Fresh Lemon Juice", 20), ("Sugar Syrup", 20), ("Lemon Slice", 1)],
-    "I-PIT": [("Black Tea Concentrate", 120), ("Passionfruit Syrup", 35), ("Sugar Syrup", 10), ("Fresh Lemon Juice", 5)],
+    # Round 21: SOP replaced the Black Tea Concentrate base entirely with a
+    # dedicated Lemon Iced Tea Powder mix; lemon juice and sugar syrup
+    # quantities both changed too.
+    "I-LIT": [("Lemon Iced Tea Powder", 1.5), ("Fresh Lemon Juice", 5), ("Sugar Syrup", 10), ("Lemon Slice", 1)],
+    # Round 21: same base swap; syrup is 1 tbsp mixed in + 1 tbsp garnish on
+    # top per the SOP (2 tbsp / 30ml total, both drawn from stock).
+    "I-PIT": [("Lemon Iced Tea Powder", 1.5), ("Passionfruit Syrup", 30), ("Sugar Syrup", 10), ("Fresh Lemon Juice", 5)],
 
     "SO-SLS": [("Strawberry Syrup", 35), ("Fresh Lemon Juice", 15), ("Sugar Syrup", 10), ("Soda Water", 180), ("Lemon Slice", 1)],
     "SO-MPS": [("Mango Syrup", 20), ("Passionfruit Syrup", 15), ("Fresh Lemon Juice", 5), ("Soda Water", 180)],
@@ -358,11 +380,13 @@ def main():
     out.append(",\n".join(f"  ({sql_str(i)}, {sql_str(l)}, {sql_str(k)})" for i, l, k in SEATS) + "\non conflict (id) do nothing;")
     out.append("")
 
-    out.append("-- Ingredients (11 primaries + " + str(len(RAW)) + " raw/purchased ingredients)")
-    out.append("insert into ingredients (name, unit, current_stock, low_stock_threshold) values")
+    out.append("-- Ingredients (" + str(len(PRIMARIES)) + " batch-prep primaries + " + str(len(RAW)) + " raw/purchased ingredients)")
+    out.append("insert into ingredients (name, unit, current_stock, low_stock_threshold, kind) values")
     rows = []
-    for name, (unit, stock, thresh) in {**PRIMARIES, **RAW}.items():
-        rows.append(f"  ({sql_str(name)}, {sql_str(unit)}, {num(stock)}, {num(thresh)})")
+    for name, (unit, stock, thresh) in PRIMARIES.items():
+        rows.append(f"  ({sql_str(name)}, {sql_str(unit)}, {num(stock)}, {num(thresh)}, 'batch_prep')")
+    for name, (unit, stock, thresh) in RAW.items():
+        rows.append(f"  ({sql_str(name)}, {sql_str(unit)}, {num(stock)}, {num(thresh)}, 'raw')")
     out.append(",\n".join(rows) + "\non conflict (name) do nothing;")
     out.append("")
 

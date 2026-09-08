@@ -31,86 +31,87 @@ insert into seats (id, label, kind) values
   ('S4', 'Counter 4', 'counter')
 on conflict (id) do nothing;
 
--- Ingredients (11 primaries + 62 raw/purchased ingredients)
-insert into ingredients (name, unit, current_stock, low_stock_threshold) values
-  ('White Sauce', 'ml', 1000, 200),
-  ('Sautéed Mushrooms', 'g', 800, 150),
-  ('Potato Patty', 'pcs', 24, 6),
-  ('Tikka Marinated Mince', 'g', 800, 150),
-  ('Homemade Mayo', 'ml', 750, 150),
-  ('Fresh Salsa', 'ml', 300, 60),
-  ('Gochujang Sauce', 'ml', 300, 60),
-  ('Caramelised Onions', 'tbsp', 40, 10),
-  ('Sugar Syrup', 'ml', 1200, 200),
-  ('Coffee Concentrate', 'ml', 1000, 200),
-  ('Black Tea Concentrate', 'ml', 1000, 200),
-  ('Base Milk', 'ml', 2000, 400),
-  ('Chocolate Syrup', 'ml', 800, 150),
-  ('Chicken Keema', 'g', 1200, 250),
-  ('Veg Keema', 'g', 2200, 400),
-  ('Tomato Sauce', 'ml', 650, 150),
-  ('Frozen Fries', 'g', 5000, 1000),
-  ('Frying Oil', 'L', 5, 1),
-  ('Ketchup', 'ml', 2000, 400),
-  ('Peri-Peri Seasoning', 'g', 300, 60),
-  ('Garlic Powder', 'g', 300, 60),
-  ('Smoked Paprika', 'g', 200, 40),
-  ('Zab Seasoning', 'g', 300, 60),
-  ('Lime Seasoning', 'g', 300, 60),
-  ('Fresh Lime Juice', 'ml', 500, 100),
-  ('Frozen Samosas', 'pcs', 60, 15),
-  ('Maggi Noodles', 'g', 2000, 400),
-  ('Maggi Masala Sachet', 'pcs', 30, 8),
-  ('Butter', 'g', 2000, 400),
-  ('Tortilla Chips', 'g', 1500, 300),
-  ('Mozzarella Cheese Shredded', 'g', 2000, 400),
-  ('Sour Cream', 'ml', 800, 150),
-  ('BBQ Sauce', 'ml', 800, 150),
-  ('Cheese Sauce', 'ml', 800, 150),
-  ('Sandwich Bread', 'slices', 100, 20),
-  ('Cheese Slice', 'pcs', 150, 30),
-  ('Tikka Masala Paste', 'ml', 500, 100),
-  ('Fresh Lemon Juice', 'ml', 1500, 300),
-  ('Iceberg Lettuce', 'g', 2000, 400),
-  ('Burger Bun', 'pcs', 60, 15),
-  ('Frozen Chicken Patty', 'pcs', 60, 15),
-  ('Tomato Slices', 'slices', 200, 40),
-  ('Pickled Cucumber Slices', 'slices', 150, 30),
-  ('Fresh Cucumber Slices', 'slices', 150, 30),
-  ('Pickled Cabbage / Coleslaw', 'g', 1000, 200),
-  ('Spaghetti (Dry)', 'g', 3000, 600),
-  ('Garlic', 'cloves', 200, 40),
-  ('Grated Parmesan Cheese', 'g', 800, 150),
-  ('Green Chilli', 'pcs', 100, 20),
-  ('Olive Oil', 'ml', 1500, 300),
-  ('Frozen Corn', 'g', 500, 100),
-  ('Frozen Peas', 'g', 500, 100),
-  ('Chilli Oil', 'ml', 500, 100),
-  ('Momo Wrap', 'pcs', 300, 60),
-  ('Black Tea Leaves', 'g', 500, 100),
-  ('Red Label Tea Leaves', 'g', 300, 60),
-  ('Red Label Masala Powder', 'g', 300, 60),
-  ('Fresh Ginger', 'g', 500, 100),
-  ('Honey', 'ml', 800, 150),
-  ('Ground Coffee', 'g', 2000, 400),
-  ('Thai Tea Powder', 'g', 500, 100),
-  ('Full-Fat Milk', 'ml', 5000, 1000),
-  ('Evaporated Milk', 'ml', 1000, 200),
-  ('Dried Butterfly Pea Flowers', 'pcs', 200, 40),
-  ('Hazelnut Syrup', 'ml', 800, 150),
-  ('Chocolate Sauce', 'ml', 800, 150),
-  ('Cocoa Powder', 'g', 800, 150),
-  ('Strawberry Syrup', 'ml', 800, 150),
-  ('Mango Syrup', 'ml', 800, 150),
-  ('Passionfruit Syrup', 'ml', 800, 150),
-  ('Lychee Syrup', 'ml', 800, 150),
-  ('Mixed Berry Syrup', 'ml', 800, 150),
-  ('Blue Curacao Syrup (Non-Alcoholic)', 'ml', 500, 100),
-  ('Coconut Syrup', 'ml', 500, 100),
-  ('Soda Water', 'ml', 5000, 1000),
-  ('Cola', 'can', 48, 12),
-  ('Pink Salt', 'g', 200, 40),
-  ('Lemon Slice', 'pcs', 200, 40)
+-- Ingredients (16 batch-prep primaries + 63 raw/purchased ingredients)
+insert into ingredients (name, unit, current_stock, low_stock_threshold, kind) values
+  ('White Sauce', 'ml', 1000, 200, 'batch_prep'),
+  ('Sautéed Mushrooms', 'g', 800, 150, 'batch_prep'),
+  ('Potato Patty', 'pcs', 24, 6, 'batch_prep'),
+  ('Tikka Marinated Mince', 'g', 800, 150, 'batch_prep'),
+  ('Homemade Mayo', 'ml', 750, 150, 'batch_prep'),
+  ('Fresh Salsa', 'ml', 300, 60, 'batch_prep'),
+  ('Gochujang Sauce', 'ml', 300, 60, 'batch_prep'),
+  ('Caramelised Onions', 'tbsp', 40, 10, 'batch_prep'),
+  ('Sugar Syrup', 'ml', 1200, 200, 'batch_prep'),
+  ('Coffee Concentrate', 'ml', 1000, 200, 'batch_prep'),
+  ('Black Tea Concentrate', 'ml', 1000, 200, 'batch_prep'),
+  ('Base Milk', 'ml', 2000, 400, 'batch_prep'),
+  ('Chocolate Syrup', 'ml', 800, 150, 'batch_prep'),
+  ('Chicken Keema', 'g', 1200, 250, 'batch_prep'),
+  ('Veg Keema', 'g', 2200, 400, 'batch_prep'),
+  ('Tomato Sauce', 'ml', 650, 150, 'batch_prep'),
+  ('Frozen Fries', 'g', 5000, 1000, 'raw'),
+  ('Frying Oil', 'L', 5, 1, 'raw'),
+  ('Ketchup', 'ml', 2000, 400, 'raw'),
+  ('Peri-Peri Seasoning', 'g', 300, 60, 'raw'),
+  ('Garlic Powder', 'g', 300, 60, 'raw'),
+  ('Smoked Paprika', 'g', 200, 40, 'raw'),
+  ('Zab Seasoning', 'g', 300, 60, 'raw'),
+  ('Lime Seasoning', 'g', 300, 60, 'raw'),
+  ('Fresh Lime Juice', 'ml', 500, 100, 'raw'),
+  ('Frozen Samosas', 'pcs', 60, 15, 'raw'),
+  ('Maggi Noodles', 'g', 2000, 400, 'raw'),
+  ('Maggi Masala Sachet', 'pcs', 30, 8, 'raw'),
+  ('Butter', 'g', 2000, 400, 'raw'),
+  ('Tortilla Chips', 'g', 1500, 300, 'raw'),
+  ('Mozzarella Cheese Shredded', 'g', 2000, 400, 'raw'),
+  ('Sour Cream', 'ml', 800, 150, 'raw'),
+  ('BBQ Sauce', 'ml', 800, 150, 'raw'),
+  ('Cheese Sauce', 'ml', 800, 150, 'raw'),
+  ('Sandwich Bread', 'slices', 100, 20, 'raw'),
+  ('Cheese Slice', 'pcs', 150, 30, 'raw'),
+  ('Tikka Masala Paste', 'ml', 500, 100, 'raw'),
+  ('Fresh Lemon Juice', 'ml', 1500, 300, 'raw'),
+  ('Iceberg Lettuce', 'g', 2000, 400, 'raw'),
+  ('Burger Bun', 'pcs', 60, 15, 'raw'),
+  ('Frozen Chicken Patty', 'pcs', 60, 15, 'raw'),
+  ('Tomato Slices', 'slices', 200, 40, 'raw'),
+  ('Pickled Cucumber Slices', 'slices', 150, 30, 'raw'),
+  ('Fresh Cucumber Slices', 'slices', 150, 30, 'raw'),
+  ('Pickled Cabbage / Coleslaw', 'g', 1000, 200, 'raw'),
+  ('Spaghetti (Dry)', 'g', 3000, 600, 'raw'),
+  ('Garlic', 'cloves', 200, 40, 'raw'),
+  ('Grated Parmesan Cheese', 'g', 800, 150, 'raw'),
+  ('Green Chilli', 'pcs', 100, 20, 'raw'),
+  ('Olive Oil', 'ml', 1500, 300, 'raw'),
+  ('Frozen Corn', 'g', 500, 100, 'raw'),
+  ('Frozen Peas', 'g', 500, 100, 'raw'),
+  ('Chilli Oil', 'ml', 500, 100, 'raw'),
+  ('Momo Wrap', 'pcs', 300, 60, 'raw'),
+  ('Black Tea Leaves', 'g', 500, 100, 'raw'),
+  ('Red Label Tea Leaves', 'g', 300, 60, 'raw'),
+  ('Red Label Masala Powder', 'g', 300, 60, 'raw'),
+  ('Fresh Ginger', 'g', 500, 100, 'raw'),
+  ('Honey', 'ml', 800, 150, 'raw'),
+  ('Ground Coffee', 'g', 2000, 400, 'raw'),
+  ('Thai Tea Powder', 'g', 500, 100, 'raw'),
+  ('Full-Fat Milk', 'ml', 5000, 1000, 'raw'),
+  ('Evaporated Milk', 'ml', 1000, 200, 'raw'),
+  ('Dried Butterfly Pea Flowers', 'pcs', 200, 40, 'raw'),
+  ('Hazelnut Syrup', 'ml', 800, 150, 'raw'),
+  ('Chocolate Sauce', 'ml', 800, 150, 'raw'),
+  ('Cocoa Powder', 'g', 800, 150, 'raw'),
+  ('Strawberry Syrup', 'ml', 800, 150, 'raw'),
+  ('Mango Syrup', 'ml', 800, 150, 'raw'),
+  ('Passionfruit Syrup', 'ml', 800, 150, 'raw'),
+  ('Lychee Syrup', 'ml', 800, 150, 'raw'),
+  ('Mixed Berry Syrup', 'ml', 800, 150, 'raw'),
+  ('Lemon Iced Tea Powder', 'tbsp', 200, 40, 'raw'),
+  ('Blue Curacao Syrup (Non-Alcoholic)', 'ml', 500, 100, 'raw'),
+  ('Coconut Syrup', 'ml', 500, 100, 'raw'),
+  ('Soda Water', 'ml', 5000, 1000, 'raw'),
+  ('Cola', 'can', 48, 12, 'raw'),
+  ('Pink Salt', 'g', 200, 40, 'raw'),
+  ('Lemon Slice', 'pcs', 200, 40, 'raw')
 on conflict (name) do nothing;
 
 -- Menu items (47 total, matching the Menu tab item codes/prices).
@@ -198,6 +199,8 @@ union all
 select 'SN-ZAF', id, 3 from ingredients where name = 'Lime Seasoning'
 union all
 select 'SN-ZAF', id, 30 from ingredients where name = 'Homemade Mayo'
+union all
+select 'SN-ZAF', id, 30 from ingredients where name = 'Ketchup'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
@@ -355,8 +358,6 @@ select 'B-DTB', id, 20 from ingredients where name = 'Iceberg Lettuce'
 union all
 select 'B-DTB', id, 2 from ingredients where name = 'Tomato Slices'
 union all
-select 'B-DTB', id, 3.5 from ingredients where name = 'Pickled Cucumber Slices'
-union all
 select 'B-DTB', id, 2 from ingredients where name = 'Caramelised Onions'
 union all
 select 'B-DTB', id, 20 from ingredients where name = 'Ketchup'
@@ -373,7 +374,7 @@ select 'B-GCB', id, 1 from ingredients where name = 'Frozen Chicken Patty'
 union all
 select 'B-GCB', id, 15 from ingredients where name = 'Gochujang Sauce'
 union all
-select 'B-GCB', id, 30 from ingredients where name = 'Pickled Cabbage / Coleslaw'
+select 'B-GCB', id, 2 from ingredients where name = 'Caramelised Onions'
 union all
 select 'B-GCB', id, 3 from ingredients where name = 'Fresh Cucumber Slices'
 on conflict (menu_item_code, ingredient_id) do nothing;
@@ -469,13 +470,13 @@ on conflict (menu_item_code, ingredient_id) do nothing;
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
 select 'T-TMT0', id, 18 from ingredients where name = 'Thai Tea Powder'
 union all
-select 'T-TMT0', id, 40 from ingredients where name = 'Full-Fat Milk'
+select 'T-TMT0', id, 40 from ingredients where name = 'Base Milk'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
 select 'T-TMT1', id, 18 from ingredients where name = 'Thai Tea Powder'
 union all
-select 'T-TMT1', id, 30 from ingredients where name = 'Evaporated Milk'
+select 'T-TMT1', id, 30 from ingredients where name = 'Base Milk'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
@@ -485,7 +486,7 @@ select 'T-MST0', id, 1.5 from ingredients where name = 'Red Label Masala Powder'
 union all
 select 'T-MST0', id, 4.5 from ingredients where name = 'Fresh Ginger'
 union all
-select 'T-MST0', id, 75 from ingredients where name = 'Full-Fat Milk'
+select 'T-MST0', id, 75 from ingredients where name = 'Base Milk'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
@@ -495,7 +496,7 @@ select 'T-MST1', id, 3 from ingredients where name = 'Red Label Masala Powder'
 union all
 select 'T-MST1', id, 4.5 from ingredients where name = 'Fresh Ginger'
 union all
-select 'T-MST1', id, 75 from ingredients where name = 'Full-Fat Milk'
+select 'T-MST1', id, 75 from ingredients where name = 'Base Milk'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
@@ -535,7 +536,7 @@ select 'C-CPN1', id, 100 from ingredients where name = 'Base Milk'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
-select 'C-HZL0', id, 60 from ingredients where name = 'Coffee Concentrate'
+select 'C-HZL0', id, 30 from ingredients where name = 'Coffee Concentrate'
 union all
 select 'C-HZL0', id, 15 from ingredients where name = 'Hazelnut Syrup'
 union all
@@ -579,19 +580,19 @@ select 'C-CCA1', id, 150 from ingredients where name = 'Base Milk'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
-select 'I-LIT', id, 150 from ingredients where name = 'Black Tea Concentrate'
+select 'I-LIT', id, 1.5 from ingredients where name = 'Lemon Iced Tea Powder'
 union all
-select 'I-LIT', id, 20 from ingredients where name = 'Fresh Lemon Juice'
+select 'I-LIT', id, 5 from ingredients where name = 'Fresh Lemon Juice'
 union all
-select 'I-LIT', id, 20 from ingredients where name = 'Sugar Syrup'
+select 'I-LIT', id, 10 from ingredients where name = 'Sugar Syrup'
 union all
 select 'I-LIT', id, 1 from ingredients where name = 'Lemon Slice'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
-select 'I-PIT', id, 120 from ingredients where name = 'Black Tea Concentrate'
+select 'I-PIT', id, 1.5 from ingredients where name = 'Lemon Iced Tea Powder'
 union all
-select 'I-PIT', id, 35 from ingredients where name = 'Passionfruit Syrup'
+select 'I-PIT', id, 30 from ingredients where name = 'Passionfruit Syrup'
 union all
 select 'I-PIT', id, 10 from ingredients where name = 'Sugar Syrup'
 union all

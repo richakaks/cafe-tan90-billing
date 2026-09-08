@@ -139,7 +139,11 @@ export async function getSeat(id: string): Promise<Seat | null> {
 export async function getMenuForCustomer(): Promise<MenuItemWithAvailability[]> {
   const [{ data: items, error: itemsErr }, { data: ingredients, error: ingErr }, { data: links, error: linkErr }] =
     await Promise.all([
-      db().from("menu_items").select("code, name, category, price, active").eq("active", true).order("sort_order"),
+      db()
+        .from("menu_items")
+        .select("code, name, category, price, active, description, image_url")
+        .eq("active", true)
+        .order("sort_order"),
       db().from("ingredients").select("id, name, unit, current_stock, low_stock_threshold"),
       db().from("menu_item_ingredients").select("menu_item_code, ingredient_id, qty_per_order"),
     ]);
@@ -148,8 +152,9 @@ export async function getMenuForCustomer(): Promise<MenuItemWithAvailability[]> 
   if (ingErr) throw ingErr;
   if (linkErr) throw linkErr;
 
-  // brand isn't selected/needed here -- this map only feeds stock-availability
-  // math for the customer menu, so it's stubbed null rather than fetched.
+  // brand/kind aren't selected/needed here -- this map only feeds
+  // stock-availability math for the customer menu, so they're stubbed
+  // rather than fetched.
   const ingredientsById = new Map<string, Ingredient>(
     (ingredients ?? []).map((i) => [
       i.id,
@@ -160,6 +165,7 @@ export async function getMenuForCustomer(): Promise<MenuItemWithAvailability[]> 
         unit: i.unit,
         currentStock: Number(i.current_stock),
         lowStockThreshold: Number(i.low_stock_threshold),
+        kind: "raw",
       },
     ])
   );
@@ -176,6 +182,8 @@ export async function getMenuForCustomer(): Promise<MenuItemWithAvailability[]> 
     category: item.category,
     price: Number(item.price),
     active: item.active,
+    description: item.description ?? null,
+    imageUrl: item.image_url ?? null,
     status: computeAvailability(item.code, linkList, ingredientsById),
   }));
 }
@@ -402,7 +410,7 @@ export async function getCouponBatches(): Promise<CouponBatch[]> {
 export async function getIngredients(): Promise<Ingredient[]> {
   const { data, error } = await db()
     .from("ingredients")
-    .select("id, name, brand, unit, current_stock, low_stock_threshold")
+    .select("id, name, brand, unit, current_stock, low_stock_threshold, kind")
     .order("name");
   if (error) throw error;
   return (data ?? []).map((i) => ({
@@ -412,6 +420,7 @@ export async function getIngredients(): Promise<Ingredient[]> {
     unit: i.unit,
     currentStock: Number(i.current_stock),
     lowStockThreshold: Number(i.low_stock_threshold),
+    kind: (i.kind ?? "raw") as Ingredient["kind"],
   }));
 }
 
@@ -421,10 +430,18 @@ export async function createIngredient(
   currentStock: number,
   lowStockThreshold: number,
   brand?: string | null,
+  kind?: Ingredient["kind"],
 ): Promise<void> {
   const { error } = await db()
     .from("ingredients")
-    .insert({ name, brand: brand ?? null, unit, current_stock: currentStock, low_stock_threshold: lowStockThreshold });
+    .insert({
+      name,
+      brand: brand ?? null,
+      unit,
+      current_stock: currentStock,
+      low_stock_threshold: lowStockThreshold,
+      kind: kind ?? "raw",
+    });
   if (error) throw error;
 }
 
@@ -461,12 +478,13 @@ export async function getIngredientUsage(): Promise<Record<string, string[]>> {
 // with no price, since it's a correction rather than a purchase).
 export async function updateIngredient(
   id: string,
-  updates: { name?: string; unit?: string; brand?: string | null; currentStock?: number },
+  updates: { name?: string; unit?: string; brand?: string | null; currentStock?: number; kind?: Ingredient["kind"] },
 ): Promise<void> {
   const fields: Record<string, unknown> = {};
   if (updates.name !== undefined) fields.name = updates.name;
   if (updates.unit !== undefined) fields.unit = updates.unit;
   if (updates.brand !== undefined) fields.brand = updates.brand;
+  if (updates.kind !== undefined) fields.kind = updates.kind;
   if (Object.keys(fields).length > 0) {
     const { error } = await db().from("ingredients").update(fields).eq("id", id);
     if (error) throw error;
@@ -629,7 +647,10 @@ export async function updateIngredientThreshold(id: string, lowStockThreshold: n
 
 export async function getMenuItemsAdmin(): Promise<MenuItemAdminView[]> {
   const [{ data: items, error: itemsErr }, { data: links, error: linkErr }, { data: ingredients, error: ingErr }] = await Promise.all([
-    db().from("menu_items").select("code, name, category, price, active, yield_servings").order("sort_order"),
+    db()
+      .from("menu_items")
+      .select("code, name, category, price, active, yield_servings, description, image_url")
+      .order("sort_order"),
     db().from("menu_item_ingredients").select("menu_item_code, ingredient_id, qty_per_order"),
     db().from("ingredients").select("id, name, unit"),
   ]);
@@ -645,6 +666,8 @@ export async function getMenuItemsAdmin(): Promise<MenuItemAdminView[]> {
     category: item.category,
     price: Number(item.price),
     active: item.active,
+    description: item.description ?? null,
+    imageUrl: item.image_url ?? null,
     yieldServings: Number(item.yield_servings ?? 1),
     ingredients: (links ?? [])
       .filter((l) => l.menu_item_code === item.code)
@@ -681,7 +704,15 @@ export async function renameMenuItemCode(oldCode: string, newCode: string): Prom
   if (error) throw error;
 }
 
-export async function upsertMenuItem(item: { code: string; name: string; category: string; price: number; active: boolean; yieldServings?: number }): Promise<void> {
+export async function upsertMenuItem(item: {
+  code: string;
+  name: string;
+  category: string;
+  price: number;
+  active: boolean;
+  yieldServings?: number;
+  description?: string | null;
+}): Promise<void> {
   const { data: existing } = await db().from("menu_items").select("code").eq("code", item.code).maybeSingle();
 
   // Only a genuinely new item needs a sort_order assigned — editing an
@@ -708,6 +739,7 @@ export async function upsertMenuItem(item: { code: string; name: string; categor
     active: boolean;
     sort_order?: number;
     yield_servings?: number;
+    description?: string | null;
   } = {
     code: item.code,
     name: item.name,
@@ -716,8 +748,18 @@ export async function upsertMenuItem(item: { code: string; name: string; categor
     active: item.active,
     ...(sortOrder !== undefined ? { sort_order: sortOrder } : {}),
     ...(item.yieldServings !== undefined ? { yield_servings: item.yieldServings } : {}),
+    ...(item.description !== undefined ? { description: item.description } : {}),
   };
   const { error } = await db().from("menu_items").upsert(payload);
+  if (error) throw error;
+}
+
+// Round 21: sets/replaces a menu item's photo URL after a successful upload
+// to the 'menu-images' Storage bucket (see /api/menu/[code]/image). A
+// separate function from upsertMenuItem so the image-upload route doesn't
+// need to resend the item's other fields just to change one column.
+export async function updateMenuItemImage(code: string, imageUrl: string | null): Promise<void> {
+  const { error } = await db().from("menu_items").update({ image_url: imageUrl }).eq("code", code);
   if (error) throw error;
 }
 
@@ -843,6 +885,8 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
     { data: menuItems, error: menuErr },
     { data: historical, error: histErr },
     { data: redeemedCoupons, error: couponErr },
+    { data: recipeLinks, error: recipeErr },
+    { data: pricedRestocks, error: restockErr },
     previousPeriod,
   ] = await Promise.all([
     db()
@@ -863,14 +907,61 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
       .eq("redeemed", true)
       .gte("redeemed_at", `${from}T00:00:00`)
       .lte("redeemed_at", `${to}T23:59:59.999`),
+    // Round 21 profit estimate — see the ProfitEstimate type and the block
+    // below the main order loop for the full computation.
+    db().from("menu_item_ingredients").select("menu_item_code, ingredient_id, qty_per_order"),
+    db().from("stock_adjustments").select("ingredient_id, delta, price_paid").not("price_paid", "is", null).gt("delta", 0),
     getPeriodTotals(prevFrom, prevTo),
   ]);
   if (ordersErr) throw ordersErr;
   if (menuErr) throw menuErr;
   if (histErr) throw histErr;
   if (couponErr) throw couponErr;
+  if (recipeErr) throw recipeErr;
+  if (restockErr) throw restockErr;
 
   const categoryByCode = new Map((menuItems ?? []).map((m) => [m.code, m.category]));
+
+  // Average cost-per-unit per ingredient, from every priced restock ever
+  // recorded (stock_adjustments.price_paid, Round 13+) -- sum(price paid) /
+  // sum(quantity bought). An ingredient that's never had a priced restock
+  // (including everything bought before Round 13 shipped) simply has no
+  // entry here, which is exactly the signal the profit loop below uses to
+  // exclude a line rather than guess its cost as zero.
+  const costTotals = new Map<string, { cost: number; units: number }>();
+  for (const r of (pricedRestocks ?? []) as { ingredient_id: string; delta: number; price_paid: number }[]) {
+    const t = costTotals.get(r.ingredient_id) ?? { cost: 0, units: 0 };
+    t.cost += Number(r.price_paid);
+    t.units += Number(r.delta);
+    costTotals.set(r.ingredient_id, t);
+  }
+  const costPerUnit = new Map<string, number>();
+  for (const [id, t] of costTotals) if (t.units > 0) costPerUnit.set(id, t.cost / t.units);
+
+  const recipeByCode = new Map<string, { ingredientId: string; qty: number }[]>();
+  for (const l of (recipeLinks ?? []) as { menu_item_code: string; ingredient_id: string; qty_per_order: number }[]) {
+    const list = recipeByCode.get(l.menu_item_code) ?? [];
+    list.push({ ingredientId: l.ingredient_id, qty: Number(l.qty_per_order) });
+    recipeByCode.set(l.menu_item_code, list);
+  }
+  // null = can't cost this recipe at all (no recipe, or an ingredient with
+  // no priced restock yet) -- the caller excludes it rather than treating a
+  // missing cost as free.
+  function estimateLineCost(code: string): number | null {
+    const recipe = recipeByCode.get(code);
+    if (!recipe || recipe.length === 0) return null;
+    let cost = 0;
+    for (const { ingredientId, qty } of recipe) {
+      const perUnit = costPerUnit.get(ingredientId);
+      if (perUnit === undefined) return null;
+      cost += perUnit * qty;
+    }
+    return cost;
+  }
+  let profitRevenueCounted = 0;
+  let profitCostCounted = 0;
+  let profitExcludedRevenue = 0;
+  let profitExcludedLineItems = 0;
 
   const dailyMap = new Map<string, { orderCount: number; revenue: number }>();
   const itemMap = new Map<string, ItemRanking>();
@@ -930,13 +1021,23 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
     hourly[bangkokHour].revenue += orderNet;
 
     for (const it of items) {
+      const lineRevenue = it.qty * Number(it.price_at_order);
       const existing = itemMap.get(it.menu_item_code) ?? { code: it.menu_item_code, name: it.item_name, qty: 0, revenue: 0 };
       existing.qty += it.qty;
-      existing.revenue += it.qty * Number(it.price_at_order);
+      existing.revenue += lineRevenue;
       itemMap.set(it.menu_item_code, existing);
 
       const category = categoryByCode.get(it.menu_item_code) ?? "Other";
-      categoryMap.set(category, (categoryMap.get(category) ?? 0) + it.qty * Number(it.price_at_order));
+      categoryMap.set(category, (categoryMap.get(category) ?? 0) + lineRevenue);
+
+      const unitCost = estimateLineCost(it.menu_item_code);
+      if (unitCost === null) {
+        profitExcludedRevenue += lineRevenue;
+        profitExcludedLineItems += 1;
+      } else {
+        profitRevenueCounted += lineRevenue;
+        profitCostCounted += unitCost * it.qty;
+      }
     }
 
     // Pairing: every unique combination of distinct items within this one order.
@@ -1070,6 +1171,13 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
     },
     paymentSplit,
     historicalCashNote: { count: historicalCashCount, revenue: historicalCashRevenue },
+    profit: {
+      estimated: profitRevenueCounted - profitCostCounted,
+      revenueCounted: profitRevenueCounted,
+      costCounted: profitCostCounted,
+      excludedRevenue: profitExcludedRevenue,
+      excludedLineItems: profitExcludedLineItems,
+    },
   };
 }
 

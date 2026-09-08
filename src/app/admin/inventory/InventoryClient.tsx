@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import type { Ingredient, LastRestockPrice, StockAdjustmentRow } from "@/lib/types";
+import type { Ingredient, IngredientKind, LastRestockPrice, StockAdjustmentRow } from "@/lib/types";
 import { ingredientAlertStatus } from "@/lib/stock";
 import { RangeResetOrdersButton, ResetButton } from "@/components/OrdersDangerZone";
 
@@ -36,6 +36,7 @@ function EditIngredientForm({
   const [brand, setBrand] = useState(ingredient.brand ?? "");
   const [unit, setUnit] = useState(ingredient.unit);
   const [stock, setStock] = useState(String(ingredient.currentStock));
+  const [kind, setKind] = useState<IngredientKind>(ingredient.kind);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +59,7 @@ function EditIngredientForm({
       const trimmedBrand = brand.trim();
       if (trimmedBrand !== (ingredient.brand ?? "")) body.brand = trimmedBrand || null;
       if (stockNum !== ingredient.currentStock) body.currentStock = stockNum;
+      if (kind !== ingredient.kind) body.kind = kind;
 
       if (Object.keys(body).length === 0) {
         onCancel();
@@ -108,6 +110,16 @@ function EditIngredientForm({
           placeholder="Current stock"
           className="w-1/2 rounded-md border border-card-border px-2 py-1 text-sm"
         />
+      </div>
+      <div className="flex gap-3 text-xs text-navy-700">
+        <label className="flex items-center gap-1">
+          <input type="radio" checked={kind === "raw"} onChange={() => setKind("raw")} />
+          Raw ingredient
+        </label>
+        <label className="flex items-center gap-1">
+          <input type="radio" checked={kind === "batch_prep"} onChange={() => setKind("batch_prep")} />
+          Batch prep
+        </label>
       </div>
       {error && <p className="text-xs text-status-out">{error}</p>}
       <div className="flex gap-1.5">
@@ -385,6 +397,7 @@ export default function InventoryClient({
   const [newUnit, setNewUnit] = useState("");
   const [newStock, setNewStock] = useState("");
   const [newThreshold, setNewThreshold] = useState("");
+  const [newKind, setNewKind] = useState<IngredientKind>("raw");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
@@ -410,9 +423,57 @@ export default function InventoryClient({
         (ing) => ing.name.toLowerCase().includes(normalizedQuery) || (ing.brand ?? "").toLowerCase().includes(normalizedQuery),
       )
     : ingredients;
+  // Owner asked for batch-prep items (keemas, base milks, concentrates —
+  // things made ahead in a batch) split out from raw single ingredients,
+  // as two separate sections rather than one long mixed list.
+  const batchPrepIngredients = visibleIngredients.filter((ing) => ing.kind === "batch_prep");
+  const rawIngredients = visibleIngredients.filter((ing) => ing.kind !== "batch_prep");
 
   function refresh() {
     window.location.reload();
+  }
+
+  // Shared table renderer for the Batch Prep / Raw Ingredients sections below
+  // -- both need identical columns and Row behavior, just a different slice
+  // of the (already search-filtered) ingredient list.
+  function renderTable(items: Ingredient[], emptyLabel: string) {
+    return (
+      <div className="overflow-x-auto">
+        {/* table-fixed + explicit column widths: a long "Used in" list on one
+            row (e.g. an ingredient used in a dozen recipes) must NOT be able
+            to steal width from the Restock/Use or Threshold columns on every
+            other row -- with the browser's default auto layout, one cell's
+            long content can do exactly that, which is what was squeezing the
+            +Restock/-Use buttons on some rows but not others. Fixed layout
+            makes every row share the same column widths regardless of any
+            single cell's content; the overflow-x-auto wrapper above is a
+            safety net for very narrow viewports now that the page itself is
+            wide enough that the table normally fits without scrolling. */}
+        <table className="w-full table-fixed text-left">
+          <thead>
+            <tr className="text-xs font-semibold uppercase tracking-wide text-navy-600">
+              <th className="w-[34%] pb-2">Ingredient</th>
+              <th className="w-[12%] pb-2">Current stock</th>
+              <th className="w-[32%] pb-2">Restock / use</th>
+              <th className="w-[22%] pb-2">Low-stock threshold</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((ing) => (
+              <Row
+                key={ing.id}
+                ingredient={ing}
+                lastRestock={lastRestockPrices[ing.id]}
+                usedIn={usage[ing.id] ?? []}
+                onChanged={refresh}
+                highlighted={highlightedId === ing.id}
+              />
+            ))}
+          </tbody>
+        </table>
+        {items.length === 0 && <p className="py-4 text-sm text-navy-600">{emptyLabel}</p>}
+      </div>
+    );
   }
 
   async function addIngredient() {
@@ -429,6 +490,7 @@ export default function InventoryClient({
           unit: newUnit.trim(),
           currentStock: Number(newStock) || 0,
           lowStockThreshold: Number(newThreshold) || 0,
+          kind: newKind,
         }),
       });
       const body = await res.json();
@@ -441,6 +503,7 @@ export default function InventoryClient({
       setNewUnit("");
       setNewStock("");
       setNewThreshold("");
+      setNewKind("raw");
       window.location.reload();
     } finally {
       setCreating(false);
@@ -453,6 +516,7 @@ export default function InventoryClient({
     setNewUnit("");
     setNewStock("");
     setNewThreshold("");
+    setNewKind("raw");
     setError(null);
   }
 
@@ -499,40 +563,14 @@ export default function InventoryClient({
           placeholder="Find an ingredient…"
           className="w-full rounded-md border border-card-border px-3 py-2 text-sm"
         />
-        <div className="mt-4 overflow-x-auto">
-          {/* table-fixed + explicit column widths: a long "Used in" list on one
-              row (e.g. an ingredient used in a dozen recipes) must NOT be able
-              to steal width from the Restock/Use or Threshold columns on every
-              other row -- with the browser's default auto layout, one cell's
-              long content can do exactly that, which is what was squeezing the
-              +Restock/-Use buttons on some rows but not others. Fixed layout
-              makes every row share the same column widths regardless of any
-              single cell's content; min-w plus the overflow-x-auto wrapper
-              above means a narrow viewport scrolls instead of compressing. */}
-          <table className="w-full min-w-[820px] table-fixed text-left">
-            <thead>
-              <tr className="text-xs font-semibold uppercase tracking-wide text-navy-600">
-                <th className="w-[34%] pb-2">Ingredient</th>
-                <th className="w-[12%] pb-2">Current stock</th>
-                <th className="w-[32%] pb-2">Restock / use</th>
-                <th className="w-[22%] pb-2">Low-stock threshold</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleIngredients.map((ing) => (
-                <Row
-                  key={ing.id}
-                  ingredient={ing}
-                  lastRestock={lastRestockPrices[ing.id]}
-                  usedIn={usage[ing.id] ?? []}
-                  onChanged={refresh}
-                  highlighted={highlightedId === ing.id}
-                />
-              ))}
-            </tbody>
-          </table>
-          {visibleIngredients.length === 0 && <p className="py-4 text-sm text-navy-600">No ingredient matches “{query}”.</p>}
-        </div>
+
+        <h2 className="mb-1 mt-5 text-sm font-semibold text-navy-950">Batch Prep</h2>
+        <p className="mb-2 text-xs text-navy-600">Items made ahead in a batch — keemas, base milks, concentrates, sauces.</p>
+        {renderTable(batchPrepIngredients, query ? `No batch prep item matches “${query}”.` : "No batch prep items yet.")}
+
+        <h2 className="mb-1 mt-6 text-sm font-semibold text-navy-950">Raw Ingredients</h2>
+        <p className="mb-2 text-xs text-navy-600">Single ingredients bought as-is, not made ahead.</p>
+        {renderTable(rawIngredients, query ? `No raw ingredient matches “${query}”.` : "No raw ingredients yet.")}
       </div>
 
       <div className="card p-5">
@@ -586,6 +624,19 @@ export default function InventoryClient({
               placeholder="0"
               className="w-full rounded-md border border-card-border px-3 py-2 text-sm"
             />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs font-medium text-navy-600">Category</span>
+            <div className="flex h-[38px] items-center gap-3 text-sm text-navy-800">
+              <label className="flex items-center gap-1.5">
+                <input type="radio" checked={newKind === "raw"} onChange={() => setNewKind("raw")} />
+                Raw
+              </label>
+              <label className="flex items-center gap-1.5">
+                <input type="radio" checked={newKind === "batch_prep"} onChange={() => setNewKind("batch_prep")} />
+                Batch prep
+              </label>
+            </div>
           </label>
         </div>
         {error && <p className="mt-3 text-sm text-status-out">{error}</p>}

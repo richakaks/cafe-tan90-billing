@@ -3,16 +3,24 @@ import { createIngredient } from "@/lib/data";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { name, unit, currentStock, lowStockThreshold, brand } = body ?? {};
+  const { name, unit, currentStock, lowStockThreshold, brand, kind } = body ?? {};
 
   if (typeof name !== "string" || !name.trim() || typeof unit !== "string" || !unit.trim()) {
     return NextResponse.json({ error: "Name and unit are required." }, { status: 400 });
   }
 
   const trimmedBrand = typeof brand === "string" && brand.trim() ? brand.trim() : null;
+  const ingredientKind = kind === "batch_prep" ? "batch_prep" : "raw";
 
   try {
-    await createIngredient(name.trim(), unit.trim(), Number(currentStock) || 0, Number(lowStockThreshold) || 0, trimmedBrand);
+    await createIngredient(
+      name.trim(),
+      unit.trim(),
+      Number(currentStock) || 0,
+      Number(lowStockThreshold) || 0,
+      trimmedBrand,
+      ingredientKind,
+    );
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("createIngredient failed", err);

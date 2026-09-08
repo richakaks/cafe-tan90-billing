@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { Ingredient, MenuItemAdminView } from "@/lib/types";
+import ImageCropUpload from "@/components/ImageCropUpload";
 
 type LinkedIngredient = MenuItemAdminView["ingredients"][number];
 
@@ -133,6 +134,8 @@ function ItemCard({ item, ingredients, onChanged }: { item: MenuItemAdminView; i
   const [category, setCategory] = useState(item.category);
   const [price, setPrice] = useState(String(item.price));
   const [yieldServings, setYieldServings] = useState(String(item.yieldServings));
+  const [description, setDescription] = useState(item.description ?? "");
+  const [imageUrl, setImageUrl] = useState(item.imageUrl);
   const [active, setActive] = useState(item.active);
   const [busy, setBusy] = useState(false);
   const [linkIngredientId, setLinkIngredientId] = useState("");
@@ -162,7 +165,15 @@ function ItemCard({ item, ingredients, onChanged }: { item: MenuItemAdminView; i
       const res = await fetch("/api/menu", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: item.code, name, category, price: Number(price), active, yieldServings: yieldNum }),
+        body: JSON.stringify({
+          code: item.code,
+          name,
+          category,
+          price: Number(price),
+          active,
+          yieldServings: yieldNum,
+          description: description.trim() || null,
+        }),
       });
       if (!res.ok) {
         const body = await res.json();
@@ -351,9 +362,23 @@ function ItemCard({ item, ingredients, onChanged }: { item: MenuItemAdminView; i
               className="rounded-md border border-card-border px-3 py-2 text-sm"
             />
           </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-navy-600">Description</p>
+            <p className="mt-1 text-xs text-navy-600">Shown to customers on the ordering menu, under the item name.</p>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              placeholder="What is this item, and why would someone want to try it?"
+              className="mt-2 w-full rounded-md border border-card-border px-3 py-2 text-sm"
+            />
+          </div>
+
           <button onClick={saveDetails} disabled={busy} className="rounded-lg bg-navy-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-navy-800 disabled:opacity-50">
             Save details
           </button>
+
+          <ImageCropUpload code={item.code} currentImageUrl={imageUrl} onSaved={setImageUrl} />
 
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-navy-600">Ingredients used per order</p>

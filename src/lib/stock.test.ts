@@ -9,6 +9,7 @@ function ingredient(overrides: Partial<Ingredient> & { id: string }): Ingredient
     unit: "g",
     currentStock: 0,
     lowStockThreshold: 0,
+    kind: "raw",
     ...overrides,
   };
 }

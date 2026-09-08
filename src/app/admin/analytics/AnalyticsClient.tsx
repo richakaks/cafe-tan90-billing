@@ -276,13 +276,23 @@ export default function AnalyticsClient() {
 
       {data && !loading && (
         <>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
             <div className="card p-4">
               <p className="text-xs text-navy-600">Revenue</p>
               <p className="mt-1 flex items-baseline text-lg font-semibold text-navy-950">
                 {formatBaht(data.totalRevenue)}
                 <TrendBadge current={data.totalRevenue} previous={data.previousPeriod.revenue} />
               </p>
+            </div>
+            <div className="card p-4">
+              <p className="text-xs text-navy-600">Profit (est.)</p>
+              <p className="mt-1 text-lg font-semibold text-navy-950">{formatBaht(data.profit.estimated)}</p>
+              {data.profit.excludedLineItems > 0 && (
+                <p className="mt-0.5 text-[11px] leading-tight text-navy-500">
+                  Excludes {data.profit.excludedLineItems} line item{data.profit.excludedLineItems === 1 ? "" : "s"} (
+                  {formatBaht(data.profit.excludedRevenue)} revenue) with no priced restock yet
+                </p>
+              )}
             </div>
             <div className="card p-4">
               <p className="text-xs text-navy-600">Orders</p>
@@ -309,12 +319,14 @@ export default function AnalyticsClient() {
           {data.historicalRevenue > 0 && (
             <p className="-mt-4 text-xs text-navy-600">
               Includes {formatBaht(data.historicalRevenue)} from imported historical sales (before online ordering
-              started) — those don&apos;t have per-order data, so Orders/Avg. order and the trend badges above only
-              count real orders placed through the app.
+              started) — those don&apos;t have per-order data, so Orders/Avg. order, Profit, and the trend badges
+              above only count real orders placed through the app.
             </p>
           )}
           <p className="-mt-4 text-xs text-navy-600">
-            Trend badges compare this period to the same-length period right before it.
+            Profit is an estimate: revenue from real orders in this range minus ingredient cost, based on each
+            recipe and the average price paid on restocks so far. Trend badges compare this period to the
+            same-length period right before it.
           </p>
 
           <div className="card p-5">

@@ -11,11 +11,11 @@ const NAV = [
   { href: "/admin/analytics", label: "Sales & Analytics" },
 ];
 
-export default function StaffHeader({ active }: { active: string }) {
+export default function StaffHeader({ active, maxWidth = "max-w-3xl" }: { active: string; maxWidth?: "max-w-3xl" | "max-w-6xl" }) {
   return (
     <header className="bg-navy-950 text-white">
       <LowStockAlert />
-      <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-6 py-4">
+      <div className={`mx-auto flex ${maxWidth} items-center justify-between gap-4 px-6 py-4`}>
         <div className="flex items-center gap-3">
           <Image
             src="/logo.png"

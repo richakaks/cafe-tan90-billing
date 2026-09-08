@@ -6,6 +6,12 @@ export interface Seat {
   kind: SeatKind;
 }
 
+// Round 21: batch-prep = made in-house in a batch (keema, base milks,
+// concentrates, sauces -- the same set gen_seed.py's PRIMARIES dict always
+// tracked, just now a real persisted column instead of an internal-only
+// distinction). raw = a single purchased ingredient.
+export type IngredientKind = "batch_prep" | "raw";
+
 export interface Ingredient {
   id: string;
   name: string;
@@ -15,6 +21,7 @@ export interface Ingredient {
   unit: string;
   currentStock: number;
   lowStockThreshold: number;
+  kind: IngredientKind;
 }
 
 export interface MenuItem {
@@ -23,6 +30,10 @@ export interface MenuItem {
   category: string;
   price: number;
   active: boolean;
+  // Round 21: customer-facing blurb and an optional photo, both editable
+  // from /admin/menu. Null until an owner writes/uploads one.
+  description: string | null;
+  imageUrl: string | null;
 }
 
 export interface MenuItemIngredientLink {
@@ -210,6 +221,23 @@ export interface HistoricalCashNote {
   revenue: number;
 }
 
+// Round 21: estimated gross profit for the selected period. Live app orders
+// only (see the "Profit view next to Revenue" decision in project notes) --
+// ingredient cost is the average cost-per-unit from priced restocks
+// (stock_adjustments.price_paid) times each recipe's qty, summed per order
+// line. Any line whose recipe includes an ingredient with no priced restock
+// yet (or has no recipe at all) is excluded from both revenueCounted and
+// costCounted rather than guessed at as free -- excludedRevenue/
+// excludedLineItems say how much and how many, so the estimate is never a
+// silent undercount presented as complete.
+export interface ProfitEstimate {
+  estimated: number;
+  revenueCounted: number;
+  costCounted: number;
+  excludedRevenue: number;
+  excludedLineItems: number;
+}
+
 export interface SalesAnalytics {
   from: string;
   to: string;
@@ -237,6 +265,7 @@ export interface SalesAnalytics {
   couponSummary: CouponSummary;
   paymentSplit: PaymentSplit;
   historicalCashNote: HistoricalCashNote;
+  profit: ProfitEstimate;
 }
 
 export interface MenuItemAdminView extends MenuItem {

@@ -806,6 +806,193 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- Round 21: split inventory into "batch prep" (the primaries -- keema,
+-- base milks, concentrates, sauces made in-house in a batch) vs "raw
+-- ingredients" (everything bought/stored as a single raw item), per the
+-- owner's request to show these as two separate sections on
+-- /admin/inventory. This is the exact same primaries/raw split the app has
+-- used internally since v1 (see PRIMARIES/RAW in scripts/gen_seed.py) --
+-- just never persisted as a real column before now, so it couldn't be
+-- shown, filtered, or set on a new ingredient from the UI.
+-- ---------------------------------------------------------------------------
+alter table ingredients
+  add column if not exists kind text not null default 'raw';
+alter table ingredients drop constraint if exists ingredients_kind_check;
+alter table ingredients add constraint ingredients_kind_check
+  check (kind in ('batch_prep', 'raw'));
+
+-- Backfill: every ingredient gen_seed.py's PRIMARIES dict already lists is a
+-- batch-prep item; safe to re-run (a name not present here is a no-op, and
+-- an already-correct row is just set to the same value again).
+update ingredients set kind = 'batch_prep'
+where name in (
+  'White Sauce', 'Sautéed Mushrooms', 'Potato Patty', 'Tikka Marinated Mince',
+  'Homemade Mayo', 'Fresh Salsa', 'Gochujang Sauce', 'Caramelised Onions',
+  'Sugar Syrup', 'Coffee Concentrate', 'Black Tea Concentrate', 'Base Milk',
+  'Chocolate Syrup', 'Chicken Keema', 'Veg Keema', 'Tomato Sauce'
+);
+
+-- ---------------------------------------------------------------------------
+-- Round 21: customer-facing menu item descriptions and an optional photo,
+-- both editable from /admin/menu. image_url points at a file in the
+-- 'menu-images' Storage bucket created below.
+-- ---------------------------------------------------------------------------
+alter table menu_items
+  add column if not exists description text;
+alter table menu_items
+  add column if not exists image_url text;
+
+-- Public bucket (photos aren't sensitive data, and this keeps the customer
+-- menu simple -- no signed URLs to refresh). Every upload still goes through
+-- a server route using the service-role key, same as every other write in
+-- this app; the bucket being public only controls whether a GET on the
+-- resulting URL needs a token, not who can upload.
+--
+-- Guarded behind an existence check on storage.buckets: that table is a
+-- Supabase-managed extension, not part of plain Postgres, so this stays a
+-- no-op (instead of an error) when schema.sql is applied to the local
+-- tan90test validation database, which has no storage schema at all.
+do $$
+begin
+  if exists (select 1 from information_schema.tables where table_schema = 'storage' and table_name = 'buckets') then
+    insert into storage.buckets (id, name, public)
+    values ('menu-images', 'menu-images', true)
+    on conflict (id) do nothing;
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- Round 21: descriptions researched per item (see project notes). Only fills
+-- description when it's still null, so re-pasting this file never clobbers
+-- a description an owner has since edited by hand from /admin/menu.
+-- ---------------------------------------------------------------------------
+update menu_items set description = 'Classic hand-cut style French fries, crisped for crunch on the outside and fluffy within. Simple, salty, and the reason fries became the world''s favorite side in the first place.' where code = 'SN-FRF' and description is null;
+update menu_items set description = 'Peri-peri, or piri-piri, is the African bird''s-eye chilli that Portuguese traders carried to Mozambique — its smoky, citrusy heat now coats these fries instead of a plain salt shake. Expect a slow-building kick, not a punch.' where code = 'SN-PPF' and description is null;
+update menu_items set description = '"Zab" is Isaan slang for a flavor so good it makes you want more — these fries are tossed in a bold Thai seasoning blend that leans salty, herby, and a little spicy. Not your average fries.' where code = 'SN-ZAF' and description is null;
+update menu_items set description = 'A South Asian street-food staple: a crisp pastry shell folded around a spiced potato-and-pea filling, then fried to a golden crunch. Three pieces, best eaten hot with a dunk of chutney.' where code = 'SN-SMT' and description is null;
+update menu_items set description = 'Maggi is India''s beloved instant noodle brand, elevated here with masala spices for a quick, comforting bowl loaded with warm curry notes. Nostalgic dorm-room food, done properly.' where code = 'SN-MGN' and description is null;
+update menu_items set description = 'Our masala Maggi noodles piled under a blanket of melted cheese, because sometimes the classic just needs more pull-apart, gooey cheese on top. Comfort food, stacked.' where code = 'SN-ECM' and description is null;
+update menu_items set description = 'Crispy nachos loaded with seasoned chicken, melted cheese, and all the fixings — a shareable plate built for splitting between friends over one order. Grab a fork or just dig in with your hands.' where code = 'SN-CLN' and description is null;
+update menu_items set description = 'Momo are steamed dumplings native to Nepal and Tibet, traditionally filled and folded by hand before being served with a spicy tomato-based dip. This version is vegetable-filled, light, and best eaten straight off the steamer.' where code = 'M-VMM' and description is null;
+update menu_items set description = 'Momo are steamed dumplings native to Nepal and Tibet, traditionally filled and folded by hand before being served with a spicy tomato-based dip. This version is packed with seasoned chicken for a juicier, savory bite.' where code = 'M-CMM' and description is null;
+update menu_items set description = 'Earthy sautéed mushrooms griddled between bread until warm and savory — mushrooms bring a natural umami depth that makes this feel richer than a simple veg sandwich has any right to.' where code = 'SD-MUS' and description is null;
+update menu_items set description = 'The kind of sandwich that needs no introduction: bread and cheese, grilled until the outside turns golden and the inside goes properly stretchy-melted. Simple done well is still a skill.' where code = 'SD-GCS' and description is null;
+update menu_items set description = 'Chicken marinated tikka-style — a North Indian yogurt-and-spice mix traditionally cooked in a tandoor — grilled and stacked into a sandwich for a smoky, tangy bite that''s more than your average chicken sandwich.' where code = 'SD-CHS' and description is null;
+update menu_items set description = 'A housemade potato patty, breaded and fried until crisp, stacked with melted cheese for a veg burger that''s hearty enough to satisfy without any meat. Made in-house, not from a frozen box.' where code = 'B-CVB' and description is null;
+update menu_items set description = 'A juicy chicken patty and melted cheese in a straightforward, satisfying burger — the kind of order that never goes wrong when you can''t decide what to get.' where code = 'B-CCB' and description is null;
+update menu_items set description = 'Two chicken patties stacked instead of one, for anyone who thinks a single patty just isn''t quite enough burger. Double the bite, double the trouble.' where code = 'B-DTB' and description is null;
+update menu_items set description = 'Gochujang is a fermented Korean chilli paste, made from red chilli, glutinous rice, and fermented soybeans — the fermentation is what gives it that deep, savory-sweet heat rather than just plain spice. Here it''s slathered onto a chicken burger for a distinctly Korean kick.' where code = 'B-GCB' and description is null;
+update menu_items set description = 'A chicken burger finished with chilli oil for a sharp, lingering heat that builds with every bite rather than hitting all at once. For those who like their spice with a bit of a slow burn.' where code = 'B-SCB' and description is null;
+update menu_items set description = 'A creamy Alfredo built on butter, cream, and parmesan, tossed with sautéed mushrooms for an earthy contrast to the richness. Comfort-food pasta, Italian-American style.' where code = 'SP-AWS0' and description is null;
+update menu_items set description = 'A creamy Alfredo built on butter, cream, and parmesan, tossed with tender chicken for extra bite in every forkful. Comfort-food pasta, Italian-American style.' where code = 'SP-AWS1' and description is null;
+update menu_items set description = 'Fresh ginger and lemon steeped together — ginger has long been used to ease digestion and settle the stomach, while lemon adds a bright, cutting acidity. Served hot, it''s the kind of tea that feels like it''s doing you good.' where code = 'T-GLT0' and description is null;
+update menu_items set description = 'Fresh ginger and lemon steeped together — ginger has long been used to ease digestion and settle the stomach, while lemon adds a bright, cutting acidity. Served over ice, it''s just as soothing but built for a hot afternoon.' where code = 'T-GLT1' and description is null;
+update menu_items set description = 'Straightforward black tea, full-bodied and slightly brisk with a natural dose of caffeine and antioxidants called flavonoids. No frills — just a proper cup of tea, hot.' where code = 'T-BLT0' and description is null;
+update menu_items set description = 'Straightforward black tea, full-bodied and slightly brisk with a natural dose of caffeine and antioxidants called flavonoids. Served cold, it''s a simple, refreshing alternative to soda.' where code = 'T-BLT1' and description is null;
+update menu_items set description = 'Thai milk tea gets its signature orange-red color and toasty flavor from a blend of black tea, spices, and sometimes a touch of tamarind or vanilla, brewed strong and cut with sweetened milk. Rich, aromatic, and unmistakably Thai — served hot.' where code = 'T-TMT0' and description is null;
+update menu_items set description = 'Thai milk tea gets its signature orange-red color and toasty flavor from a blend of black tea, spices, and sometimes a touch of tamarind or vanilla, brewed strong and cut with sweetened milk. Poured over ice, it''s Thailand''s answer to the milkshake.' where code = 'T-TMT1' and description is null;
+update menu_items set description = 'Masala chai is Indian spiced tea, built here on ginger and cardamom — cardamom has long been used in Ayurvedic medicine to aid digestion, and together with ginger''s warming bite it makes for a properly fragrant, spiced cup.' where code = 'T-MST0' and description is null;
+update menu_items set description = 'Masala chai is Indian spiced tea, built here on ginger and cardamom — cardamom has long been used in Ayurvedic medicine to aid digestion, and together with ginger''s warming bite it makes a spiced, fragrant tea that also works surprisingly well cold.' where code = 'T-MST1' and description is null;
+update menu_items set description = 'Butterfly Pea Tea has antioxidants and helps in digestion, so it can be recommended after meals — and while it''s naturally a striking blue drink, adding lemon turns it purple (a fun bit of chemistry, not a flaw). Served hot, it''s calming and caffeine-free.' where code = 'T-BPT0' and description is null;
+update menu_items set description = 'Butterfly Pea Tea has antioxidants and helps in digestion, so it can be recommended after meals — and while it''s naturally a striking blue drink, adding lemon turns it purple (a fun bit of chemistry, not a flaw). Iced, the color shift makes for a great photo before your first sip.' where code = 'T-BPT1' and description is null;
+update menu_items set description = 'No milk, no sugar, just coffee — black coffee is virtually calorie-free and delivers caffeine and antioxidants straight, with nothing to soften its natural bitterness. For purists.' where code = 'C-BLC0' and description is null;
+update menu_items set description = 'No milk, no sugar, just coffee — black coffee is virtually calorie-free and delivers caffeine and antioxidants straight, with nothing to soften its natural bitterness. Served cold for a sharper, faster kick.' where code = 'C-BLC1' and description is null;
+update menu_items set description = 'Equal parts espresso, steamed milk, and airy microfoam — the classic Italian ratio that makes a cappuccino taste stronger than a latte despite using less coffee. Hot, with that signature foam cap.' where code = 'C-CPN0' and description is null;
+update menu_items set description = 'Equal parts espresso, steamed milk, and airy microfoam — the classic Italian ratio that makes a cappuccino taste stronger than a latte despite using less coffee. Shaken over ice for a lighter, frothier cold version.' where code = 'C-CPN1' and description is null;
+update menu_items set description = 'Espresso and steamed milk rounded out with hazelnut syrup, a nutty sweetness that''s been a European café favorite for decades. A dessert-adjacent coffee without being cloying.' where code = 'C-HZL0' and description is null;
+update menu_items set description = 'Espresso and steamed milk rounded out with hazelnut syrup, a nutty sweetness that''s been a European café favorite for decades. Served iced for an easy-drinking, dessert-adjacent coffee.' where code = 'C-HZL1' and description is null;
+update menu_items set description = 'Espresso meets steamed milk and real chocolate, splitting the difference between a coffee and a hot cocoa. Cocoa itself is rich in flavanols linked to heart and blood-flow benefits, so this one''s a treat with a little upside.' where code = 'C-MCH0' and description is null;
+update menu_items set description = 'Espresso meets steamed milk and real chocolate, splitting the difference between a coffee and a hot cocoa. Served cold, it drinks like a lighter, coffee-forward milkshake.' where code = 'C-MCH1' and description is null;
+update menu_items set description = 'Warm, milky cocoa made from real chocolate — cocoa is naturally rich in flavanols, plant compounds studied for their benefits to heart and blood-flow health. A caffeine-free comfort drink for anyone skipping the coffee.' where code = 'C-CCA0' and description is null;
+update menu_items set description = 'Cold, milky cocoa made from real chocolate — cocoa is naturally rich in flavanols, plant compounds studied for their benefits to heart and blood-flow health. A caffeine-free, chocolatey way to cool down.' where code = 'C-CCA1' and description is null;
+update menu_items set description = 'Black tea brewed strong, sweetened, and poured over ice with fresh lemon — tea and citrus together bring a dose of antioxidants along with a clean, thirst-quenching tartness. A café classic for a reason.' where code = 'I-LIT' and description is null;
+update menu_items set description = 'Iced tea infused with passionfruit, whose intensely tart, tropical pulp balances the tea''s natural tannins for a fragrant, fruit-forward glass. Bright, tangy, and distinctly tropical.' where code = 'I-PIT' and description is null;
+update menu_items set description = 'Sweet strawberry and tart lemon meet over soda for a fruity, fizzy cooler that''s more tang than sugar. Bright pink and built for hot afternoons.' where code = 'SO-SLS' and description is null;
+update menu_items set description = 'Mango''s tropical sweetness and passionfruit''s sharp tartness balance each other out over soda water — two fruits that are natural opposites making a genuinely refreshing pair.' where code = 'SO-MPS' and description is null;
+update menu_items set description = 'Strawberry, blueberry, and raspberry-style flavors blended into one soda for a berry-forward drink that''s tart, sweet, and a deep, vivid color. Simple fruit soda, done right.' where code = 'SO-MBS' and description is null;
+update menu_items set description = 'Lychee''s floral, delicate sweetness meets lemon''s sharp acidity over soda — an unusual but classic Southeast Asian pairing that keeps the drink from ever tasting one-note.' where code = 'SO-LLS' and description is null;
+update menu_items set description = 'Named for its ocean-blue color, this soda gets its hue from blue curaçao syrup — despite the name, it''s entirely non-alcoholic here, just the citrusy-sweet flavor and the striking color. A photogenic, easy-drinking soda.' where code = 'SO-BHS' and description is null;
+update menu_items set description = 'Riding the "dirty soda" trend, this one mixes cola with a splash of lime juice and a pinch of pink salt — the salt rounds out the sweetness and the lime cuts through the fizz for a sharper, more complex Coke.' where code = 'SO-CRC' and description is null;
+
+-- ---------------------------------------------------------------------------
+-- Round 21: recipe fixes found on re-reading the Food/Drink SOP docs in
+-- full (the owner asked for "minor updates" to be folded in alongside the
+-- batch-prep/raw split). Same idempotent pattern as the Round 12 Zab Fries
+-- cleanup -- seed.sql's `on conflict do nothing` inserts can only ADD a
+-- link, never remove or change the quantity on an existing one, so every
+-- removed or changed ingredient needs an explicit statement here. New links
+-- (Zab Fries' Ketchup, the Gochujang Burger's Caramelised Onions, both
+-- teas' Base Milk, both iced teas' Lemon Iced Tea Powder) come from
+-- re-pasting seed.sql after this file, same as any other new recipe link.
+-- ---------------------------------------------------------------------------
+
+-- Zab Fries: the SOP's own ingredient table now lists Ketchup 30ml
+-- alongside the seasoning/mayo (previously only in the method text, not
+-- linked as a tracked ingredient at all).
+insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order)
+select 'SN-ZAF', id, 30 from ingredients where name = 'Ketchup'
+on conflict (menu_item_code, ingredient_id) do nothing;
+
+-- Double Trouble Burger: current SOP no longer lists Pickled Cucumber Slices.
+delete from menu_item_ingredients
+where menu_item_code = 'B-DTB'
+  and ingredient_id in (select id from ingredients where name = 'Pickled Cucumber Slices');
+
+-- Gochujang Chicken Burger: SOP swapped Pickled Cabbage/Coleslaw for
+-- Caramelised Onions (2 tbsp, same as every other burger).
+delete from menu_item_ingredients
+where menu_item_code = 'B-GCB'
+  and ingredient_id in (select id from ingredients where name = 'Pickled Cabbage / Coleslaw');
+
+-- Masala Tea (hot & cold): SOP switched the milk from Full-Fat Milk to the
+-- Base Milk primary, 75ml either way.
+delete from menu_item_ingredients
+where menu_item_code in ('T-MST0', 'T-MST1')
+  and ingredient_id in (select id from ingredients where name = 'Full-Fat Milk');
+
+-- Thai Milk Tea Hot: same milk swap, Full-Fat Milk -> Base Milk (40ml).
+delete from menu_item_ingredients
+where menu_item_code = 'T-TMT0'
+  and ingredient_id in (select id from ingredients where name = 'Full-Fat Milk');
+
+-- Thai Milk Tea Cold (layered): SOP now uses Base Milk instead of
+-- Evaporated Milk (30ml).
+delete from menu_item_ingredients
+where menu_item_code = 'T-TMT1'
+  and ingredient_id in (select id from ingredients where name = 'Evaporated Milk');
+
+-- Lemon/Passionfruit Iced Tea: SOP replaced the Black Tea Concentrate base
+-- entirely with a dedicated Lemon Iced Tea Powder mix.
+delete from menu_item_ingredients
+where menu_item_code in ('I-LIT', 'I-PIT')
+  and ingredient_id in (select id from ingredients where name = 'Black Tea Concentrate');
+
+-- Hazelnut Latte Hot: the SOP's base table gives 30ml Coffee Concentrate for
+-- hot (60ml is iced-only) -- this changes an existing link's quantity,
+-- which a plain on-conflict-do-nothing insert can never do.
+update menu_item_ingredients
+set qty_per_order = 30
+where menu_item_code = 'C-HZL0'
+  and ingredient_id in (select id from ingredients where name = 'Coffee Concentrate');
+
+-- Lemon Iced Tea: lemon juice and sugar syrup quantities both changed.
+update menu_item_ingredients
+set qty_per_order = 5
+where menu_item_code = 'I-LIT'
+  and ingredient_id in (select id from ingredients where name = 'Fresh Lemon Juice');
+update menu_item_ingredients
+set qty_per_order = 10
+where menu_item_code = 'I-LIT'
+  and ingredient_id in (select id from ingredients where name = 'Sugar Syrup');
+
+-- Passionfruit Iced Tea: syrup quantity changed (1 tbsp mixed in + 1 tbsp
+-- garnish on top = 2 tbsp / 30ml total, both drawn from stock).
+update menu_item_ingredients
+set qty_per_order = 30
+where menu_item_code = 'I-PIT'
+  and ingredient_id in (select id from ingredients where name = 'Passionfruit Syrup');
+
+-- ---------------------------------------------------------------------------
 -- Explicit grants for the service role. Newer Supabase projects no longer
 -- auto-grant service_role access to tables created by hand (the "Automatically
 -- expose new tables" project setting) — these grants make this schema work

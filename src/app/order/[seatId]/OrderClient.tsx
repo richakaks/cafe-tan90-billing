@@ -128,12 +128,19 @@ export default function OrderClient({ seat, initialMenu }: { seat: Seat; initial
                 const disabled = item.status === "out_of_stock";
                 return (
                   <div key={item.code} className="card flex items-center justify-between gap-3 p-4">
-                    <div className="min-w-0">
-                      <p className="truncate font-medium text-navy-950">{item.name}</p>
-                      <p className="text-sm text-navy-600">{formatBaht(item.price)}</p>
-                      {badge && (
-                        <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs ${badge.className}`}>{badge.label}</span>
+                    <div className="flex min-w-0 items-start gap-3">
+                      {item.imageUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={item.imageUrl} alt="" className="h-14 w-14 shrink-0 rounded-md object-cover" />
                       )}
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-navy-950">{item.name}</p>
+                        <p className="text-sm text-navy-600">{formatBaht(item.price)}</p>
+                        {item.description && <p className="mt-0.5 line-clamp-2 text-xs text-navy-500">{item.description}</p>}
+                        {badge && (
+                          <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs ${badge.className}`}>{badge.label}</span>
+                        )}
+                      </div>
                     </div>
 
                     {disabled ? (
