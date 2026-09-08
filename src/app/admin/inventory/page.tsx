@@ -1,15 +1,22 @@
 import StaffHeader from "@/components/StaffHeader";
-import { getIngredients, getRecentStockAdjustments, getLastRestockPrices, getIngredientUsage } from "@/lib/data";
+import {
+  getIngredients,
+  getRecentStockAdjustments,
+  getLastRestockPrices,
+  getIngredientRecipeLinks,
+  getMenuItemsForDropdown,
+} from "@/lib/data";
 import InventoryClient from "./InventoryClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function InventoryPage() {
-  const [ingredients, adjustments, lastRestockPrices, usage] = await Promise.all([
+  const [ingredients, adjustments, lastRestockPrices, recipeLinks, menuItems] = await Promise.all([
     getIngredients(),
     getRecentStockAdjustments(),
     getLastRestockPrices(),
-    getIngredientUsage(),
+    getIngredientRecipeLinks(),
+    getMenuItemsForDropdown(),
   ]);
 
   return (
@@ -25,7 +32,8 @@ export default async function InventoryPage() {
             initialIngredients={ingredients}
             initialAdjustments={adjustments}
             lastRestockPrices={lastRestockPrices}
-            usage={usage}
+            recipeLinks={recipeLinks}
+            menuItems={menuItems}
           />
         </div>
       </main>

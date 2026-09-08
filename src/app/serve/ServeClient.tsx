@@ -111,6 +111,11 @@ export default function ServeClient({ initialOrders, initialPreOrders }: { initi
                         {order.items.map((it) => (
                           <li key={it.id}>
                             {it.qty}&times; {it.itemName}
+                            {it.fulfillmentType === "takeaway" && (
+                              <span className="ml-1.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-status-low">
+                                Takeaway
+                              </span>
+                            )}
                           </li>
                         ))}
                       </ul>
@@ -150,6 +155,11 @@ export default function ServeClient({ initialOrders, initialPreOrders }: { initi
                         {order.items.map((it) => (
                           <li key={it.id}>
                             {it.qty}&times; {it.itemName}
+                            {it.fulfillmentType === "takeaway" && (
+                              <span className="ml-1.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-status-low">
+                                Takeaway
+                              </span>
+                            )}
                           </li>
                         ))}
                       </ul>

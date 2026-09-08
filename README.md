@@ -1,13 +1,13 @@
 # Cafe Tan90 — Ordering, Billing &amp; Inventory
 
 Customers scan a QR code on their table (T1–T9) or counter seat (S1–S4), order from
-a live menu, and pay a staff member directly, no in-app payment. Placing an order
+a live menu, and pay a staff member directly — no in-app payment. Placing an order
 atomically deducts stock from linked ingredients, and the customer menu shows
-'low in stock' / 'out of stock' badges computed from that same stock in real time.
+"low in stock" / "out of stock" badges computed from that same stock in real time.
 Staff have a PIN-gated serving screen and inventory/menu admin.
 
 Built as a separate app from the Cafe Tan90 attendance tool (which stays on Google
-Apps Script + Sheets) - this one is customer-facing and needs a real database, so it
+Apps Script + Sheets) — this one is customer-facing and needs a real database, so it
 runs on Next.js + Supabase (Postgres), deployed on Vercel. See the plan doc shared at
 the start of this project for the reasoning behind these choices.
 

@@ -21,6 +21,9 @@ export async function POST(req: NextRequest) {
     if (typeof item.code !== "string" || typeof item.qty !== "number" || item.qty <= 0) {
       return NextResponse.json({ error: "Invalid item in basket." }, { status: 400 });
     }
+    if (item.fulfillmentType !== "dine_in" && item.fulfillmentType !== "takeaway") {
+      return NextResponse.json({ error: "Please choose Dine In or Takeaway for each item." }, { status: 400 });
+    }
   }
 
   try {

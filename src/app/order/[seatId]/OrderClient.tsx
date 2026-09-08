@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { MenuItemWithAvailability, PlacedOrder, Seat } from "@/lib/types";
+import type { FulfillmentType, MenuItemWithAvailability, PlacedOrder, Seat } from "@/lib/types";
+
+type CartEntry = { qty: number; fulfillmentType: FulfillmentType };
 
 const STATUS_BADGE: Record<string, { label: string; className: string } | null> = {
   in_stock: null,
@@ -15,7 +17,7 @@ function formatBaht(amount: number): string {
 
 export default function OrderClient({ seat, initialMenu }: { seat: Seat; initialMenu: MenuItemWithAvailability[] }) {
   const [menu] = useState(initialMenu);
-  const [cart, setCart] = useState<Record<string, number>>({});
+  const [cart, setCart] = useState<Record<string, CartEntry>>({});
   const [basketOpen, setBasketOpen] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,8 +36,8 @@ export default function OrderClient({ seat, initialMenu }: { seat: Seat; initial
   const cartLines = useMemo(
     () =>
       Object.entries(cart)
-        .filter(([, qty]) => qty > 0)
-        .map(([code, qty]) => ({ item: menu.find((m) => m.code === code)!, qty }))
+        .filter(([, entry]) => entry.qty > 0)
+        .map(([code, entry]) => ({ item: menu.find((m) => m.code === code)!, qty: entry.qty, fulfillmentType: entry.fulfillmentType }))
         .filter((l) => l.item),
     [cart, menu]
   );
@@ -44,7 +46,14 @@ export default function OrderClient({ seat, initialMenu }: { seat: Seat; initial
   const cartTotal = cartLines.reduce((sum, l) => sum + l.qty * l.item.price, 0);
 
   function setQty(code: string, qty: number) {
-    setCart((prev) => ({ ...prev, [code]: Math.max(0, qty) }));
+    setCart((prev) => ({
+      ...prev,
+      [code]: { qty: Math.max(0, qty), fulfillmentType: prev[code]?.fulfillmentType ?? "dine_in" },
+    }));
+  }
+
+  function setFulfillment(code: string, fulfillmentType: FulfillmentType) {
+    setCart((prev) => (prev[code] ? { ...prev, [code]: { ...prev[code], fulfillmentType } } : prev));
   }
 
   async function placeOrder() {
@@ -56,7 +65,7 @@ export default function OrderClient({ seat, initialMenu }: { seat: Seat; initial
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           seatId: seat.id,
-          items: cartLines.map((l) => ({ code: l.item.code, qty: l.qty })),
+          items: cartLines.map((l) => ({ code: l.item.code, qty: l.qty, fulfillmentType: l.fulfillmentType })),
         }),
       });
       const body = await res.json();
@@ -87,6 +96,7 @@ export default function OrderClient({ seat, initialMenu }: { seat: Seat; initial
               <li key={it.code} className="flex justify-between">
                 <span>
                   {it.qty}&times; {it.name}
+                  <span className="ml-1.5 text-xs text-navy-500">({it.fulfillmentType === "takeaway" ? "Takeaway" : "Dine In"})</span>
                 </span>
                 <span>{formatBaht(it.qty * it.price)}</span>
               </li>
@@ -124,7 +134,7 @@ export default function OrderClient({ seat, initialMenu }: { seat: Seat; initial
             <div className="space-y-3">
               {items.map((item) => {
                 const badge = STATUS_BADGE[item.status];
-                const qty = cart[item.code] ?? 0;
+                const qty = cart[item.code]?.qty ?? 0;
                 const disabled = item.status === "out_of_stock";
                 return (
                   <div key={item.code} className="card flex items-center justify-between gap-3 p-4">
@@ -198,25 +208,40 @@ export default function OrderClient({ seat, initialMenu }: { seat: Seat; initial
 
             <ul className="mt-4 max-h-[45vh] space-y-3 overflow-y-auto">
               {cartLines.map((l) => (
-                <li key={l.item.code} className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-navy-950">{l.item.name}</p>
-                    <p className="text-xs text-navy-600">{formatBaht(l.item.price)} each</p>
+                <li key={l.item.code} className="space-y-2 border-b border-card-border pb-3 last:border-0 last:pb-0">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-navy-950">{l.item.name}</p>
+                      <p className="text-xs text-navy-600">{formatBaht(l.item.price)} each</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        onClick={() => setQty(l.item.code, l.qty - 1)}
+                        className="h-8 w-8 rounded-full border border-card-border text-navy-900 transition hover:bg-navy-100"
+                      >
+                        −
+                      </button>
+                      <span className="w-4 text-center text-sm font-medium">{l.qty}</span>
+                      <button
+                        onClick={() => setQty(l.item.code, l.qty + 1)}
+                        className="h-8 w-8 rounded-full border border-card-border text-navy-900 transition hover:bg-navy-100"
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <button
-                      onClick={() => setQty(l.item.code, l.qty - 1)}
-                      className="h-8 w-8 rounded-full border border-card-border text-navy-900 transition hover:bg-navy-100"
-                    >
-                      −
-                    </button>
-                    <span className="w-4 text-center text-sm font-medium">{l.qty}</span>
-                    <button
-                      onClick={() => setQty(l.item.code, l.qty + 1)}
-                      className="h-8 w-8 rounded-full border border-card-border text-navy-900 transition hover:bg-navy-100"
-                    >
-                      +
-                    </button>
+                  <div className="flex gap-1.5">
+                    {(["dine_in", "takeaway"] as const).map((ft) => (
+                      <button
+                        key={ft}
+                        onClick={() => setFulfillment(l.item.code, ft)}
+                        className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                          l.fulfillmentType === ft ? "bg-navy-900 text-white" : "border border-card-border text-navy-700 hover:bg-navy-100"
+                        }`}
+                      >
+                        {ft === "dine_in" ? "Dine In" : "Takeaway"}
+                      </button>
+                    ))}
                   </div>
                 </li>
               ))}

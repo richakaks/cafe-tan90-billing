@@ -8,6 +8,7 @@ import type {
   ItemPair,
   ItemRanking,
   LastRestockPrice,
+  MenuItem,
   MenuItemAdminView,
   MenuItemIngredientLink,
   MenuItemWithAvailability,
@@ -31,6 +32,7 @@ export class OrderError extends Error {
     | "inactive_item"
     | "out_of_stock"
     | "missing_requested_date"
+    | "invalid_fulfillment_type"
     | "unknown";
   detail?: string;
 
@@ -45,6 +47,7 @@ export class OrderError extends Error {
       "inactive_item",
       "out_of_stock",
       "missing_requested_date",
+      "invalid_fulfillment_type",
     ];
     this.code = (known.includes(code) ? code : "unknown") as OrderError["code"];
     this.detail = detail;
@@ -63,6 +66,8 @@ export class OrderError extends Error {
         return "One of the items in your basket is no longer available. Please refresh the menu.";
       case "missing_requested_date":
         return "Please choose a date for your pre-order.";
+      case "invalid_fulfillment_type":
+        return "Please choose Dine In or Takeaway for each item.";
       default:
         return "Something went wrong placing your order. Please try again.";
     }
@@ -136,12 +141,22 @@ export async function getSeat(id: string): Promise<Seat | null> {
 // Customer menu
 // ---------------------------------------------------------------------------
 
+// Round 22: lightweight code/name list for the ingredient-side "used in"
+// editor's menu-item dropdown on /admin/inventory -- deliberately not
+// getMenuItemsAdmin() (that also joins every recipe link + ingredient row
+// for every item, which this dropdown doesn't need).
+export async function getMenuItemsForDropdown(): Promise<{ code: string; name: string }[]> {
+  const { data, error } = await db().from("menu_items").select("code, name").order("sort_order");
+  if (error) throw error;
+  return (data ?? []).map((m) => ({ code: m.code, name: m.name }));
+}
+
 export async function getMenuForCustomer(): Promise<MenuItemWithAvailability[]> {
   const [{ data: items, error: itemsErr }, { data: ingredients, error: ingErr }, { data: links, error: linkErr }] =
     await Promise.all([
       db()
         .from("menu_items")
-        .select("code, name, category, price, active, description, image_url")
+        .select("code, name, category, price, active, description, image_url, packaging_type")
         .eq("active", true)
         .order("sort_order"),
       db().from("ingredients").select("id, name, unit, current_stock, low_stock_threshold"),
@@ -170,10 +185,14 @@ export async function getMenuForCustomer(): Promise<MenuItemWithAvailability[]> 
     ])
   );
 
+  // unitLabel isn't selected/needed here -- this list only feeds
+  // stock-availability math, which never looks at it -- so it's stubbed
+  // rather than fetched, same as ingredientsById's brand/kind above.
   const linkList: MenuItemIngredientLink[] = (links ?? []).map((l) => ({
     menuItemCode: l.menu_item_code,
     ingredientId: l.ingredient_id,
     qtyPerOrder: Number(l.qty_per_order),
+    unitLabel: null,
   }));
 
   return (items ?? []).map((item) => ({
@@ -184,6 +203,7 @@ export async function getMenuForCustomer(): Promise<MenuItemWithAvailability[]> 
     active: item.active,
     description: item.description ?? null,
     imageUrl: item.image_url ?? null,
+    packagingType: item.packaging_type as MenuItem["packagingType"],
     status: computeAvailability(item.code, linkList, ingredientsById),
   }));
 }
@@ -233,7 +253,7 @@ export async function placePreOrder(items: CartItem[], requestedDate: string, re
 // ---------------------------------------------------------------------------
 
 const ORDER_ROW_SELECT =
-  "id, daily_order_number, order_date, seat_id, status, order_type, requested_date, requested_time, coupon_code, discount_amount, payment_method, created_at, order_items(id, menu_item_code, item_name, qty, price_at_order)";
+  "id, daily_order_number, order_date, seat_id, status, order_type, requested_date, requested_time, coupon_code, discount_amount, payment_method, created_at, order_items(id, menu_item_code, item_name, qty, price_at_order, fulfillment_type)";
 
 type RawOrderRow = {
   id: string;
@@ -249,7 +269,7 @@ type RawOrderRow = {
   payment_method: string | null;
   created_at: string;
   order_items:
-    | { id: number; menu_item_code: string; item_name: string; qty: number; price_at_order: number }[]
+    | { id: number; menu_item_code: string; item_name: string; qty: number; price_at_order: number; fulfillment_type: string }[]
     | null;
 };
 
@@ -274,6 +294,7 @@ function mapOrderRow(o: RawOrderRow): OrderRow {
         itemName: it.item_name,
         qty: it.qty,
         priceAtOrder: Number(it.price_at_order),
+        fulfillmentType: it.fulfillment_type as OrderItemRow["fulfillmentType"],
       })
     ),
   };
@@ -445,27 +466,37 @@ export async function createIngredient(
   if (error) throw error;
 }
 
-// Which menu items each ingredient is used in -- powers the small "Used in:
-// ..." note under the ingredient name on /admin/inventory (Round 18). Two
-// plain queries + an in-memory join, same pattern getMenuItemsAdmin already
-// uses, rather than a nested-select join (keeps the FK relationship explicit
-// and avoids any ambiguity if a second FK to menu_items is ever added).
-export async function getIngredientUsage(): Promise<Record<string, string[]>> {
+// Which menu items each ingredient is used in, with the qty/unit-label detail
+// on each link -- powers both the small "Used in: ..." note under the
+// ingredient name (Round 18) and the Round 22 ingredient-side "used in"
+// editor (add/remove/edit a recipe link right from /admin/inventory, not
+// just from the menu item's own edit panel). Two plain queries + an
+// in-memory join, same pattern getMenuItemsAdmin already uses, rather than a
+// nested-select join (keeps the FK relationship explicit and avoids any
+// ambiguity if a second FK to menu_items is ever added).
+export async function getIngredientRecipeLinks(): Promise<
+  Record<string, { menuItemCode: string; menuItemName: string; qtyPerOrder: number; unitLabel: string | null }[]>
+> {
   const [{ data: links, error: linkErr }, { data: items, error: itemErr }] = await Promise.all([
-    db().from("menu_item_ingredients").select("ingredient_id, menu_item_code"),
+    db().from("menu_item_ingredients").select("ingredient_id, menu_item_code, qty_per_order, unit_label"),
     db().from("menu_items").select("code, name"),
   ]);
   if (linkErr) throw linkErr;
   if (itemErr) throw itemErr;
 
   const nameByCode = new Map((items ?? []).map((m) => [m.code, m.name]));
-  const result: Record<string, string[]> = {};
+  const result: Record<string, { menuItemCode: string; menuItemName: string; qtyPerOrder: number; unitLabel: string | null }[]> = {};
   for (const link of links ?? []) {
     const name = nameByCode.get(link.menu_item_code);
     if (!name) continue;
-    (result[link.ingredient_id] ??= []).push(name);
+    (result[link.ingredient_id] ??= []).push({
+      menuItemCode: link.menu_item_code,
+      menuItemName: name,
+      qtyPerOrder: Number(link.qty_per_order),
+      unitLabel: link.unit_label ?? null,
+    });
   }
-  for (const names of Object.values(result)) names.sort((a, b) => a.localeCompare(b));
+  for (const list of Object.values(result)) list.sort((a, b) => a.menuItemName.localeCompare(b.menuItemName));
   return result;
 }
 
@@ -649,9 +680,9 @@ export async function getMenuItemsAdmin(): Promise<MenuItemAdminView[]> {
   const [{ data: items, error: itemsErr }, { data: links, error: linkErr }, { data: ingredients, error: ingErr }] = await Promise.all([
     db()
       .from("menu_items")
-      .select("code, name, category, price, active, yield_servings, description, image_url")
+      .select("code, name, category, price, active, yield_servings, description, image_url, packaging_type")
       .order("sort_order"),
-    db().from("menu_item_ingredients").select("menu_item_code, ingredient_id, qty_per_order"),
+    db().from("menu_item_ingredients").select("menu_item_code, ingredient_id, qty_per_order, unit_label"),
     db().from("ingredients").select("id, name, unit"),
   ]);
   if (itemsErr) throw itemsErr;
@@ -668,6 +699,7 @@ export async function getMenuItemsAdmin(): Promise<MenuItemAdminView[]> {
     active: item.active,
     description: item.description ?? null,
     imageUrl: item.image_url ?? null,
+    packagingType: item.packaging_type as MenuItem["packagingType"],
     yieldServings: Number(item.yield_servings ?? 1),
     ingredients: (links ?? [])
       .filter((l) => l.menu_item_code === item.code)
@@ -678,6 +710,7 @@ export async function getMenuItemsAdmin(): Promise<MenuItemAdminView[]> {
           ingredientName: ing?.name ?? "(unknown)",
           unit: ing?.unit ?? "",
           qtyPerOrder: Number(l.qty_per_order),
+          unitLabel: l.unit_label ?? null,
         };
       }),
   }));
@@ -710,6 +743,10 @@ export async function upsertMenuItem(item: {
   category: string;
   price: number;
   active: boolean;
+  // Round 22: required (menu_items.packaging_type is NOT NULL) -- always
+  // resent on every save, same as category/price, so /admin/menu's edit and
+  // add-item forms both must carry a current value at all times.
+  packagingType: MenuItem["packagingType"];
   yieldServings?: number;
   description?: string | null;
 }): Promise<void> {
@@ -737,6 +774,7 @@ export async function upsertMenuItem(item: {
     category: string;
     price: number;
     active: boolean;
+    packaging_type: MenuItem["packagingType"];
     sort_order?: number;
     yield_servings?: number;
     description?: string | null;
@@ -746,6 +784,7 @@ export async function upsertMenuItem(item: {
     category: item.category,
     price: item.price,
     active: item.active,
+    packaging_type: item.packagingType,
     ...(sortOrder !== undefined ? { sort_order: sortOrder } : {}),
     ...(item.yieldServings !== undefined ? { yield_servings: item.yieldServings } : {}),
     ...(item.description !== undefined ? { description: item.description } : {}),
@@ -788,10 +827,25 @@ export async function setMenuItemActive(code: string, active: boolean): Promise<
   if (error) throw error;
 }
 
-export async function setMenuItemIngredient(menuItemCode: string, ingredientId: string, qtyPerOrder: number): Promise<void> {
+// unitLabel is the Round 22 typable display override -- omit the argument
+// entirely (leave it undefined) to leave an existing label untouched on an
+// update; pass null explicitly to clear it. Reused as-is by the reverse
+// ingredient-side "used in" editor (see /admin/inventory) -- this function
+// doesn't care which screen initiated the link.
+export async function setMenuItemIngredient(
+  menuItemCode: string,
+  ingredientId: string,
+  qtyPerOrder: number,
+  unitLabel?: string | null,
+): Promise<void> {
   const { error } = await db()
     .from("menu_item_ingredients")
-    .upsert({ menu_item_code: menuItemCode, ingredient_id: ingredientId, qty_per_order: qtyPerOrder });
+    .upsert({
+      menu_item_code: menuItemCode,
+      ingredient_id: ingredientId,
+      qty_per_order: qtyPerOrder,
+      ...(unitLabel !== undefined ? { unit_label: unitLabel } : {}),
+    });
   if (error) throw error;
 }
 

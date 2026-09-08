@@ -160,7 +160,24 @@ EXCLUDED_MANUAL_PAR_STOCK = {
     "Whipped Cream",
 }
 
-ALL_INGREDIENTS = {**PRIMARIES, **RAW}
+# Round 22: packaging consumables (straws, takeaway boxes/cups/glasses).
+# Deliberately NOT referenced by any MAPPINGS entry -- they're never part of
+# a menu item's recipe. Instead, place_order()/fulfill_pre_order() deduct
+# them dynamically at order time by looking these exact names up, based on
+# each order item's fulfillment_type (dine-in vs takeaway) crossed with its
+# menu item's packaging_type (food / hot_drink / cold_drink) -- see the
+# Round 22 section of schema.sql. Placeholder par levels, same as everything
+# else in this file.
+CONSUMABLES = {
+    "Takeaway Food Box": ("pcs", 200, 50),
+    "Hot Takeaway Glass": ("pcs", 200, 50),
+    "Cold Takeaway Glass": ("pcs", 200, 50),
+    # Given with every cold drink regardless of dine-in/takeaway, so it turns
+    # over faster than the takeaway-only containers above.
+    "Straw": ("pcs", 300, 75),
+}
+
+ALL_INGREDIENTS = {**PRIMARIES, **RAW, **CONSUMABLES}
 
 # ---------------------------------------------------------------------------
 # Menu items: code -> (name, category, price, active)
@@ -344,6 +361,23 @@ SORT_ORDER_OVERRIDES = {
 }
 
 
+# Round 22: explicit food/hot_drink/cold_drink classification per menu item,
+# used for packaging-consumable deduction (see CONSUMABLES above). Computed
+# here from category + the existing hot(0)/cold(1) code-suffix convention --
+# the exact same rule schema.sql's Round 22 backfill applies to already-live
+# rows -- so a brand-new database and a migrated one always agree. Owners can
+# still reclassify any individual item later from /admin/menu; this is only
+# the starting point.
+def packaging_type_for(code, category):
+    if category in ("Snacks", "Momo", "Sandwich", "Burger", "Spaghetti"):
+        return "food"
+    if category in ("Iced Tea", "Soda"):
+        return "cold_drink"
+    if category in ("Tea", "Coffee"):
+        return "hot_drink" if code.endswith("0") else "cold_drink"
+    raise ValueError(f"no packaging classification rule for category {category!r} (code {code})")
+
+
 def sql_str(s):
     return "'" + s.replace("'", "''") + "'"
 
@@ -380,13 +414,15 @@ def main():
     out.append(",\n".join(f"  ({sql_str(i)}, {sql_str(l)}, {sql_str(k)})" for i, l, k in SEATS) + "\non conflict (id) do nothing;")
     out.append("")
 
-    out.append("-- Ingredients (" + str(len(PRIMARIES)) + " batch-prep primaries + " + str(len(RAW)) + " raw/purchased ingredients)")
+    out.append("-- Ingredients (" + str(len(PRIMARIES)) + " batch-prep primaries + " + str(len(RAW)) + " raw/purchased ingredients + " + str(len(CONSUMABLES)) + " packaging consumables)")
     out.append("insert into ingredients (name, unit, current_stock, low_stock_threshold, kind) values")
     rows = []
     for name, (unit, stock, thresh) in PRIMARIES.items():
         rows.append(f"  ({sql_str(name)}, {sql_str(unit)}, {num(stock)}, {num(thresh)}, 'batch_prep')")
     for name, (unit, stock, thresh) in RAW.items():
         rows.append(f"  ({sql_str(name)}, {sql_str(unit)}, {num(stock)}, {num(thresh)}, 'raw')")
+    for name, (unit, stock, thresh) in CONSUMABLES.items():
+        rows.append(f"  ({sql_str(name)}, {sql_str(unit)}, {num(stock)}, {num(thresh)}, 'consumable')")
     out.append(",\n".join(rows) + "\non conflict (name) do nothing;")
     out.append("")
 
@@ -394,12 +430,14 @@ def main():
     out.append("-- sort_order starts at 10 (never 0 -- 0 is reserved as the 'not yet migrated'")
     out.append("-- sentinel the schema.sql backfill looks for) and steps by 10 in MENU_ITEMS'")
     out.append("-- own order, which is already the Menu PRD's category order (Snacks, Momo,")
-    out.append("-- Sandwich, Burger, Spaghetti, Tea, Coffee, Iced Tea, Soda).")
-    out.append("insert into menu_items (code, name, category, price, active, sort_order) values")
+    out.append("-- Sandwich, Burger, Spaghetti, Tea, Coffee, Iced Tea, Soda). packaging_type is")
+    out.append("-- computed by packaging_type_for() -- see its comment for the rule.")
+    out.append("insert into menu_items (code, name, category, price, active, sort_order, packaging_type) values")
     rows = []
     for i, (code, name, cat, price) in enumerate(MENU_ITEMS):
         sort_order = SORT_ORDER_OVERRIDES.get(code, (i + 1) * 10)
-        rows.append(f"  ({sql_str(code)}, {sql_str(name)}, {sql_str(cat)}, {num(price)}, true, {sort_order})")
+        packaging_type = packaging_type_for(code, cat)
+        rows.append(f"  ({sql_str(code)}, {sql_str(name)}, {sql_str(cat)}, {num(price)}, true, {sort_order}, {sql_str(packaging_type)})")
     out.append(",\n".join(rows) + "\non conflict (code) do nothing;")
     out.append("")
 
@@ -441,4 +479,9 @@ if __name__ == "__main__":
         assert n in RAW, f"{n} not in RAW"
         for code, pairs in MAPPINGS.items():
             assert n not in [p[0] for p in pairs], f"{n} should be unlinked but is used by {code}"
+    for code, pairs in MAPPINGS.items():
+        for iname, _qty in pairs:
+            assert iname not in CONSUMABLES, f"{code} links packaging consumable {iname!r} as a recipe ingredient -- packaging is deducted automatically, never via menu_item_ingredients"
+    for code, _name, cat, _price in MENU_ITEMS:
+        packaging_type_for(code, cat)  # raises if a code/category has no classification rule
     main()

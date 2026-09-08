@@ -31,7 +31,7 @@ insert into seats (id, label, kind) values
   ('S4', 'Counter 4', 'counter')
 on conflict (id) do nothing;
 
--- Ingredients (16 batch-prep primaries + 63 raw/purchased ingredients)
+-- Ingredients (16 batch-prep primaries + 63 raw/purchased ingredients + 4 packaging consumables)
 insert into ingredients (name, unit, current_stock, low_stock_threshold, kind) values
   ('White Sauce', 'ml', 1000, 200, 'batch_prep'),
   ('Sautéed Mushrooms', 'g', 800, 150, 'batch_prep'),
@@ -111,62 +111,67 @@ insert into ingredients (name, unit, current_stock, low_stock_threshold, kind) v
   ('Soda Water', 'ml', 5000, 1000, 'raw'),
   ('Cola', 'can', 48, 12, 'raw'),
   ('Pink Salt', 'g', 200, 40, 'raw'),
-  ('Lemon Slice', 'pcs', 200, 40, 'raw')
+  ('Lemon Slice', 'pcs', 200, 40, 'raw'),
+  ('Takeaway Food Box', 'pcs', 200, 50, 'consumable'),
+  ('Hot Takeaway Glass', 'pcs', 200, 50, 'consumable'),
+  ('Cold Takeaway Glass', 'pcs', 200, 50, 'consumable'),
+  ('Straw', 'pcs', 300, 75, 'consumable')
 on conflict (name) do nothing;
 
 -- Menu items (47 total, matching the Menu tab item codes/prices).
 -- sort_order starts at 10 (never 0 -- 0 is reserved as the 'not yet migrated'
 -- sentinel the schema.sql backfill looks for) and steps by 10 in MENU_ITEMS'
 -- own order, which is already the Menu PRD's category order (Snacks, Momo,
--- Sandwich, Burger, Spaghetti, Tea, Coffee, Iced Tea, Soda).
-insert into menu_items (code, name, category, price, active, sort_order) values
-  ('SN-FRF', 'French Fries', 'Snacks', 45, true, 10),
-  ('SN-PPF', 'Peri-Peri Fries', 'Snacks', 50, true, 20),
-  ('SN-ZAF', 'Zab Fries', 'Snacks', 50, true, 30),
-  ('SN-SMT', 'Samosa (3 Pcs)', 'Snacks', 35, true, 40),
-  ('SN-MGN', 'Maggie Noodles', 'Snacks', 45, true, 50),
-  ('SN-ECM', 'EXTRA CHEESY Maggie', 'Snacks', 65, true, 60),
-  ('SN-CLN', 'Chicken Loaded Nachos', 'Snacks', 65, true, 70),
-  ('M-VMM', 'Veg Momo', 'Momo', 70, true, 80),
-  ('M-CMM', 'Chicken Momo', 'Momo', 80, true, 90),
-  ('SD-MUS', 'Mushroom Sandwich', 'Sandwich', 55, true, 100),
-  ('SD-GCS', 'Grilled Cheese Sandwich', 'Sandwich', 55, true, 110),
-  ('SD-CHS', 'Chicken Sandwich', 'Sandwich', 60, true, 120),
-  ('B-CVB', 'Cheesy Veg Burger', 'Burger', 55, true, 130),
-  ('B-CCB', 'Chicken Cheese Burger', 'Burger', 60, true, 140),
-  ('B-DTB', 'Double Trouble Burger', 'Burger', 75, true, 150),
-  ('B-GCB', 'Gochujang Chicken Burger', 'Burger', 65, true, 160),
-  ('B-SCB', 'Spicy Chicken Burger', 'Burger', 65, true, 170),
-  ('SP-AWS0', 'Spaghetti Alfredo (Mushroom)', 'Spaghetti', 65, true, 180),
-  ('SP-AWS1', 'Spaghetti Alfredo (Chicken)', 'Spaghetti', 65, true, 190),
-  ('T-GLT0', 'Ginger Lemon Tea (Hot)', 'Tea', 35, true, 200),
-  ('T-GLT1', 'Ginger Lemon Tea (Cold)', 'Tea', 45, true, 210),
-  ('T-BLT0', 'Black Tea (Hot)', 'Tea', 30, true, 220),
-  ('T-BLT1', 'Black Tea (Cold)', 'Tea', 40, true, 230),
-  ('T-TMT0', 'Thai Milk Tea (Hot)', 'Tea', 40, true, 240),
-  ('T-TMT1', 'Thai Milk Tea (Cold)', 'Tea', 45, true, 250),
-  ('T-MST0', 'Masala Tea (Hot)', 'Tea', 35, true, 260),
-  ('T-MST1', 'Masala Tea (Cold)', 'Tea', 45, true, 270),
-  ('T-BPT0', 'Butterfly Pea Tea (Hot)', 'Tea', 40, true, 280),
-  ('T-BPT1', 'Butterfly Pea Tea (Cold)', 'Tea', 50, true, 290),
-  ('C-BLC0', 'Black Coffee (Hot)', 'Coffee', 30, true, 300),
-  ('C-BLC1', 'Black Coffee (Cold)', 'Coffee', 40, true, 310),
-  ('C-CPN0', 'Cappuccino (Hot)', 'Coffee', 45, true, 320),
-  ('C-CPN1', 'Cappuccino (Cold)', 'Coffee', 55, true, 330),
-  ('C-HZL0', 'Hazelnut Latte (Hot)', 'Coffee', 45, true, 340),
-  ('C-HZL1', 'Hazelnut Latte (Cold)', 'Coffee', 55, true, 350),
-  ('C-MCH0', 'Mocha (Hot)', 'Coffee', 45, true, 360),
-  ('C-MCH1', 'Mocha (Cold)', 'Coffee', 55, true, 370),
-  ('C-CCA0', 'Cocoa (Hot)', 'Coffee', 40, true, 380),
-  ('C-CCA1', 'Cocoa (Cold)', 'Coffee', 50, true, 390),
-  ('I-LIT', 'Lemon Iced Tea', 'Iced Tea', 45, true, 400),
-  ('I-PIT', 'Passionfruit Iced Tea', 'Iced Tea', 45, true, 410),
-  ('SO-SLS', 'Strawberry Lemon Soda', 'Soda', 45, true, 420),
-  ('SO-MPS', 'Mango Passion Soda', 'Soda', 45, true, 430),
-  ('SO-MBS', 'Mixed Berry Soda', 'Soda', 45, true, 435),
-  ('SO-LLS', 'Lychee Lemon Soda', 'Soda', 45, true, 450),
-  ('SO-BHS', 'Blue Hawaii Soda', 'Soda', 45, true, 460),
-  ('SO-CRC', 'Crispy Coke', 'Soda', 45, true, 470)
+-- Sandwich, Burger, Spaghetti, Tea, Coffee, Iced Tea, Soda). packaging_type is
+-- computed by packaging_type_for() -- see its comment for the rule.
+insert into menu_items (code, name, category, price, active, sort_order, packaging_type) values
+  ('SN-FRF', 'French Fries', 'Snacks', 45, true, 10, 'food'),
+  ('SN-PPF', 'Peri-Peri Fries', 'Snacks', 50, true, 20, 'food'),
+  ('SN-ZAF', 'Zab Fries', 'Snacks', 50, true, 30, 'food'),
+  ('SN-SMT', 'Samosa (3 Pcs)', 'Snacks', 35, true, 40, 'food'),
+  ('SN-MGN', 'Maggie Noodles', 'Snacks', 45, true, 50, 'food'),
+  ('SN-ECM', 'EXTRA CHEESY Maggie', 'Snacks', 65, true, 60, 'food'),
+  ('SN-CLN', 'Chicken Loaded Nachos', 'Snacks', 65, true, 70, 'food'),
+  ('M-VMM', 'Veg Momo', 'Momo', 70, true, 80, 'food'),
+  ('M-CMM', 'Chicken Momo', 'Momo', 80, true, 90, 'food'),
+  ('SD-MUS', 'Mushroom Sandwich', 'Sandwich', 55, true, 100, 'food'),
+  ('SD-GCS', 'Grilled Cheese Sandwich', 'Sandwich', 55, true, 110, 'food'),
+  ('SD-CHS', 'Chicken Sandwich', 'Sandwich', 60, true, 120, 'food'),
+  ('B-CVB', 'Cheesy Veg Burger', 'Burger', 55, true, 130, 'food'),
+  ('B-CCB', 'Chicken Cheese Burger', 'Burger', 60, true, 140, 'food'),
+  ('B-DTB', 'Double Trouble Burger', 'Burger', 75, true, 150, 'food'),
+  ('B-GCB', 'Gochujang Chicken Burger', 'Burger', 65, true, 160, 'food'),
+  ('B-SCB', 'Spicy Chicken Burger', 'Burger', 65, true, 170, 'food'),
+  ('SP-AWS0', 'Spaghetti Alfredo (Mushroom)', 'Spaghetti', 65, true, 180, 'food'),
+  ('SP-AWS1', 'Spaghetti Alfredo (Chicken)', 'Spaghetti', 65, true, 190, 'food'),
+  ('T-GLT0', 'Ginger Lemon Tea (Hot)', 'Tea', 35, true, 200, 'hot_drink'),
+  ('T-GLT1', 'Ginger Lemon Tea (Cold)', 'Tea', 45, true, 210, 'cold_drink'),
+  ('T-BLT0', 'Black Tea (Hot)', 'Tea', 30, true, 220, 'hot_drink'),
+  ('T-BLT1', 'Black Tea (Cold)', 'Tea', 40, true, 230, 'cold_drink'),
+  ('T-TMT0', 'Thai Milk Tea (Hot)', 'Tea', 40, true, 240, 'hot_drink'),
+  ('T-TMT1', 'Thai Milk Tea (Cold)', 'Tea', 45, true, 250, 'cold_drink'),
+  ('T-MST0', 'Masala Tea (Hot)', 'Tea', 35, true, 260, 'hot_drink'),
+  ('T-MST1', 'Masala Tea (Cold)', 'Tea', 45, true, 270, 'cold_drink'),
+  ('T-BPT0', 'Butterfly Pea Tea (Hot)', 'Tea', 40, true, 280, 'hot_drink'),
+  ('T-BPT1', 'Butterfly Pea Tea (Cold)', 'Tea', 50, true, 290, 'cold_drink'),
+  ('C-BLC0', 'Black Coffee (Hot)', 'Coffee', 30, true, 300, 'hot_drink'),
+  ('C-BLC1', 'Black Coffee (Cold)', 'Coffee', 40, true, 310, 'cold_drink'),
+  ('C-CPN0', 'Cappuccino (Hot)', 'Coffee', 45, true, 320, 'hot_drink'),
+  ('C-CPN1', 'Cappuccino (Cold)', 'Coffee', 55, true, 330, 'cold_drink'),
+  ('C-HZL0', 'Hazelnut Latte (Hot)', 'Coffee', 45, true, 340, 'hot_drink'),
+  ('C-HZL1', 'Hazelnut Latte (Cold)', 'Coffee', 55, true, 350, 'cold_drink'),
+  ('C-MCH0', 'Mocha (Hot)', 'Coffee', 45, true, 360, 'hot_drink'),
+  ('C-MCH1', 'Mocha (Cold)', 'Coffee', 55, true, 370, 'cold_drink'),
+  ('C-CCA0', 'Cocoa (Hot)', 'Coffee', 40, true, 380, 'hot_drink'),
+  ('C-CCA1', 'Cocoa (Cold)', 'Coffee', 50, true, 390, 'cold_drink'),
+  ('I-LIT', 'Lemon Iced Tea', 'Iced Tea', 45, true, 400, 'cold_drink'),
+  ('I-PIT', 'Passionfruit Iced Tea', 'Iced Tea', 45, true, 410, 'cold_drink'),
+  ('SO-SLS', 'Strawberry Lemon Soda', 'Soda', 45, true, 420, 'cold_drink'),
+  ('SO-MPS', 'Mango Passion Soda', 'Soda', 45, true, 430, 'cold_drink'),
+  ('SO-MBS', 'Mixed Berry Soda', 'Soda', 45, true, 435, 'cold_drink'),
+  ('SO-LLS', 'Lychee Lemon Soda', 'Soda', 45, true, 450, 'cold_drink'),
+  ('SO-BHS', 'Blue Hawaii Soda', 'Soda', 45, true, 460, 'cold_drink'),
+  ('SO-CRC', 'Crispy Coke', 'Soda', 45, true, 470, 'cold_drink')
 on conflict (code) do nothing;
 
 -- Menu item -> ingredient mappings

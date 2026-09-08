@@ -10,7 +10,10 @@ export interface Seat {
 // concentrates, sauces -- the same set gen_seed.py's PRIMARIES dict always
 // tracked, just now a real persisted column instead of an internal-only
 // distinction). raw = a single purchased ingredient.
-export type IngredientKind = "batch_prep" | "raw";
+// Round 22: consumable = packaging (straws, takeaway boxes/cups/glasses) --
+// tracked as stock like anything else, but never part of a menu item's
+// recipe; deducted automatically based on order-item fulfillment type.
+export type IngredientKind = "batch_prep" | "raw" | "consumable";
 
 export interface Ingredient {
   id: string;
@@ -24,6 +27,14 @@ export interface Ingredient {
   kind: IngredientKind;
 }
 
+// Round 22: what kind of packaging a dine-in-vs-takeaway order of this item
+// needs -- food gets a lidded box, hot_drink a hot takeaway glass, cold_drink
+// a cold takeaway glass (plus a straw regardless of dine-in/takeaway). An
+// explicit, editable field (not inferred purely from category), per the
+// owner's own instruction -- see place_order()'s Round 22 comment in
+// schema.sql for the exact deduction rule.
+export type MenuPackagingType = "food" | "hot_drink" | "cold_drink";
+
 export interface MenuItem {
   code: string;
   name: string;
@@ -34,12 +45,18 @@ export interface MenuItem {
   // from /admin/menu. Null until an owner writes/uploads one.
   description: string | null;
   imageUrl: string | null;
+  packagingType: MenuPackagingType;
 }
 
 export interface MenuItemIngredientLink {
   menuItemCode: string;
   ingredientId: string;
   qtyPerOrder: number;
+  // Round 22: typable display-only override (e.g. "1 box") shown instead of
+  // the ingredient's real unit on this one recipe link. Purely cosmetic --
+  // stock deduction always uses the ingredient's real unit/qtyPerOrder, never
+  // this. Null when no override has been set (falls back to the real unit).
+  unitLabel: string | null;
 }
 
 export type AvailabilityStatus = "in_stock" | "low_stock" | "out_of_stock";
@@ -48,9 +65,15 @@ export interface MenuItemWithAvailability extends MenuItem {
   status: AvailabilityStatus;
 }
 
+// Round 22: chosen per cart item (not once for the whole order), per the
+// owner's own instruction -- a table of 4 can easily have some food staying
+// and some going.
+export type FulfillmentType = "dine_in" | "takeaway";
+
 export interface CartItem {
   code: string;
   qty: number;
+  fulfillmentType: FulfillmentType;
 }
 
 export interface PlacedOrderItem {
@@ -58,6 +81,7 @@ export interface PlacedOrderItem {
   name: string;
   qty: number;
   price: number;
+  fulfillmentType: FulfillmentType;
 }
 
 export interface PlacedOrder {
@@ -79,6 +103,7 @@ export interface OrderItemRow {
   itemName: string;
   qty: number;
   priceAtOrder: number;
+  fulfillmentType: FulfillmentType;
 }
 
 export interface OrderRow {
@@ -273,7 +298,14 @@ export interface MenuItemAdminView extends MenuItem {
   // 1) -- Round 18, editable from the item's Edit panel, purely
   // informational (nothing currently multiplies stock deduction by it).
   yieldServings: number;
-  ingredients: Array<{ ingredientId: string; ingredientName: string; unit: string; qtyPerOrder: number }>;
+  ingredients: Array<{
+    ingredientId: string;
+    ingredientName: string;
+    unit: string;
+    qtyPerOrder: number;
+    // Round 22: typable display-only override -- see MenuItemIngredientLink.
+    unitLabel: string | null;
+  }>;
 }
 
 // ---------------------------------------------------------------------------

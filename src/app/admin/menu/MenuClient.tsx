@@ -1,10 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Ingredient, MenuItemAdminView } from "@/lib/types";
+import type { Ingredient, MenuItem, MenuItemAdminView } from "@/lib/types";
 import ImageCropUpload from "@/components/ImageCropUpload";
 
 type LinkedIngredient = MenuItemAdminView["ingredients"][number];
+
+const PACKAGING_TYPE_OPTIONS: { value: MenuItem["packagingType"]; label: string }[] = [
+  { value: "food", label: "Food" },
+  { value: "hot_drink", label: "Drink — Hot" },
+  { value: "cold_drink", label: "Drink — Cold" },
+];
 
 function LinkedIngredientRow({
   itemCode,
@@ -20,8 +26,12 @@ function LinkedIngredientRow({
   onRemove: () => void;
 }) {
   const [qty, setQty] = useState(String(link.qtyPerOrder));
+  // Round 22: typable display-only override, shown instead of the
+  // ingredient's real unit. Falls back to the real unit when blank -- this
+  // never changes what qty actually deducts, only what's displayed.
+  const [unitLabel, setUnitLabel] = useState(link.unitLabel ?? "");
   const [saving, setSaving] = useState(false);
-  const dirty = Number(qty) !== link.qtyPerOrder;
+  const dirty = Number(qty) !== link.qtyPerOrder || unitLabel !== (link.unitLabel ?? "");
 
   async function save() {
     const n = Number(qty);
@@ -31,7 +41,7 @@ function LinkedIngredientRow({
       await fetch(`/api/menu/${itemCode}/ingredients`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ingredientId: link.ingredientId, qtyPerOrder: n }),
+        body: JSON.stringify({ ingredientId: link.ingredientId, qtyPerOrder: n, unitLabel: unitLabel.trim() || null }),
       });
       onChanged();
     } finally {
@@ -50,7 +60,13 @@ function LinkedIngredientRow({
         onChange={(e) => setQty(e.target.value)}
         className="w-20 rounded-md border border-card-border px-2 py-1 text-sm"
       />
-      <span className="w-10 shrink-0 text-xs text-navy-600">{link.unit}</span>
+      <input
+        value={unitLabel}
+        onChange={(e) => setUnitLabel(e.target.value)}
+        placeholder={link.unit}
+        title="Unit label shown here (display only -- stock still deducts using the ingredient's real unit)"
+        className="w-14 shrink-0 rounded-md border border-card-border px-1.5 py-1 text-xs"
+      />
       {dirty && (
         <button onClick={save} disabled={busy || saving} className="shrink-0 text-xs font-medium text-status-good hover:underline">
           Save
@@ -133,6 +149,7 @@ function ItemCard({ item, ingredients, onChanged }: { item: MenuItemAdminView; i
   const [name, setName] = useState(item.name);
   const [category, setCategory] = useState(item.category);
   const [price, setPrice] = useState(String(item.price));
+  const [packagingType, setPackagingType] = useState(item.packagingType);
   const [yieldServings, setYieldServings] = useState(String(item.yieldServings));
   const [description, setDescription] = useState(item.description ?? "");
   const [imageUrl, setImageUrl] = useState(item.imageUrl);
@@ -171,6 +188,7 @@ function ItemCard({ item, ingredients, onChanged }: { item: MenuItemAdminView; i
           category,
           price: Number(price),
           active,
+          packagingType,
           yieldServings: yieldNum,
           description: description.trim() || null,
         }),
@@ -363,6 +381,24 @@ function ItemCard({ item, ingredients, onChanged }: { item: MenuItemAdminView; i
             />
           </div>
           <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-navy-600">Packaging type</p>
+            <p className="mt-1 text-xs text-navy-600">
+              Drives what a takeaway order of this item pulls from stock (a lidded box or glass), and whether it gets a straw. See
+              /admin/inventory&rsquo;s Consumables section.
+            </p>
+            <select
+              value={packagingType}
+              onChange={(e) => setPackagingType(e.target.value as typeof packagingType)}
+              className="mt-2 rounded-md border border-card-border px-3 py-2 text-sm"
+            >
+              {PACKAGING_TYPE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-navy-600">Description</p>
             <p className="mt-1 text-xs text-navy-600">Shown to customers on the ordering menu, under the item name.</p>
             <textarea
@@ -475,6 +511,7 @@ export default function MenuClient({ initialItems, ingredients }: { initialItems
   const [newName, setNewName] = useState("");
   const [newCategory, setNewCategory] = useState("");
   const [newPrice, setNewPrice] = useState("");
+  const [newPackagingType, setNewPackagingType] = useState<MenuItem["packagingType"]>("food");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -511,7 +548,14 @@ export default function MenuClient({ initialItems, ingredients }: { initialItems
       const res = await fetch("/api/menu", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: newCode.trim(), name: newName.trim(), category: newCategory.trim() || "Other", price: Number(newPrice) || 0, active: true }),
+        body: JSON.stringify({
+          code: newCode.trim(),
+          name: newName.trim(),
+          category: newCategory.trim() || "Other",
+          price: Number(newPrice) || 0,
+          active: true,
+          packagingType: newPackagingType,
+        }),
       });
       const body = await res.json();
       if (!res.ok) {
@@ -555,6 +599,17 @@ export default function MenuClient({ initialItems, ingredients }: { initialItems
           <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Name" className="rounded-md border border-card-border px-3 py-2 text-sm" />
           <input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="Category" className="rounded-md border border-card-border px-3 py-2 text-sm" />
           <input value={newPrice} onChange={(e) => setNewPrice(e.target.value)} type="number" placeholder="Price" className="rounded-md border border-card-border px-3 py-2 text-sm" />
+          <select
+            value={newPackagingType}
+            onChange={(e) => setNewPackagingType(e.target.value as MenuItem["packagingType"])}
+            className="rounded-md border border-card-border px-3 py-2 text-sm"
+          >
+            {PACKAGING_TYPE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
         {error && <p className="mt-2 text-sm text-status-out">{error}</p>}
         <p className="mt-2 text-xs text-navy-600">Add ingredients from the item&rsquo;s Edit panel once it&rsquo;s created.</p>

@@ -6,6 +6,12 @@ import type { Ingredient, IngredientKind, LastRestockPrice, StockAdjustmentRow }
 import { ingredientAlertStatus } from "@/lib/stock";
 import { RangeResetOrdersButton, ResetButton } from "@/components/OrdersDangerZone";
 
+// Round 22: one ingredient <-> menu-item recipe link, as seen from the
+// ingredient side -- same shape data.ts's getIngredientRecipeLinks() returns
+// per ingredient id.
+type RecipeLink = { menuItemCode: string; menuItemName: string; qtyPerOrder: number; unitLabel: string | null };
+type MenuItemOption = { code: string; name: string };
+
 function statusFor(ing: Ingredient): { label: string; className: string } {
   const alert = ingredientAlertStatus(ing);
   if (alert === "out_of_stock") return { label: "Out of stock", className: "bg-red-50 text-status-out border border-red-200" };
@@ -111,7 +117,7 @@ function EditIngredientForm({
           className="w-1/2 rounded-md border border-card-border px-2 py-1 text-sm"
         />
       </div>
-      <div className="flex gap-3 text-xs text-navy-700">
+      <div className="flex flex-wrap gap-3 text-xs text-navy-700">
         <label className="flex items-center gap-1">
           <input type="radio" checked={kind === "raw"} onChange={() => setKind("raw")} />
           Raw ingredient
@@ -119,6 +125,10 @@ function EditIngredientForm({
         <label className="flex items-center gap-1">
           <input type="radio" checked={kind === "batch_prep"} onChange={() => setKind("batch_prep")} />
           Batch prep
+        </label>
+        <label className="flex items-center gap-1">
+          <input type="radio" checked={kind === "consumable"} onChange={() => setKind("consumable")} />
+          Consumable
         </label>
       </div>
       {error && <p className="text-xs text-status-out">{error}</p>}
@@ -142,19 +152,207 @@ function EditIngredientForm({
   );
 }
 
+// Round 22's "used in" editor, ingredient side: lets staff link/unlink/edit
+// this ingredient's recipe links directly from /admin/inventory, instead of
+// only from the menu item's own edit panel on /admin/menu. Reuses the exact
+// same /api/menu/[code]/ingredients endpoints as that panel -- this is just
+// a second UI driving the same setMenuItemIngredient()/removeMenuItemIngredient()
+// data.ts functions, so the two screens can never drift out of sync.
+function UsedInRow({
+  ingredientId,
+  ingredientUnit,
+  link,
+  busy,
+  onChanged,
+  onRemove,
+}: {
+  ingredientId: string;
+  ingredientUnit: string;
+  link: RecipeLink;
+  busy: boolean;
+  onChanged: () => void;
+  onRemove: () => void;
+}) {
+  const [qty, setQty] = useState(String(link.qtyPerOrder));
+  const [unitLabel, setUnitLabel] = useState(link.unitLabel ?? "");
+  const [saving, setSaving] = useState(false);
+  const dirty = Number(qty) !== link.qtyPerOrder || unitLabel !== (link.unitLabel ?? "");
+
+  async function save() {
+    const n = Number(qty);
+    if (!n || n <= 0) return;
+    setSaving(true);
+    try {
+      await fetch(`/api/menu/${link.menuItemCode}/ingredients`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ingredientId, qtyPerOrder: n, unitLabel: unitLabel.trim() || null }),
+      });
+      onChanged();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <li className="flex items-center justify-between gap-1.5 text-xs text-navy-800">
+      <span className="min-w-0 flex-1 truncate">{link.menuItemName}</span>
+      <input
+        type="number"
+        min={0}
+        step="any"
+        value={qty}
+        onChange={(e) => setQty(e.target.value)}
+        className="w-14 shrink-0 rounded-md border border-card-border px-1.5 py-0.5 text-xs"
+      />
+      <input
+        value={unitLabel}
+        onChange={(e) => setUnitLabel(e.target.value)}
+        placeholder={ingredientUnit}
+        title="Unit label shown here (display only -- stock still deducts using this ingredient's real unit)"
+        className="w-12 shrink-0 rounded-md border border-card-border px-1 py-0.5 text-xs"
+      />
+      {dirty && (
+        <button onClick={save} disabled={busy || saving} className="shrink-0 font-medium text-status-good hover:underline">
+          Save
+        </button>
+      )}
+      <button onClick={onRemove} disabled={busy || saving} className="shrink-0 text-status-out hover:underline">
+        Remove
+      </button>
+    </li>
+  );
+}
+
+function UsedInEditor({
+  ingredientId,
+  ingredientUnit,
+  links,
+  menuItems,
+  onChanged,
+}: {
+  ingredientId: string;
+  ingredientUnit: string;
+  links: RecipeLink[];
+  menuItems: MenuItemOption[];
+  onChanged: () => void;
+}) {
+  const [addCode, setAddCode] = useState("");
+  const [addQty, setAddQty] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const linkedCodes = new Set(links.map((l) => l.menuItemCode));
+  const availableToLink = menuItems.filter((m) => !linkedCodes.has(m.code));
+
+  async function addLink() {
+    if (!addCode || !addQty || Number(addQty) <= 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/menu/${addCode}/ingredients`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ingredientId, qtyPerOrder: Number(addQty) }),
+      });
+      if (!res.ok) {
+        const body = await res.json();
+        setError(body.error ?? "Could not link this menu item.");
+        return;
+      }
+      setAddCode("");
+      setAddQty("");
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeLink(menuItemCode: string) {
+    setBusy(true);
+    try {
+      await fetch(`/api/menu/${menuItemCode}/ingredients/${ingredientId}`, { method: "DELETE" });
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-2 rounded-md border border-card-border bg-navy-50/60 p-2.5">
+      <p className="text-xs font-semibold uppercase tracking-wide text-navy-600">Used in which menu items</p>
+      {links.length === 0 ? (
+        <p className="mt-1 text-xs text-navy-500">Not linked to any menu item yet.</p>
+      ) : (
+        <ul className="mt-1.5 space-y-1">
+          {links.map((l) => (
+            <UsedInRow
+              key={l.menuItemCode}
+              ingredientId={ingredientId}
+              ingredientUnit={ingredientUnit}
+              link={l}
+              busy={busy}
+              onChanged={onChanged}
+              onRemove={() => removeLink(l.menuItemCode)}
+            />
+          ))}
+        </ul>
+      )}
+      {availableToLink.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <select
+            value={addCode}
+            onChange={(e) => setAddCode(e.target.value)}
+            className="rounded-md border border-card-border px-1.5 py-1 text-xs"
+          >
+            <option value="">Add to menu item…</option>
+            {availableToLink.map((m) => (
+              <option key={m.code} value={m.code}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+          <input
+            value={addQty}
+            onChange={(e) => setAddQty(e.target.value)}
+            type="number"
+            min={0}
+            step="any"
+            placeholder="Qty per order"
+            className="w-24 rounded-md border border-card-border px-1.5 py-1 text-xs"
+          />
+          <span className="text-xs text-navy-500">{ingredientUnit}</span>
+          <button
+            onClick={addLink}
+            disabled={busy || !addCode}
+            className="rounded-md bg-navy-900 px-2 py-1 text-xs font-medium text-white hover:bg-navy-800 disabled:opacity-50"
+          >
+            Link
+          </button>
+        </div>
+      )}
+      {error && <p className="mt-1 text-xs text-status-out">{error}</p>}
+    </div>
+  );
+}
+
 function Row({
   ingredient,
   lastRestock,
-  usedIn,
+  recipeLinks,
+  menuItems,
   onChanged,
   highlighted,
 }: {
   ingredient: Ingredient;
   lastRestock?: LastRestockPrice;
-  usedIn: string[];
+  recipeLinks: RecipeLink[];
+  menuItems: MenuItemOption[];
   onChanged: () => void;
   highlighted?: boolean;
 }) {
+  const usedIn = recipeLinks.map((l) => l.menuItemName);
+  const [showUsedIn, setShowUsedIn] = useState(false);
   const [amount, setAmount] = useState("");
   const [price, setPrice] = useState("");
   const [threshold, setThreshold] = useState(String(ingredient.lowStockThreshold));
@@ -258,15 +456,27 @@ function Row({
             <p className="font-medium text-navy-950">{ingredient.name}</p>
             {ingredient.brand && <p className="text-xs text-navy-500">{ingredient.brand}</p>}
             {usedIn.length > 0 && <p className="text-xs text-navy-500">Used in: {usedIn.join(", ")}</p>}
-            <div className="mt-1 flex items-center gap-3">
+            <div className="mt-1 flex flex-wrap items-center gap-3">
               <span className={`inline-block rounded-full px-2 py-0.5 text-xs ${status.className}`}>{status.label}</span>
               <button onClick={() => setEditing(true)} className="text-xs font-medium text-navy-700 underline decoration-dotted">
                 Edit
+              </button>
+              <button onClick={() => setShowUsedIn((s) => !s)} className="text-xs font-medium text-navy-700 underline decoration-dotted">
+                {showUsedIn ? "Hide used-in editor" : "Manage used-in"}
               </button>
               <button onClick={() => setConfirmingDelete(true)} className="text-xs font-medium text-status-out underline decoration-dotted">
                 Delete
               </button>
             </div>
+            {showUsedIn && (
+              <UsedInEditor
+                ingredientId={ingredient.id}
+                ingredientUnit={ingredient.unit}
+                links={recipeLinks}
+                menuItems={menuItems}
+                onChanged={onChanged}
+              />
+            )}
           </>
         )}
       </td>
@@ -375,12 +585,14 @@ export default function InventoryClient({
   initialIngredients,
   initialAdjustments,
   lastRestockPrices,
-  usage,
+  recipeLinks,
+  menuItems,
 }: {
   initialIngredients: Ingredient[];
   initialAdjustments: StockAdjustmentRow[];
   lastRestockPrices: Record<string, LastRestockPrice>;
-  usage: Record<string, string[]>;
+  recipeLinks: Record<string, RecipeLink[]>;
+  menuItems: MenuItemOption[];
 }) {
   const [ingredients] = useState(initialIngredients);
   const [adjustments] = useState(initialAdjustments);
@@ -390,7 +602,7 @@ export default function InventoryClient({
   // Ties (including two ingredients used in zero recipes) fall back to name.
   const lowOrOut = ingredients
     .filter((ing) => ingredientAlertStatus(ing) !== null)
-    .sort((a, b) => (usage[b.id]?.length ?? 0) - (usage[a.id]?.length ?? 0) || a.name.localeCompare(b.name));
+    .sort((a, b) => (recipeLinks[b.id]?.length ?? 0) - (recipeLinks[a.id]?.length ?? 0) || a.name.localeCompare(b.name));
   const [query, setQuery] = useState("");
   const [newName, setNewName] = useState("");
   const [newBrand, setNewBrand] = useState("");
@@ -424,18 +636,21 @@ export default function InventoryClient({
       )
     : ingredients;
   // Owner asked for batch-prep items (keemas, base milks, concentrates —
-  // things made ahead in a batch) split out from raw single ingredients,
-  // as two separate sections rather than one long mixed list.
+  // things made ahead in a batch) split out from raw single ingredients, and
+  // (Round 22) packaging consumables (straws, takeaway boxes/cups/glasses)
+  // split out into their own third section too, rather than one long mixed
+  // list.
   const batchPrepIngredients = visibleIngredients.filter((ing) => ing.kind === "batch_prep");
-  const rawIngredients = visibleIngredients.filter((ing) => ing.kind !== "batch_prep");
+  const rawIngredients = visibleIngredients.filter((ing) => ing.kind === "raw");
+  const consumableIngredients = visibleIngredients.filter((ing) => ing.kind === "consumable");
 
   function refresh() {
     window.location.reload();
   }
 
-  // Shared table renderer for the Batch Prep / Raw Ingredients sections below
-  // -- both need identical columns and Row behavior, just a different slice
-  // of the (already search-filtered) ingredient list.
+  // Shared table renderer for the Batch Prep / Raw Ingredients / Consumables
+  // sections below -- all three need identical columns and Row behavior,
+  // just a different slice of the (already search-filtered) ingredient list.
   function renderTable(items: Ingredient[], emptyLabel: string) {
     return (
       <div className="overflow-x-auto">
@@ -464,7 +679,8 @@ export default function InventoryClient({
                 key={ing.id}
                 ingredient={ing}
                 lastRestock={lastRestockPrices[ing.id]}
-                usedIn={usage[ing.id] ?? []}
+                recipeLinks={recipeLinks[ing.id] ?? []}
+                menuItems={menuItems}
                 onChanged={refresh}
                 highlighted={highlightedId === ing.id}
               />
@@ -530,7 +746,7 @@ export default function InventoryClient({
           <p className="mt-0.5 text-xs text-navy-600">Listed by how many menu items rely on them — most-used first.</p>
           <ul className="mt-3 divide-y divide-amber-200/60 text-sm text-navy-800">
             {lowOrOut.map((ing) => {
-              const usedInCount = usage[ing.id]?.length ?? 0;
+              const usedInCount = recipeLinks[ing.id]?.length ?? 0;
               return (
                 <li key={ing.id} className="flex items-center justify-between gap-3 py-1.5">
                   <span>
@@ -564,13 +780,18 @@ export default function InventoryClient({
           className="w-full rounded-md border border-card-border px-3 py-2 text-sm"
         />
 
-        <h2 className="mb-1 mt-5 text-sm font-semibold text-navy-950">Batch Prep</h2>
-        <p className="mb-2 text-xs text-navy-600">Items made ahead in a batch — keemas, base milks, concentrates, sauces.</p>
+        <h2 className="mb-2 mt-5 text-sm font-semibold text-navy-950">Batch Prep</h2>
         {renderTable(batchPrepIngredients, query ? `No batch prep item matches “${query}”.` : "No batch prep items yet.")}
 
-        <h2 className="mb-1 mt-6 text-sm font-semibold text-navy-950">Raw Ingredients</h2>
-        <p className="mb-2 text-xs text-navy-600">Single ingredients bought as-is, not made ahead.</p>
-        {renderTable(rawIngredients, query ? `No raw ingredient matches “${query}”.` : "No raw ingredients yet.")}
+        <div className="mt-8 border-t border-card-border pt-6">
+          <h2 className="mb-2 text-sm font-semibold text-navy-950">Raw Ingredients</h2>
+          {renderTable(rawIngredients, query ? `No raw ingredient matches “${query}”.` : "No raw ingredients yet.")}
+        </div>
+
+        <div className="mt-8 border-t border-card-border pt-6">
+          <h2 className="mb-2 text-sm font-semibold text-navy-950">Consumables</h2>
+          {renderTable(consumableIngredients, query ? `No consumable matches “${query}”.` : "No consumables yet.")}
+        </div>
       </div>
 
       <div className="card p-5">
@@ -627,7 +848,7 @@ export default function InventoryClient({
           </label>
           <label className="block text-sm">
             <span className="mb-1 block text-xs font-medium text-navy-600">Category</span>
-            <div className="flex h-[38px] items-center gap-3 text-sm text-navy-800">
+            <div className="flex h-[38px] flex-wrap items-center gap-3 text-sm text-navy-800">
               <label className="flex items-center gap-1.5">
                 <input type="radio" checked={newKind === "raw"} onChange={() => setNewKind("raw")} />
                 Raw
@@ -635,6 +856,10 @@ export default function InventoryClient({
               <label className="flex items-center gap-1.5">
                 <input type="radio" checked={newKind === "batch_prep"} onChange={() => setNewKind("batch_prep")} />
                 Batch prep
+              </label>
+              <label className="flex items-center gap-1.5">
+                <input type="radio" checked={newKind === "consumable"} onChange={() => setNewKind("consumable")} />
+                Consumable
               </label>
             </div>
           </label>

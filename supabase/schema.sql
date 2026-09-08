@@ -183,7 +183,9 @@ alter table order_items enable row level security;
 -- once can't both oversell the same ingredient, and daily order numbers
 -- (which reset each day, Asia/Bangkok time) never collide.
 --
--- p_items shape: [{"code": "CT001", "qty": 2}, ...]
+-- p_items shape: [{"code": "CT001", "qty": 2, "fulfillmentType": "dine_in"}, ...]
+-- fulfillmentType is optional per item and defaults to 'dine_in' when absent,
+-- so older clients that don't send it keep working (Round 22).
 -- ---------------------------------------------------------------------------
 create or replace function place_order(p_seat_id text, p_items jsonb)
 returns jsonb
@@ -199,6 +201,8 @@ declare
   v_price numeric;
   v_name text;
   v_active boolean;
+  v_packaging text;
+  v_fulfillment text;
   v_total numeric := 0;
   v_out_of_stock text[];
   v_result_items jsonb := '[]'::jsonb;
@@ -220,12 +224,16 @@ begin
   loop
     v_code := v_item ->> 'code';
     v_qty := (v_item ->> 'qty')::int;
+    v_fulfillment := coalesce(v_item ->> 'fulfillmentType', 'dine_in');
 
     if v_code is null or v_qty is null or v_qty <= 0 then
       raise exception 'invalid_item' using errcode = 'P0001';
     end if;
+    if v_fulfillment not in ('dine_in', 'takeaway') then
+      raise exception 'invalid_fulfillment_type: %', v_fulfillment using errcode = 'P0001';
+    end if;
 
-    select name, price, active into v_name, v_price, v_active
+    select name, price, active, packaging_type into v_name, v_price, v_active, v_packaging
     from menu_items where code = v_code;
 
     if v_name is null then
@@ -242,9 +250,33 @@ begin
     on conflict (ingredient_id)
     do update set needed = _required.needed + excluded.needed;
 
+    -- Packaging consumables (Round 22): takeaway food/hot/cold each pull a
+    -- fixed lidded container, and any cold drink pulls a straw regardless of
+    -- dine-in vs takeaway. Looked up by fixed ingredient name so this is a
+    -- safe no-op (matches nothing, inserts nothing) if the Consumables
+    -- catalog hasn't been seeded yet.
+    if v_fulfillment = 'takeaway' and v_packaging = 'food' then
+      insert into _required (ingredient_id, needed)
+      select id, v_qty from ingredients where name = 'Takeaway Food Box'
+      on conflict (ingredient_id) do update set needed = _required.needed + excluded.needed;
+    elsif v_fulfillment = 'takeaway' and v_packaging = 'hot_drink' then
+      insert into _required (ingredient_id, needed)
+      select id, v_qty from ingredients where name = 'Hot Takeaway Glass'
+      on conflict (ingredient_id) do update set needed = _required.needed + excluded.needed;
+    elsif v_fulfillment = 'takeaway' and v_packaging = 'cold_drink' then
+      insert into _required (ingredient_id, needed)
+      select id, v_qty from ingredients where name = 'Cold Takeaway Glass'
+      on conflict (ingredient_id) do update set needed = _required.needed + excluded.needed;
+    end if;
+    if v_packaging = 'cold_drink' then
+      insert into _required (ingredient_id, needed)
+      select id, v_qty from ingredients where name = 'Straw'
+      on conflict (ingredient_id) do update set needed = _required.needed + excluded.needed;
+    end if;
+
     v_total := v_total + v_price * v_qty;
     v_result_items := v_result_items || jsonb_build_object(
-      'code', v_code, 'name', v_name, 'qty', v_qty, 'price', v_price
+      'code', v_code, 'name', v_name, 'qty', v_qty, 'price', v_price, 'fulfillmentType', v_fulfillment
     );
   end loop;
 
@@ -283,8 +315,8 @@ begin
   values (gen_random_uuid(), v_daily_number, v_order_date, p_seat_id, 'placed')
   returning id into v_order_id;
 
-  insert into order_items (order_id, menu_item_code, item_name, qty, price_at_order)
-  select v_order_id, item ->> 'code', item ->> 'name', (item ->> 'qty')::int, (item ->> 'price')::numeric
+  insert into order_items (order_id, menu_item_code, item_name, qty, price_at_order, fulfillment_type)
+  select v_order_id, item ->> 'code', item ->> 'name', (item ->> 'qty')::int, (item ->> 'price')::numeric, item ->> 'fulfillmentType'
   from jsonb_array_elements(v_result_items) as item;
 
   return jsonb_build_object(
@@ -376,6 +408,7 @@ declare
   v_price numeric;
   v_name text;
   v_active boolean;
+  v_fulfillment text;
   v_total numeric := 0;
   v_result_items jsonb := '[]'::jsonb;
 begin
@@ -391,9 +424,13 @@ begin
   loop
     v_code := v_item ->> 'code';
     v_qty := (v_item ->> 'qty')::int;
+    v_fulfillment := coalesce(v_item ->> 'fulfillmentType', 'dine_in');
 
     if v_code is null or v_qty is null or v_qty <= 0 then
       raise exception 'invalid_item' using errcode = 'P0001';
+    end if;
+    if v_fulfillment not in ('dine_in', 'takeaway') then
+      raise exception 'invalid_fulfillment_type: %', v_fulfillment using errcode = 'P0001';
     end if;
 
     select name, price, active into v_name, v_price, v_active
@@ -408,7 +445,7 @@ begin
 
     v_total := v_total + v_price * v_qty;
     v_result_items := v_result_items || jsonb_build_object(
-      'code', v_code, 'name', v_name, 'qty', v_qty, 'price', v_price
+      'code', v_code, 'name', v_name, 'qty', v_qty, 'price', v_price, 'fulfillmentType', v_fulfillment
     );
   end loop;
 
@@ -416,8 +453,8 @@ begin
   values (gen_random_uuid(), null, 'pending_pickup', 'pre_order', p_requested_date, p_requested_time)
   returning id into v_order_id;
 
-  insert into order_items (order_id, menu_item_code, item_name, qty, price_at_order)
-  select v_order_id, item ->> 'code', item ->> 'name', (item ->> 'qty')::int, (item ->> 'price')::numeric
+  insert into order_items (order_id, menu_item_code, item_name, qty, price_at_order, fulfillment_type)
+  select v_order_id, item ->> 'code', item ->> 'name', (item ->> 'qty')::int, (item ->> 'price')::numeric, item ->> 'fulfillmentType'
   from jsonb_array_elements(v_result_items) as item;
 
   return jsonb_build_object(
@@ -471,6 +508,38 @@ begin
   from order_items oi
   join menu_item_ingredients mii on mii.menu_item_code = oi.menu_item_code
   where oi.order_id = p_order_id
+  on conflict (ingredient_id)
+  do update set needed = _required.needed + excluded.needed;
+
+  -- Packaging consumables (Round 22), set-based version of the same rule
+  -- place_order applies per item: takeaway food/hot/cold each pull a fixed
+  -- lidded container, and any cold drink pulls a straw regardless of
+  -- dine-in vs takeaway. Joining by fixed ingredient name makes this a safe
+  -- no-op if the Consumables catalog hasn't been seeded yet.
+  insert into _required (ingredient_id, needed)
+  select ing.id, sum(pkg.qty_needed)
+  from (
+    select
+      oi.qty as qty_needed,
+      case
+        when oi.fulfillment_type = 'takeaway' and mi.packaging_type = 'food' then 'Takeaway Food Box'
+        when oi.fulfillment_type = 'takeaway' and mi.packaging_type = 'hot_drink' then 'Hot Takeaway Glass'
+        when oi.fulfillment_type = 'takeaway' and mi.packaging_type = 'cold_drink' then 'Cold Takeaway Glass'
+      end as ingredient_name
+    from order_items oi
+    join menu_items mi on mi.code = oi.menu_item_code
+    where oi.order_id = p_order_id
+    union all
+    select
+      oi.qty as qty_needed,
+      case when mi.packaging_type = 'cold_drink' then 'Straw' end as ingredient_name
+    from order_items oi
+    join menu_items mi on mi.code = oi.menu_item_code
+    where oi.order_id = p_order_id
+  ) pkg
+  join ingredients ing on ing.name = pkg.ingredient_name
+  where pkg.ingredient_name is not null
+  group by ing.id
   on conflict (ingredient_id)
   do update set needed = _required.needed + excluded.needed;
 
@@ -817,9 +886,13 @@ $$;
 -- ---------------------------------------------------------------------------
 alter table ingredients
   add column if not exists kind text not null default 'raw';
+-- Widened in Round 22 to also allow 'consumable' (see that section near the
+-- end of this file) -- kept as one constraint statement rather than two, so
+-- re-running this file never re-asserts a narrower version of the check
+-- against rows a later seed.sql run already gave the wider kind to.
 alter table ingredients drop constraint if exists ingredients_kind_check;
 alter table ingredients add constraint ingredients_kind_check
-  check (kind in ('batch_prep', 'raw'));
+  check (kind in ('batch_prep', 'raw', 'consumable'));
 
 -- Backfill: every ingredient gen_seed.py's PRIMARIES dict already lists is a
 -- batch-prep item; safe to re-run (a name not present here is a no-op, and
@@ -991,6 +1064,57 @@ update menu_item_ingredients
 set qty_per_order = 30
 where menu_item_code = 'I-PIT'
   and ingredient_id in (select id from ingredients where name = 'Passionfruit Syrup');
+
+-- ---------------------------------------------------------------------------
+-- Round 22: dine-in vs takeaway, per cart item, with automatic packaging
+-- deduction; a third "Consumables" ingredient kind for straws/boxes/cups
+-- (see ingredients_kind_check above, widened in place rather than here);
+-- an explicit food/hot-drink/cold-drink classification per menu item (not
+-- inferred purely from category, so it stays correct for future items too);
+-- and a typable display-only unit label on each recipe link (never used for
+-- stock math -- deduction always uses the ingredient's own real `unit`).
+-- ---------------------------------------------------------------------------
+
+-- Explicit packaging classification per menu item. Nullable while backfilling
+-- so this can run against an empty menu_items table on a fresh install (seed.sql
+-- runs after this file and supplies packaging_type on every insert); made
+-- NOT NULL below once every existing row has a value.
+alter table menu_items
+  add column if not exists packaging_type text;
+
+-- Backfill (Round 22): classify all 47 existing items. Food categories are
+-- food; Iced Tea and Soda are always served cold; Tea and Coffee split by
+-- the hot(0)/cold(1) code-suffix convention already used throughout this
+-- schema. Only touches rows still null, so re-running this never clobbers a
+-- reclassification an owner has since made from /admin/menu.
+update menu_items set packaging_type = 'food'
+where category in ('Snacks', 'Momo', 'Sandwich', 'Burger', 'Spaghetti') and packaging_type is null;
+update menu_items set packaging_type = 'cold_drink'
+where category in ('Iced Tea', 'Soda') and packaging_type is null;
+update menu_items set packaging_type = 'hot_drink'
+where category in ('Tea', 'Coffee') and code like '%0' and packaging_type is null;
+update menu_items set packaging_type = 'cold_drink'
+where category in ('Tea', 'Coffee') and code like '%1' and packaging_type is null;
+
+alter table menu_items alter column packaging_type set not null;
+alter table menu_items drop constraint if exists menu_items_packaging_type_check;
+alter table menu_items add constraint menu_items_packaging_type_check
+  check (packaging_type in ('food', 'hot_drink', 'cold_drink'));
+
+-- Typable display-only unit override on each recipe link (e.g. show "1 box"
+-- instead of a raw stock unit). Purely cosmetic: place_order/fulfill_pre_order
+-- always deduct using the ingredient's real `unit`/qty_per_order, never this.
+alter table menu_item_ingredients
+  add column if not exists unit_label text;
+
+-- Per-item (not per-order) dine-in/takeaway, defaulting existing and
+-- unspecified rows to dine_in so nothing already in the database or in
+-- flight breaks.
+alter table order_items
+  add column if not exists fulfillment_type text not null default 'dine_in';
+alter table order_items drop constraint if exists order_items_fulfillment_type_check;
+alter table order_items add constraint order_items_fulfillment_type_check
+  check (fulfillment_type in ('dine_in', 'takeaway'));
 
 -- ---------------------------------------------------------------------------
 -- Explicit grants for the service role. Newer Supabase projects no longer
