@@ -1340,6 +1340,16 @@ update menu_items set cogs_thb = 25.72 where code = 'SO-LLS';
 update menu_items set cogs_thb = 18.9 where code = 'SO-BHS';
 
 -- ---------------------------------------------------------------------------
+-- Round 25: a free-text yield note, alongside (not replacing) the existing
+-- numeric yield_servings column -- lets staff describe what one order
+-- actually yields in the kitchen's own terms ("1 plate", "150 ml", "2
+-- skewers") rather than only a bare serving count. Optional, purely
+-- informational, same as yield_servings.
+-- ---------------------------------------------------------------------------
+alter table menu_items
+  add column if not exists yield_note text;
+
+-- ---------------------------------------------------------------------------
 -- Explicit grants for the service role. Newer Supabase projects no longer
 -- auto-grant service_role access to tables created by hand (the "Automatically
 -- expose new tables" project setting) — these grants make this schema work

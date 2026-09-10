@@ -765,7 +765,7 @@ export async function getMenuItemsAdmin(): Promise<MenuItemAdminView[]> {
   const [{ data: items, error: itemsErr }, { data: links, error: linkErr }, { data: ingredients, error: ingErr }] = await Promise.all([
     db()
       .from("menu_items")
-      .select("code, name, category, price, active, yield_servings, description, image_url, packaging_type")
+      .select("code, name, category, price, active, yield_servings, yield_note, description, image_url, packaging_type")
       .order("sort_order"),
     db().from("menu_item_ingredients").select("menu_item_code, ingredient_id, qty_per_order, unit_label"),
     db().from("ingredients").select("id, name, unit"),
@@ -786,6 +786,7 @@ export async function getMenuItemsAdmin(): Promise<MenuItemAdminView[]> {
     imageUrl: item.image_url ?? null,
     packagingType: item.packaging_type as MenuItem["packagingType"],
     yieldServings: Number(item.yield_servings ?? 1),
+    yieldNote: item.yield_note ?? null,
     ingredients: (links ?? [])
       .filter((l) => l.menu_item_code === item.code)
       .map((l) => {
@@ -833,6 +834,10 @@ export async function upsertMenuItem(item: {
   // add-item forms both must carry a current value at all times.
   packagingType: MenuItem["packagingType"];
   yieldServings?: number;
+  // Round 25: free-text companion to yieldServings -- see the MenuItemAdminView
+  // comment. undefined = leave whatever's already stored alone (matches every
+  // other optional field on this payload); null = explicitly clear it.
+  yieldNote?: string | null;
   description?: string | null;
 }): Promise<void> {
   const { data: existing } = await db().from("menu_items").select("code").eq("code", item.code).maybeSingle();
@@ -862,6 +867,7 @@ export async function upsertMenuItem(item: {
     packaging_type: MenuItem["packagingType"];
     sort_order?: number;
     yield_servings?: number;
+    yield_note?: string | null;
     description?: string | null;
   } = {
     code: item.code,
@@ -872,6 +878,7 @@ export async function upsertMenuItem(item: {
     packaging_type: item.packagingType,
     ...(sortOrder !== undefined ? { sort_order: sortOrder } : {}),
     ...(item.yieldServings !== undefined ? { yield_servings: item.yieldServings } : {}),
+    ...(item.yieldNote !== undefined ? { yield_note: item.yieldNote } : {}),
     ...(item.description !== undefined ? { description: item.description } : {}),
   };
   const { error } = await db().from("menu_items").upsert(payload);

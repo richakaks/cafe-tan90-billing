@@ -313,6 +313,13 @@ export interface MenuItemAdminView extends MenuItem {
   // 1) -- Round 18, editable from the item's Edit panel, purely
   // informational (nothing currently multiplies stock deduction by it).
   yieldServings: number;
+  // Round 25: a free-text companion to yieldServings, for describing what
+  // one order actually yields in the kitchen's own terms ("1 plate", "150
+  // ml", "2 skewers") rather than a bare serving count. Optional, purely
+  // informational -- added alongside yieldServings rather than replacing
+  // it, since the two answer different questions and staff may want either
+  // or both.
+  yieldNote: string | null;
   ingredients: Array<{
     ingredientId: string;
     ingredientName: string;

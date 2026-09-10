@@ -151,6 +151,10 @@ function ItemCard({ item, ingredients, onChanged }: { item: MenuItemAdminView; i
   const [price, setPrice] = useState(String(item.price));
   const [packagingType, setPackagingType] = useState(item.packagingType);
   const [yieldServings, setYieldServings] = useState(String(item.yieldServings));
+  // Round 25: free-text companion to yieldServings -- e.g. "1 plate", "150
+  // ml" -- kept as its own separate field rather than replacing the numeric
+  // one, since the two answer different questions and staff may want either.
+  const [yieldNote, setYieldNote] = useState(item.yieldNote ?? "");
   const [description, setDescription] = useState(item.description ?? "");
   const [imageUrl, setImageUrl] = useState(item.imageUrl);
   const [active, setActive] = useState(item.active);
@@ -190,6 +194,7 @@ function ItemCard({ item, ingredients, onChanged }: { item: MenuItemAdminView; i
           active,
           packagingType,
           yieldServings: yieldNum,
+          yieldNote: yieldNote.trim() || null,
           description: description.trim() || null,
         }),
       });
@@ -378,6 +383,19 @@ function ItemCard({ item, ingredients, onChanged }: { item: MenuItemAdminView; i
               placeholder="Yield (servings)"
               title="How many servings one order of this recipe actually produces"
               className="rounded-md border border-card-border px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-navy-600">Yield note (optional)</p>
+            <p className="mt-1 text-xs text-navy-600">
+              Describe what one order actually yields, in your own words -- e.g. &ldquo;1 plate&rdquo; or &ldquo;150 ml&rdquo;. Separate from
+              Yield (servings) above; purely informational, staff-facing only.
+            </p>
+            <input
+              value={yieldNote}
+              onChange={(e) => setYieldNote(e.target.value)}
+              placeholder="e.g. 1 plate, 150 ml, 2 skewers"
+              className="mt-2 w-full rounded-md border border-card-border px-3 py-2 text-sm"
             />
           </div>
           <div>

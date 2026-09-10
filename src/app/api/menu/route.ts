@@ -6,7 +6,7 @@ const PACKAGING_TYPES: MenuItem["packagingType"][] = ["food", "hot_drink", "cold
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { code, name, category, price, active, packagingType, yieldServings, description } = body ?? {};
+  const { code, name, category, price, active, packagingType, yieldServings, yieldNote, description } = body ?? {};
 
   if (typeof code !== "string" || !code.trim() || typeof name !== "string" || !name.trim()) {
     return NextResponse.json({ error: "Code and name are required." }, { status: 400 });
@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
       // to upsertMenuItem, so a Yield edit from /admin/menu's details grid
       // silently never persisted even though the UI showed it saving.
       ...(typeof yieldServings === "number" && yieldServings > 0 ? { yieldServings } : {}),
+      ...(yieldNote !== undefined ? { yieldNote: typeof yieldNote === "string" ? (yieldNote.trim() || null) : null } : {}),
       ...(description !== undefined ? { description: typeof description === "string" ? (description.trim() || null) : null } : {}),
     });
     return NextResponse.json({ ok: true });

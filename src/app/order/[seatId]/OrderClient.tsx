@@ -146,7 +146,7 @@ export default function OrderClient({ seat, initialMenu }: { seat: Seat; initial
                       <div className="min-w-0">
                         <p className="truncate font-medium text-navy-950">{item.name}</p>
                         <p className="text-sm text-navy-600">{formatBaht(item.price)}</p>
-                        {item.description && <p className="mt-0.5 line-clamp-2 text-xs text-navy-500">{item.description}</p>}
+                        {item.description && <p className="mt-0.5 text-xs text-navy-500">{item.description}</p>}
                         {badge && (
                           <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs ${badge.className}`}>{badge.label}</span>
                         )}

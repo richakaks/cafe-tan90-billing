@@ -194,9 +194,18 @@ function UsedInRow({
     }
   }
 
+  // Round 25 mobile fix: this row lives inside the Inventory table's fixed-
+  // width Ingredient column (34% on desktop, easily under 150px on a phone
+  // once the table's overflow-x-auto wrapper kicks in). With no wrap, the
+  // name plus two inputs plus Save/Remove couldn't all fit and spilled past
+  // the cell boundary into the neighboring column instead of clipping,
+  // which is what read as "texts go over each other." flex-wrap lets the
+  // controls drop to a second line instead of overflowing sideways, and
+  // basis-full forces the item name onto its own line below `sm` so it
+  // never has to share a cramped line with the inputs at all.
   return (
-    <li className="flex items-center justify-between gap-1.5 text-xs text-navy-800">
-      <span className="min-w-0 flex-1 truncate">{link.menuItemName}</span>
+    <li className="flex flex-wrap items-center gap-1.5 text-xs text-navy-800">
+      <span className="min-w-0 basis-full truncate sm:basis-auto sm:flex-1">{link.menuItemName}</span>
       <input
         type="number"
         min={0}
@@ -733,11 +742,13 @@ export default function InventoryClient({
   const [newStock, setNewStock] = useState("");
   const [newThreshold, setNewThreshold] = useState("");
   const [newKind, setNewKind] = useState<IngredientKind>("raw");
-  // Round 23: link the new ingredient into a menu item's recipe right at
-  // creation time, instead of only via "Manage used-in" after the fact --
-  // both optional, both blank by default.
-  const [newLinkCode, setNewLinkCode] = useState("");
-  const [newLinkQty, setNewLinkQty] = useState("");
+  // Round 23: link the new ingredient into one or more menu items' recipes
+  // right at creation time, instead of only via "Manage used-in" after the
+  // fact -- optional, one blank row by default. Round 25: multiple rows
+  // instead of a single code/qty pair, so linking several menu items at
+  // creation time doesn't require re-adding the ingredient from the list
+  // and reopening "Manage used-in" for every item after the first.
+  const [newLinks, setNewLinks] = useState<{ code: string; qty: string }[]>([{ code: "", qty: "" }]);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
@@ -823,8 +834,13 @@ export default function InventoryClient({
 
   async function addIngredient() {
     if (!newName.trim() || !newUnit.trim()) return;
-    if (newLinkCode && (!newLinkQty || Number(newLinkQty) <= 0)) {
-      setError("Enter a qty per order for the menu item you picked (or clear the menu item to skip linking).");
+    // Only rows where a menu item was actually picked count as a real link
+    // request -- a still-blank trailing row (or one the owner added and
+    // then left empty) is silently ignored rather than treated as an error.
+    const linkRows = newLinks.filter((l) => l.code);
+    const invalidRow = linkRows.find((l) => !l.qty || Number(l.qty) <= 0);
+    if (invalidRow) {
+      setError("Enter a qty per order for every menu item you picked (or remove the row to skip linking it).");
       return;
     }
     setCreating(true);
@@ -847,19 +863,27 @@ export default function InventoryClient({
         setError(body.error ?? "Could not add ingredient.");
         return;
       }
-      // Optional immediate recipe link, same endpoint the "used in" editor
-      // and the menu-side editor already both use -- best-effort: the
-      // ingredient itself is already created and saved at this point, so a
-      // failure here surfaces as a message but doesn't roll anything back.
-      if (newLinkCode && body.id) {
-        const linkRes = await fetch(`/api/menu/${newLinkCode}/ingredients`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ingredientId: body.id, qtyPerOrder: Number(newLinkQty) }),
-        });
-        if (!linkRes.ok) {
-          const linkBody = await linkRes.json();
-          setError(`Ingredient added, but couldn't link it to that menu item: ${linkBody.error ?? "unknown error"}`);
+      // Optional immediate recipe links, same endpoint the "used in" editor
+      // and the menu-side editor already both use -- best-effort per row:
+      // the ingredient itself is already created and saved at this point,
+      // so one row failing doesn't roll anything back or block the rest --
+      // every row is attempted, and any failures are reported together.
+      if (linkRows.length > 0 && body.id) {
+        const failures: string[] = [];
+        for (const row of linkRows) {
+          const linkRes = await fetch(`/api/menu/${row.code}/ingredients`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ingredientId: body.id, qtyPerOrder: Number(row.qty) }),
+          });
+          if (!linkRes.ok) {
+            const linkBody = await linkRes.json();
+            const name = menuItems.find((m) => m.code === row.code)?.name ?? row.code;
+            failures.push(`${name} (${linkBody.error ?? "unknown error"})`);
+          }
+        }
+        if (failures.length > 0) {
+          setError(`Ingredient added, but couldn't link it to: ${failures.join("; ")}.`);
           return;
         }
       }
@@ -869,8 +893,7 @@ export default function InventoryClient({
       setNewStock("");
       setNewThreshold("");
       setNewKind("raw");
-      setNewLinkCode("");
-      setNewLinkQty("");
+      setNewLinks([{ code: "", qty: "" }]);
       window.location.reload();
     } finally {
       setCreating(false);
@@ -884,9 +907,20 @@ export default function InventoryClient({
     setNewStock("");
     setNewThreshold("");
     setNewKind("raw");
-    setNewLinkCode("");
-    setNewLinkQty("");
+    setNewLinks([{ code: "", qty: "" }]);
     setError(null);
+  }
+
+  function updateNewLink(index: number, field: "code" | "qty", value: string) {
+    setNewLinks((rows) => rows.map((r, i) => (i === index ? { ...r, [field]: value } : r)));
+  }
+
+  function addNewLinkRow() {
+    setNewLinks((rows) => [...rows, { code: "", qty: "" }]);
+  }
+
+  function removeNewLinkRow(index: number) {
+    setNewLinks((rows) => (rows.length === 1 ? [{ code: "", qty: "" }] : rows.filter((_, i) => i !== index)));
   }
 
   return (
@@ -1023,34 +1057,55 @@ export default function InventoryClient({
           </label>
           <label className="block text-sm sm:col-span-2">
             <span className="mb-1 block text-xs font-medium text-navy-600">Used in (optional)</span>
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={newLinkCode}
-                onChange={(e) => setNewLinkCode(e.target.value)}
-                className="rounded-md border border-card-border px-3 py-2 text-sm"
-              >
-                <option value="">Not linked to a menu item yet…</option>
-                {menuItems.map((m) => (
-                  <option key={m.code} value={m.code}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
-              {newLinkCode && (
-                <>
-                  <input
-                    value={newLinkQty}
-                    onChange={(e) => setNewLinkQty(e.target.value)}
-                    type="number"
-                    min={0}
-                    step="any"
-                    placeholder="Qty per order"
-                    className="w-32 rounded-md border border-card-border px-3 py-2 text-sm"
-                  />
-                  <span className="text-xs text-navy-500">{newUnit.trim() || "unit"}</span>
-                </>
-              )}
+            {/* Round 25: multiple rows -- each menu item this new ingredient
+                goes into gets its own row, so linking it to several recipes
+                doesn't require adding the ingredient, leaving, and coming
+                back to "Manage used-in" for every item after the first. */}
+            <div className="space-y-2">
+              {newLinks.map((row, i) => {
+                const pickedElsewhere = new Set(newLinks.filter((_, j) => j !== i).map((r) => r.code).filter(Boolean));
+                return (
+                  <div key={i} className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={row.code}
+                      onChange={(e) => updateNewLink(i, "code", e.target.value)}
+                      className="rounded-md border border-card-border px-3 py-2 text-sm"
+                    >
+                      <option value="">Not linked to a menu item yet…</option>
+                      {menuItems
+                        .filter((m) => m.code === row.code || !pickedElsewhere.has(m.code))
+                        .map((m) => (
+                          <option key={m.code} value={m.code}>
+                            {m.name}
+                          </option>
+                        ))}
+                    </select>
+                    {row.code && (
+                      <>
+                        <input
+                          value={row.qty}
+                          onChange={(e) => updateNewLink(i, "qty", e.target.value)}
+                          type="number"
+                          min={0}
+                          step="any"
+                          placeholder="Qty per order"
+                          className="w-32 rounded-md border border-card-border px-3 py-2 text-sm"
+                        />
+                        <span className="text-xs text-navy-500">{newUnit.trim() || "unit"}</span>
+                      </>
+                    )}
+                    {(row.code || newLinks.length > 1) && (
+                      <button onClick={() => removeNewLinkRow(i)} className="text-xs font-medium text-status-out hover:underline">
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
+            <button onClick={addNewLinkRow} className="mt-2 text-xs font-medium text-navy-700 underline decoration-dotted">
+              + Add another menu item
+            </button>
           </label>
         </div>
         {error && <p className="mt-3 text-sm text-status-out">{error}</p>}
