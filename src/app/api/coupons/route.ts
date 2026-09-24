@@ -12,7 +12,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  let body: { buyerName?: string; couponValue?: number; codes?: string[]; totalCollected?: number };
+  let body: { buyerName?: string; couponValue?: number; codes?: string[]; totalCollected?: number; soldAt?: string; paid?: boolean; collected?: boolean };
   try {
     body = await req.json();
   } catch {
@@ -23,6 +23,12 @@ export async function POST(req: NextRequest) {
   const couponValue = Number(body.couponValue);
   const codes = body.codes;
   const totalCollected = Number(body.totalCollected);
+  // Round 26: optional -- lets the owner backdate a batch entered on the
+  // site after the real sale happened. Falls back to the DB's now() default
+  // when omitted or blank.
+  const soldAt = typeof body.soldAt === "string" && body.soldAt.trim() ? body.soldAt.trim() : undefined;
+  const paid = body.paid === true;
+  const collected = body.collected === true;
 
   if (!buyerName) {
     return NextResponse.json({ error: "Enter who bought these coupons." }, { status: 400 });
@@ -38,7 +44,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await createCouponBatch(buyerName, couponValue, codes, totalCollected);
+    await createCouponBatch(buyerName, couponValue, codes, totalCollected, soldAt, paid, collected);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("createCouponBatch failed", err);

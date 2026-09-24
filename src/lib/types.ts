@@ -157,6 +157,10 @@ export interface CouponBatch {
   totalCollected: number;
   soldAt: string;
   redeemedCount: number;
+  // Round 26: independent of each other and of redemption -- a batch can be
+  // sold-but-unpaid, paid-but-not-yet-picked-up, etc.
+  paid: boolean;
+  collected: boolean;
 }
 
 export interface Coupon {
@@ -352,4 +356,27 @@ export interface LastRestockPrice {
   delta: number;
   pricePaid: number;
   createdAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Restock forecasting (Round 27)
+// ---------------------------------------------------------------------------
+
+// "buy_soon": at the recent sales pace this will run out within a week.
+// "can_wait": either nothing that uses it sold in the last 30 days, or
+// current stock still covers a week or more at the pace it IS selling --
+// see restockVerdict() in stock.ts for the exact rule. Only meaningful for
+// an ingredient that's already low/out of stock -- this doesn't invent a new
+// alert, it judges the urgency of the alert that's already showing.
+export type RestockVerdictType = "buy_soon" | "can_wait";
+
+export interface RestockSignal {
+  verdict: RestockVerdictType;
+  avgDailyUsage: number;
+  // Null when avgDailyUsage is 0 -- "days left" isn't meaningful for
+  // something that isn't moving at all.
+  daysOfStockLeft: number | null;
+  // Menu items (by name) that actually sold in the last 30 days and use
+  // this ingredient -- the reasoning shown next to the verdict.
+  usedIn: string[];
 }

@@ -1350,6 +1350,109 @@ alter table menu_items
   add column if not exists yield_note text;
 
 -- ---------------------------------------------------------------------------
+-- Round 26: coupon batches need a payment status and a collection status
+-- independent of each other, and sold_at needs to be editable after the
+-- fact -- a batch is often entered on the site days after the real sale,
+-- sold before it's paid for, or paid for before the physical coupons are
+-- picked up. Both default false: existing batches are NOT assumed paid or
+-- collected just because this column now exists -- the owner reviews and
+-- marks each one explicitly. sold_at itself needed no schema change (it
+-- was already a plain editable column); only the app layer was missing an
+-- edit path for it.
+-- ---------------------------------------------------------------------------
+alter table coupon_batches
+  add column if not exists paid boolean not null default false,
+  add column if not exists collected boolean not null default false;
+
+-- ---------------------------------------------------------------------------
+-- Round 28: sync recipes to the revised Food & Drinks SOPs. seed.sql's own
+-- on-conflict-do-nothing inserts handle every brand-new recipe link this
+-- round added on their own (the sandwiches' new Ketchup lines, and the
+-- Gochujang Chicken Burger's new Homemade Mayo side-dip, added 9/24 once
+-- the owner fixed that SOP's mayo contradiction) -- this block only needs
+-- to handle removals and requantifications of links that already existed,
+-- which a plain seed.sql re-paste can never do on its own.
+-- ---------------------------------------------------------------------------
+
+-- French Fries: table says Mayo 30ml only, no Ketchup (was following the
+-- method text's Ketchup 30ml + Mayo 15ml).
+delete from menu_item_ingredients where menu_item_code = 'SN-FRF' and ingredient_id in (select id from ingredients where name = 'Ketchup');
+update menu_item_ingredients set qty_per_order = 30 where menu_item_code = 'SN-FRF' and ingredient_id in (select id from ingredients where name = 'Homemade Mayo');
+
+-- Peri-Peri Fries: table says Mayo 30ml (was following the method text's 20ml).
+update menu_item_ingredients set qty_per_order = 30 where menu_item_code = 'SN-PPF' and ingredient_id in (select id from ingredients where name = 'Homemade Mayo');
+
+-- Zab Fries: table no longer lists Ketchup at all; both dry seasonings raised.
+delete from menu_item_ingredients where menu_item_code = 'SN-ZAF' and ingredient_id in (select id from ingredients where name = 'Ketchup');
+update menu_item_ingredients set qty_per_order = 7.5 where menu_item_code = 'SN-ZAF' and ingredient_id in (select id from ingredients where name = 'Zab Seasoning');
+update menu_item_ingredients set qty_per_order = 5 where menu_item_code = 'SN-ZAF' and ingredient_id in (select id from ingredients where name = 'Lime Seasoning');
+
+-- Maggie Noodles + Extra Cheesy Maggie: Frozen Corn/Frozen Peas 10g -> 15g.
+update menu_item_ingredients set qty_per_order = 15 where menu_item_code in ('SN-MGN','SN-ECM') and ingredient_id in (select id from ingredients where name in ('Frozen Corn','Frozen Peas'));
+
+-- Chicken/Veg Momo: achar (Tomato Sauce) 35ml -> 30ml.
+update menu_item_ingredients set qty_per_order = 30 where menu_item_code in ('M-VMM','M-CMM') and ingredient_id in (select id from ingredients where name = 'Tomato Sauce');
+
+-- All 5 burgers: Tomato Slices dropped (consistently absent from every
+-- burger's revised table); each burger's side-dip Homemade Mayo raised to
+-- include the 30ml (45ml for Double Trouble) "served with" line that was
+-- never auto-deducted before.
+delete from menu_item_ingredients where menu_item_code in ('B-CVB','B-CCB','B-DTB','B-SCB') and ingredient_id in (select id from ingredients where name = 'Tomato Slices');
+update menu_item_ingredients set qty_per_order = 40 where menu_item_code in ('B-CVB','B-CCB','B-SCB') and ingredient_id in (select id from ingredients where name = 'Homemade Mayo');
+update menu_item_ingredients set qty_per_order = 45 where menu_item_code = 'B-DTB' and ingredient_id in (select id from ingredients where name = 'Homemade Mayo');
+
+-- Ginger Lemon Tea (Hot+Cold) + Black Tea Hot: tea leaves 3g -> 5g.
+update menu_item_ingredients set qty_per_order = 5 where menu_item_code in ('T-GLT0','T-GLT1','T-BLT0') and ingredient_id in (select id from ingredients where name = 'Black Tea Leaves');
+
+-- Thai Milk Tea (Hot+Cold): Thai Tea Powder 18g -> 10g, Base Milk -> 100ml.
+update menu_item_ingredients set qty_per_order = 10 where menu_item_code in ('T-TMT0','T-TMT1') and ingredient_id in (select id from ingredients where name = 'Thai Tea Powder');
+update menu_item_ingredients set qty_per_order = 100 where menu_item_code in ('T-TMT0','T-TMT1') and ingredient_id in (select id from ingredients where name = 'Base Milk');
+
+-- Masala Tea Hot: tea leaves 4.5g -> 7.5g, masala powder 1.5g -> 2.5g.
+update menu_item_ingredients set qty_per_order = 7.5 where menu_item_code = 'T-MST0' and ingredient_id in (select id from ingredients where name = 'Red Label Tea Leaves');
+update menu_item_ingredients set qty_per_order = 2.5 where menu_item_code = 'T-MST0' and ingredient_id in (select id from ingredients where name = 'Red Label Masala Powder');
+-- Masala Tea Cold: tea leaves 6g -> 10g, masala powder 3g -> 5g.
+update menu_item_ingredients set qty_per_order = 10 where menu_item_code = 'T-MST1' and ingredient_id in (select id from ingredients where name = 'Red Label Tea Leaves');
+update menu_item_ingredients set qty_per_order = 5 where menu_item_code = 'T-MST1' and ingredient_id in (select id from ingredients where name = 'Red Label Masala Powder');
+
+-- Black Coffee Hot: was wrongly deducting Ground Coffee 20g (an ingredient
+-- this SOP never mentions); the table's real ingredient is Instant Coffee
+-- 8g, added via seed.sql's own on-conflict-do-nothing insert.
+delete from menu_item_ingredients where menu_item_code = 'C-BLC0' and ingredient_id in (select id from ingredients where name = 'Ground Coffee');
+
+-- Hazelnut Latte (Hot+Cold): milk switched from Full-Fat Milk to Base Milk
+-- (150ml, added via seed.sql); Hot's Coffee Concentrate raised to 45ml.
+delete from menu_item_ingredients where menu_item_code in ('C-HZL0','C-HZL1') and ingredient_id in (select id from ingredients where name = 'Full-Fat Milk');
+update menu_item_ingredients set qty_per_order = 45 where menu_item_code = 'C-HZL0' and ingredient_id in (select id from ingredients where name = 'Coffee Concentrate');
+
+-- Fresh Lemon Juice -> Fresh Lime Juice on 11 drinks (owner confirmed:
+-- genuinely different stocked bottles, not the same product renamed).
+-- Fresh Lime Juice is added at the same quantity via seed.sql's own
+-- on-conflict-do-nothing insert; this only needs to remove the old link.
+delete from menu_item_ingredients where menu_item_code in ('T-GLT0','T-GLT1','T-BPT0','T-BPT1','I-LIT','I-PIT','SO-SLS','SO-MPS','SO-MBS','SO-LLS','SO-BHS') and ingredient_id in (select id from ingredients where name = 'Fresh Lemon Juice');
+
+-- Crispy Coke: Pink Salt 0.75g -> 1.25g (1/4 tsp per the 5g/tsp rule).
+update menu_item_ingredients set qty_per_order = 1.25 where menu_item_code = 'SO-CRC' and ingredient_id in (select id from ingredients where name = 'Pink Salt');
+
+-- Potato Patty: revised SOP's table/method no longer includes Fresh Lemon
+-- Juice at all (owner confirmed: trust the revised SOP).
+delete from primary_ingredients where primary_id in (select id from ingredients where name = 'Potato Patty') and raw_ingredient_id in (select id from ingredients where name = 'Fresh Lemon Juice');
+
+-- Veg Keema: revised SOP has a genuinely blank row exactly where Cauliflower
+-- used to be (confirmed via direct PDF image inspection).
+delete from primary_ingredients where primary_id in (select id from ingredients where name = 'Veg Keema') and raw_ingredient_id in (select id from ingredients where name = 'Cauliflower');
+
+-- ---------------------------------------------------------------------------
+-- Round 28 follow-up (9/24): owner-confirmed corrections after the SOP sync
+-- above. "Ginger Paste" and "Garlic Paste" (used separately in Veg Keema)
+-- turned out to be the same physical product as "Ginger-Garlic Paste"
+-- (used in Chicken Keema), not distinct SKUs -- consolidated onto a single
+-- 10g Ginger-Garlic Paste line (the new link is added by seed.sql's own
+-- on-conflict-do-nothing insert; this only needs to remove the old two).
+-- ---------------------------------------------------------------------------
+delete from primary_ingredients where primary_id in (select id from ingredients where name = 'Veg Keema') and raw_ingredient_id in (select id from ingredients where name in ('Ginger Paste','Garlic Paste'));
+
+-- ---------------------------------------------------------------------------
 -- Explicit grants for the service role. Newer Supabase projects no longer
 -- auto-grant service_role access to tables created by hand (the "Automatically
 -- expose new tables" project setting) — these grants make this schema work

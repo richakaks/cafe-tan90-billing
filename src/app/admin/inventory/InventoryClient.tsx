@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import type { Ingredient, IngredientKind, LastRestockPrice, PrimaryRecipeLink, StockAdjustmentRow } from "@/lib/types";
+import type { Ingredient, IngredientKind, LastRestockPrice, PrimaryRecipeLink, RestockSignal, StockAdjustmentRow } from "@/lib/types";
 import { ingredientAlertStatus } from "@/lib/stock";
 import { RangeResetOrdersButton, ResetButton } from "@/components/OrdersDangerZone";
 
@@ -11,6 +11,19 @@ import { RangeResetOrdersButton, ResetButton } from "@/components/OrdersDangerZo
 // per ingredient id.
 type RecipeLink = { menuItemCode: string; menuItemName: string; qtyPerOrder: number; unitLabel: string | null };
 type MenuItemOption = { code: string; name: string };
+
+// Round 27: same reasoning line as the staff-wide low-stock popup (see
+// restockReason() in components/LowStockAlert.tsx) -- kept as its own copy
+// rather than a shared import since that component intentionally hand-rolls
+// its own local types for a plain fetch result, and this file already works
+// from the server-typed RestockSignal instead.
+function restockReason(restock: RestockSignal): string {
+  if (restock.usedIn.length === 0) return "Not sold in the last 30 days — can wait.";
+  const items = restock.usedIn.join(", ");
+  if (restock.daysOfStockLeft === null) return `Used in ${items}.`;
+  const days = Math.max(0, Math.round(restock.daysOfStockLeft));
+  return `Used in ${items} — about ${days} day${days === 1 ? "" : "s"} of stock left.`;
+}
 
 function statusFor(ing: Ingredient): { label: string; className: string } {
   const alert = ingredientAlertStatus(ing);
@@ -718,6 +731,7 @@ export default function InventoryClient({
   recipeLinks,
   primaryRecipeLinks,
   menuItems,
+  restockSignals,
 }: {
   initialIngredients: Ingredient[];
   initialAdjustments: StockAdjustmentRow[];
@@ -725,6 +739,7 @@ export default function InventoryClient({
   recipeLinks: Record<string, RecipeLink[]>;
   primaryRecipeLinks: Record<string, PrimaryRecipeLink[]>;
   menuItems: MenuItemOption[];
+  restockSignals: Record<string, RestockSignal>;
 }) {
   const [ingredients] = useState(initialIngredients);
   const [adjustments] = useState(initialAdjustments);
@@ -934,24 +949,45 @@ export default function InventoryClient({
           <ul className="mt-3 divide-y divide-amber-200/60 text-sm text-navy-800">
             {lowOrOut.map((ing) => {
               const usedInCount = recipeLinks[ing.id]?.length ?? 0;
+              const restock = restockSignals[ing.id];
               return (
-                <li key={ing.id} className="flex items-center justify-between gap-3 py-1.5">
-                  <span>
-                    {ing.name}
-                    {usedInCount > 0 && (
-                      <span className="ml-2 text-xs text-navy-500">
-                        used in {usedInCount} item{usedInCount === 1 ? "" : "s"}
-                      </span>
-                    )}
-                  </span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    <span className={ing.currentStock <= 0 ? "font-medium text-status-out" : "text-status-low"}>
-                      {ing.currentStock <= 0 ? "Out" : `${ing.currentStock} ${ing.unit} left`}
+                <li key={ing.id} className="py-1.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <span>
+                      {ing.name}
+                      {usedInCount > 0 && (
+                        <span className="ml-2 text-xs text-navy-500">
+                          used in {usedInCount} item{usedInCount === 1 ? "" : "s"}
+                        </span>
+                      )}
                     </span>
-                    <button onClick={() => goToIngredient(ing.id)} className="text-xs font-medium text-navy-700 underline hover:text-navy-950">
-                      Go to ingredient
-                    </button>
-                  </span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <span className={ing.currentStock <= 0 ? "font-medium text-status-out" : "text-status-low"}>
+                        {ing.currentStock <= 0 ? "Out" : `${ing.currentStock} ${ing.unit} left`}
+                      </span>
+                      <button onClick={() => goToIngredient(ing.id)} className="text-xs font-medium text-navy-700 underline hover:text-navy-950">
+                        Go to ingredient
+                      </button>
+                    </span>
+                  </div>
+                  {/* Round 27: buy-soon/can-wait call, from real sales pace over
+                      the last 30 days -- see restockVerdict() in lib/stock.ts.
+                      Absent (not just "can wait") for an ingredient with no
+                      recipe link at all, e.g. a consumable -- nothing to judge
+                      a sales pace from. */}
+                  {restock && (
+                    <div className="mt-0.5 flex items-start justify-between gap-3">
+                      <p className="text-xs text-navy-500">{restockReason(restock)}</p>
+                      <span
+                        className={
+                          "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide " +
+                          (restock.verdict === "buy_soon" ? "bg-red-50 text-status-out" : "bg-green-50 text-status-good")
+                        }
+                      >
+                        {restock.verdict === "buy_soon" ? "Buy soon" : "Can wait"}
+                      </span>
+                    </div>
+                  )}
                 </li>
               );
             })}

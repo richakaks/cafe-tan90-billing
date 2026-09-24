@@ -1,4 +1,4 @@
-import type { AvailabilityStatus, Ingredient, MenuItemIngredientLink } from "./types";
+import type { AvailabilityStatus, Ingredient, MenuItemIngredientLink, RestockVerdictType } from "./types";
 
 /**
  * Pure, unit-testable stock logic — no database access.
@@ -54,4 +54,34 @@ export function ingredientAlertStatus(
   if (ingredient.currentStock <= 0) return "out_of_stock";
   if (ingredient.currentStock < ingredient.lowStockThreshold) return "low_stock";
   return null;
+}
+
+/**
+ * Round 27: for an ingredient that's already flagged low/out of stock,
+ * judges whether it's actually worth buying soon -- based on how fast the
+ * menu items that use it have really been selling in the last 30 days, not
+ * just the raw stock number. Being under the low-stock threshold doesn't by
+ * itself mean it's urgent: an ingredient used only in a dish that rarely
+ * sells can sit "low" for weeks without ever being close to running out
+ * against real demand, while one feeding several fast-moving drinks can burn
+ * through what's left in a couple of days.
+ *
+ *  - avgDailyUsage <= 0 (nothing that uses it sold in the last 30 days)
+ *    -> "can_wait", daysOfStockLeft null (not meaningful for zero pace)
+ *  - otherwise daysOfStockLeft = currentStock / avgDailyUsage; under 7 days
+ *    of runway at that pace -> "buy_soon", 7 or more -> "can_wait"
+ *
+ * avgDailyUsage and currentStock must already be in the same unit (the
+ * ingredient's own unit -- callers convert qty-per-order into it before
+ * calling this).
+ */
+export function restockVerdict(
+  currentStock: number,
+  avgDailyUsage: number
+): { verdict: RestockVerdictType; daysOfStockLeft: number | null } {
+  if (avgDailyUsage <= 0) {
+    return { verdict: "can_wait", daysOfStockLeft: null };
+  }
+  const daysOfStockLeft = currentStock / avgDailyUsage;
+  return { verdict: daysOfStockLeft < 7 ? "buy_soon" : "can_wait", daysOfStockLeft };
 }

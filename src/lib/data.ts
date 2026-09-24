@@ -1,5 +1,5 @@
 import { db } from "./supabase";
-import { computeAvailability } from "./stock";
+import { computeAvailability, restockVerdict } from "./stock";
 import { addDays, daysBetweenInclusive, enumerateDates, weekdayOf } from "./analyticsDates";
 import type {
   CartItem,
@@ -19,6 +19,7 @@ import type {
   PlacedOrder,
   PlacedPreOrder,
   PrimaryRecipeLink,
+  RestockSignal,
   SalesAnalytics,
   Seat,
   StockAdjustmentRow,
@@ -412,16 +413,28 @@ export async function createCouponBatch(
   buyerName: string,
   couponValue: number,
   codes: string[],
-  totalCollected: number
+  totalCollected: number,
+  // Round 26: sold_at is now settable at entry time (for backdating a batch
+  // entered late), and paid/collected start false by default -- entering a
+  // batch on the site doesn't mean it's been paid for or picked up yet.
+  soldAt?: string,
+  paid: boolean = false,
+  collected: boolean = false
 ): Promise<void> {
   const uniqueCodes = Array.from(new Set(codes.map((c) => c.trim()).filter(Boolean)));
   if (uniqueCodes.length === 0) throw new Error("No coupon codes given.");
 
-  const { data: batch, error: batchErr } = await db()
-    .from("coupon_batches")
-    .insert({ buyer_name: buyerName, coupon_value: couponValue, quantity: uniqueCodes.length, total_collected: totalCollected })
-    .select("id")
-    .single();
+  const insertRow: Record<string, unknown> = {
+    buyer_name: buyerName,
+    coupon_value: couponValue,
+    quantity: uniqueCodes.length,
+    total_collected: totalCollected,
+    paid,
+    collected,
+  };
+  if (soldAt) insertRow.sold_at = soldAt;
+
+  const { data: batch, error: batchErr } = await db().from("coupon_batches").insert(insertRow).select("id").single();
   if (batchErr) throw batchErr;
 
   const { error: couponsErr } = await db()
@@ -430,9 +443,43 @@ export async function createCouponBatch(
   if (couponsErr) throw couponsErr;
 }
 
+// Round 26: lets the admin coupons page correct a batch's sale date after
+// the fact (it's often entered days after the real sale), and flip paid /
+// collected independently as those actually happen -- neither is inferred
+// from the other or from redemption.
+export async function updateCouponBatch(
+  id: string,
+  updates: {
+    soldAt?: string;
+    paid?: boolean;
+    collected?: boolean;
+    // Round 26 follow-up: buyer/value/total are entered once at creation
+    // with no way to fix a typo or a misheard amount afterward -- these
+    // three are now editable the same way, via the row's "Edit" button.
+    buyerName?: string;
+    couponValue?: number;
+    totalCollected?: number;
+  }
+): Promise<void> {
+  const row: Record<string, unknown> = {};
+  if (updates.soldAt) row.sold_at = updates.soldAt;
+  if (updates.paid !== undefined) row.paid = updates.paid;
+  if (updates.collected !== undefined) row.collected = updates.collected;
+  if (updates.buyerName !== undefined) row.buyer_name = updates.buyerName;
+  if (updates.couponValue !== undefined) row.coupon_value = updates.couponValue;
+  if (updates.totalCollected !== undefined) row.total_collected = updates.totalCollected;
+  if (Object.keys(row).length === 0) return;
+
+  const { error } = await db().from("coupon_batches").update(row).eq("id", id);
+  if (error) throw error;
+}
+
 export async function getCouponBatches(): Promise<CouponBatch[]> {
   const [{ data: batches, error: batchErr }, { data: coupons, error: couponErr }] = await Promise.all([
-    db().from("coupon_batches").select("id, buyer_name, coupon_value, quantity, total_collected, sold_at").order("sold_at", { ascending: false }),
+    db()
+      .from("coupon_batches")
+      .select("id, buyer_name, coupon_value, quantity, total_collected, sold_at, paid, collected")
+      .order("sold_at", { ascending: false }),
     db().from("coupons").select("batch_id, redeemed"),
   ]);
   if (batchErr) throw batchErr;
@@ -451,6 +498,8 @@ export async function getCouponBatches(): Promise<CouponBatch[]> {
     totalCollected: Number(b.total_collected),
     soldAt: b.sold_at,
     redeemedCount: redeemedCounts.get(b.id) ?? 0,
+    paid: b.paid,
+    collected: b.collected,
   }));
 }
 
@@ -533,6 +582,61 @@ export async function getIngredientRecipeLinks(): Promise<
     });
   }
   for (const list of Object.values(result)) list.sort((a, b) => a.menuItemName.localeCompare(b.menuItemName));
+  return result;
+}
+
+// Round 27: the "buy soon" / "can wait" call shown next to a low/out-of-stock
+// ingredient on the low-stock alert -- see restockVerdict() in stock.ts for
+// the rule. Computed from real sales over the trailing 30 days (today back
+// 29 more, Asia/Bangkok calendar date, same convention getSalesAnalytics'
+// callers use), live orders only -- the imported historical_sales log
+// predates launch and won't fall in a trailing-30-day window anyway, so
+// there's nothing to gain from querying it here. Keyed by ingredient id;
+// only ingredients with at least one recipe link get an entry (nothing to
+// judge a pace for otherwise) -- callers filter to the ones actually
+// low/out.
+export async function getRestockSignals(): Promise<Record<string, RestockSignal>> {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+  const from = addDays(today, -29);
+
+  const [ingredients, recipeLinks, { data: orders, error: ordersErr }] = await Promise.all([
+    getIngredients(),
+    getIngredientRecipeLinks(),
+    db()
+      .from("orders")
+      .select("order_date, order_items(menu_item_code, qty)")
+      .in("status", ["placed", "served", "paid"])
+      .gte("order_date", from)
+      .lte("order_date", today),
+  ]);
+  if (ordersErr) throw ordersErr;
+
+  type RawOrder = { order_date: string | null; order_items: { menu_item_code: string; qty: number }[] | null };
+  const qtySoldByCode = new Map<string, number>();
+  for (const order of (orders ?? []) as unknown as RawOrder[]) {
+    for (const it of order.order_items ?? []) {
+      qtySoldByCode.set(it.menu_item_code, (qtySoldByCode.get(it.menu_item_code) ?? 0) + it.qty);
+    }
+  }
+
+  const result: Record<string, RestockSignal> = {};
+  for (const ing of ingredients) {
+    const links = recipeLinks[ing.id];
+    if (!links || links.length === 0) continue;
+
+    let totalUsed = 0;
+    const usedIn: string[] = [];
+    for (const link of links) {
+      const qtySold = qtySoldByCode.get(link.menuItemCode) ?? 0;
+      if (qtySold > 0) {
+        totalUsed += qtySold * link.qtyPerOrder;
+        usedIn.push(link.menuItemName);
+      }
+    }
+    const avgDailyUsage = totalUsed / 30;
+    const { verdict, daysOfStockLeft } = restockVerdict(ing.currentStock, avgDailyUsage);
+    result[ing.id] = { verdict, avgDailyUsage, daysOfStockLeft, usedIn };
+  }
   return result;
 }
 

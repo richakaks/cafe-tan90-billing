@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeAvailability } from "./stock";
+import { computeAvailability, restockVerdict } from "./stock";
 import type { Ingredient, MenuItemIngredientLink } from "./types";
 
 function ingredient(overrides: Partial<Ingredient> & { id: string }): Ingredient {
@@ -66,5 +66,28 @@ describe("computeAvailability", () => {
   it("ignores dangling ingredient links (missing from the ingredients map)", () => {
     const links: MenuItemIngredientLink[] = [link({ menuItemCode: "CT001", ingredientId: "ghost", qtyPerOrder: 1 })];
     expect(computeAvailability("CT001", links, new Map())).toBe("in_stock");
+  });
+});
+
+describe("restockVerdict", () => {
+  it("is can_wait with no daysOfStockLeft when nothing that uses it sold in the window", () => {
+    expect(restockVerdict(0, 0)).toEqual({ verdict: "can_wait", daysOfStockLeft: null });
+    expect(restockVerdict(500, 0)).toEqual({ verdict: "can_wait", daysOfStockLeft: null });
+  });
+
+  it("is buy_soon when current stock covers less than 7 days at the recent pace", () => {
+    // 10 units left, using 5/day -> 2 days of runway.
+    expect(restockVerdict(10, 5)).toEqual({ verdict: "buy_soon", daysOfStockLeft: 2 });
+  });
+
+  it("is buy_soon when already at zero stock but still selling", () => {
+    expect(restockVerdict(0, 3)).toEqual({ verdict: "buy_soon", daysOfStockLeft: 0 });
+  });
+
+  it("is can_wait when current stock covers 7 or more days at the recent pace", () => {
+    // 70 units left, using 5/day -> exactly 14 days.
+    expect(restockVerdict(70, 5)).toEqual({ verdict: "can_wait", daysOfStockLeft: 14 });
+    // Exactly at the 7-day boundary counts as can_wait (only < 7 is urgent).
+    expect(restockVerdict(35, 5)).toEqual({ verdict: "can_wait", daysOfStockLeft: 7 });
   });
 });
