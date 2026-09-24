@@ -31,7 +31,7 @@ insert into seats (id, label, kind) values
   ('S4', 'Counter 4', 'counter')
 on conflict (id) do nothing;
 
--- Ingredients (16 batch-prep primaries + 103 raw/purchased ingredients + 5 packaging consumables)
+-- Ingredients (16 batch-prep primaries + 102 raw/purchased ingredients + 5 packaging consumables)
 insert into ingredients (name, unit, current_stock, low_stock_threshold, kind) values
   ('White Sauce', 'ml', 1000, 200, 'batch_prep'),
   ('Sautéed Mushrooms', 'g', 800, 150, 'batch_prep'),
@@ -94,7 +94,6 @@ insert into ingredients (name, unit, current_stock, low_stock_threshold, kind) v
   ('Honey', 'ml', 800, 150, 'raw'),
   ('Ground Coffee', 'g', 2000, 400, 'raw'),
   ('Thai Tea Powder', 'g', 500, 100, 'raw'),
-  ('Full-Fat Milk', 'ml', 5000, 1000, 'raw'),
   ('Evaporated Milk', 'ml', 1000, 200, 'raw'),
   ('Dried Butterfly Pea Flowers', 'pcs', 200, 40, 'raw'),
   ('Hazelnut Syrup', 'ml', 800, 150, 'raw'),
@@ -226,11 +225,7 @@ on conflict (menu_item_code, ingredient_id) do nothing;
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order, unit_label)
 select 'SN-PPF', id, 130, null from ingredients where name = 'Frozen Fries'
 union all
-select 'SN-PPF', id, 2.25, null from ingredients where name = 'Peri-Peri Seasoning'
-union all
-select 'SN-PPF', id, 0.75, null from ingredients where name = 'Garlic Powder'
-union all
-select 'SN-PPF', id, 0.75, null from ingredients where name = 'Smoked Paprika'
+select 'SN-PPF', id, 3.75, null from ingredients where name = 'Peri-Peri Seasoning'
 union all
 select 'SN-PPF', id, 30, null from ingredients where name = 'Homemade Mayo'
 on conflict (menu_item_code, ingredient_id) do nothing;
@@ -454,7 +449,7 @@ select 'SP-AWS0', id, 5, null from ingredients where name = 'Butter'
 union all
 select 'SP-AWS0', id, 1, null from ingredients where name = 'Garlic'
 union all
-select 'SP-AWS0', id, 0.75, null from ingredients where name = 'Garlic Powder'
+select 'SP-AWS0', id, 1.25, null from ingredients where name = 'Garlic Powder'
 union all
 select 'SP-AWS0', id, 10, null from ingredients where name = 'Grated Parmesan Cheese'
 union all
@@ -472,7 +467,7 @@ select 'SP-AWS1', id, 5, null from ingredients where name = 'Butter'
 union all
 select 'SP-AWS1', id, 1, null from ingredients where name = 'Garlic'
 union all
-select 'SP-AWS1', id, 0.75, null from ingredients where name = 'Garlic Powder'
+select 'SP-AWS1', id, 1.25, null from ingredients where name = 'Garlic Powder'
 union all
 select 'SP-AWS1', id, 1, null from ingredients where name = 'Green Chilli'
 union all
@@ -719,7 +714,7 @@ where p.name = 'White Sauce' and r.name = 'All-Purpose Flour'
 union all
 select p.id, r.id, 200::numeric / 250
 from ingredients p, ingredients r
-where p.name = 'White Sauce' and r.name = 'Full-Fat Milk'
+where p.name = 'White Sauce' and r.name = 'Meiji Milk'
 union all
 select p.id, r.id, 25::numeric / 250
 from ingredients p, ingredients r
@@ -1112,5 +1107,19 @@ insert into primary_ingredients (primary_id, raw_ingredient_id, qty_per_unit)
 select p.id, r.id, 10::numeric / 110
 from ingredients p, ingredients r
 where p.name = 'Black Tea Concentrate' and r.name = 'Black Tea Leaves'
+on conflict (primary_id, raw_ingredient_id) do nothing;
+
+insert into primary_ingredients (primary_id, raw_ingredient_id, qty_per_unit)
+select p.id, r.id, 500::numeric / 500
+from ingredients p, ingredients r
+where p.name = 'Caramelised Onions' and r.name = 'Onion'
+union all
+select p.id, r.id, 1.25::numeric / 500
+from ingredients p, ingredients r
+where p.name = 'Caramelised Onions' and r.name = 'Salt'
+union all
+select p.id, r.id, 30::numeric / 500
+from ingredients p, ingredients r
+where p.name = 'Caramelised Onions' and r.name = 'Cooking Oil'
 on conflict (primary_id, raw_ingredient_id) do nothing;
 

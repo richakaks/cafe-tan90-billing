@@ -39,8 +39,8 @@ PRIMARIES = {
     "Coffee Concentrate": ("ml", 1000, 200),
     "Black Tea Concentrate": ("ml", 1000, 200),
     # Added when the Drinks SOP introduced a blended-milk base (Meiji :
-    # Carnation : Mali, 7:2:1) used across Cappuccino/Mocha/Cocoa in place
-    # of plain Full-Fat Milk. 2-day shelf life per the SOP.
+    # Carnation : Mali, 7:2:1) used across Cappuccino/Mocha/Cocoa. 2-day
+    # shelf life per the SOP.
     "Base Milk": ("ml", 2000, 400),
     # House-made from Base Milk + cocoa powder + sugar, cooked down. Distinct
     # from the raw "Chocolate Sauce" ingredient (a store-bought drizzle, now
@@ -108,7 +108,6 @@ RAW = {
     "Honey": ("ml", 800, 150),
     "Ground Coffee": ("g", 2000, 400),
     "Thai Tea Powder": ("g", 500, 100),
-    "Full-Fat Milk": ("ml", 5000, 1000),
     "Evaporated Milk": ("ml", 1000, 200),
     "Dried Butterfly Pea Flowers": ("pcs", 200, 40),
     "Hazelnut Syrup": ("ml", 800, 150),
@@ -203,9 +202,15 @@ RAW = {
     "Turmeric": ("g", 300, 60),
     "Paprika": ("g", 300, 60),
     "Timur Pepper": ("g", 100, 20),
-    # Base Milk's three named brand components -- kept as their own SKUs
-    # rather than merged into the existing "Full-Fat Milk"/dairy ingredients,
-    # since they're specific bar-purchased products the SOP names directly.
+    # Base Milk's three named brand components -- specific bar-purchased
+    # products the SOP names directly.
+    # Round 28 (9/24 second follow-up): the owner confirmed "Full-Fat Milk"
+    # (previously its own separate SKU, used only in White Sauce) and
+    # "Meiji Milk" are literally the same purchased product -- the cafe
+    # buys one milk, brand Meiji, and both the Food SOP's White Sauce and
+    # the Drinks SOP's Base Milk recipe draw from it. Merged into this one
+    # ingredient; White Sauce's primary recipe now points here instead of
+    # the now-removed "Full-Fat Milk" row (see PRIMARY_RECIPES below).
     "Meiji Milk": ("ml", 6000, 1000),
     "Carnation Evaporated Milk": ("ml", 3000, 500),
     "Mali Condensed Milk": ("ml", 3000, 500),
@@ -243,15 +248,19 @@ RAW = {
 #   - Chocolate Syrup's true finished ml yield isn't stated (SOP just says
 #     "a little less" than the milk you start with) -- used the 1000ml
 #     Base-Milk-in figure as the reference batch on an input basis.
-#   - Caramelised Onions has NO ingredient table in the SOP at all (only
-#     prose: "cook in a small amount of butter or oil") despite being used
-#     in nearly every burger -- deliberately left out of this dict rather
-#     than inventing a recipe. It stays a directly-restocked primary with no
-#     nested deduction until the SOP is updated with real quantities.
+#   - Round 28 (9/24 second follow-up): Caramelised Onions previously had NO
+#     ingredient table in the SOP (only prose) and was deliberately left out
+#     of this dict as a directly-restocked primary with no nested deduction.
+#     The owner has now added a real quantified recipe (Primary 1.11); it's
+#     added below using the same tbsp/tsp->g conversion rule as everything
+#     else (1 tbsp = 15g/ml, 1 tsp = 5g/ml).
 # ---------------------------------------------------------------------------
 PRIMARY_RECIPES = {
+    # Round 28 (9/24 second follow-up): "Full-fat milk" -> "Meiji Milk",
+    # same 200ml, per the owner-confirmed Full-Fat Milk/Meiji Milk merge
+    # (see the Meiji Milk RAW entry's comment above).
     "White Sauce": (250, [
-        ("Butter", 15), ("All-Purpose Flour", 15), ("Full-Fat Milk", 200),
+        ("Butter", 15), ("All-Purpose Flour", 15), ("Meiji Milk", 200),
         ("Cream Cheese", 25), ("Salt", 2.5), ("White Pepper", 0.3), ("Nutmeg", 0.3),
     ]),
     "Sautéed Mushrooms": (200, [
@@ -315,6 +324,15 @@ PRIMARY_RECIPES = {
     # an ingredient of another primary, same as any raw ingredient.
     "Chocolate Syrup": (1000, [("Base Milk", 1000), ("Cocoa Powder", 133), ("Sugar", 533)]),
     "Black Tea Concentrate": (110, [("Black Tea Leaves", 10)]),
+    # Round 28 (9/24 second follow-up): newly-added SOP recipe (Primary
+    # 1.11). Salt "1/4 tsp" -> 1.25g per the standing conversion rule; Oil
+    # is given as an explicit 30ml in the table (mapped to the generic
+    # "Cooking Oil" ingredient, same convention as Tikka Marinated Mince's
+    # and Chicken Keema's own plain "Oil" lines). Yield is the SOP's own
+    # stated "500g" -- used literally even though it equals the raw onion
+    # input weight (cooking-down water loss vs. moisture/oil pickup roughly
+    # cancel out per the SOP's own numbers; not reconciled further).
+    "Caramelised Onions": (500, [("Onion", 500), ("Salt", 1.25), ("Cooking Oil", 30)]),
 }
 
 # Ingredients that exist for manual/visibility restock tracking only --
@@ -454,7 +472,15 @@ MAPPINGS = {
     "SN-FRF": [("Frozen Fries", 130), ("Homemade Mayo", 30)],
     # Round 28: revised table says Mayo 30ml (was following the method
     # text's 20ml) -- owner confirmed follow the table literally.
-    "SN-PPF": [("Frozen Fries", 130), ("Peri-Peri Seasoning", 2.25), ("Garlic Powder", 0.75), ("Smoked Paprika", 0.75), ("Homemade Mayo", 30)],
+    # Round 28 (9/24 second follow-up, tbsp/tsp audit): the current table
+    # has only two ingredient rows -- Frozen Fries and "Peri-peri seasoning
+    # | 3/4 tsp" -- Garlic Powder and Smoked Paprika are no longer separate
+    # table lines (removed per the same "table is authoritative, trust the
+    # revised SOP" rule used elsewhere this round), and the seasoning itself
+    # was previously coded at the wrong gram figure (2.25g, an old value
+    # that predates this 3/4 tsp table row) -- corrected to 3.75g (3/4 tsp
+    # x 5g/tsp, the standing conversion rule).
+    "SN-PPF": [("Frozen Fries", 130), ("Peri-Peri Seasoning", 3.75), ("Homemade Mayo", 30)],
     # Updated SOP: dropped Fresh Lime Juice, picked up a second dry
     # seasoning (Lime Seasoning) and Mayonnaise (mapped to the Homemade Mayo
     # primary, same "house mayo" convention used elsewhere -- see project
@@ -502,8 +528,12 @@ MAPPINGS = {
     "B-GCB": [("Burger Bun", 1), ("Butter", 5), ("Frozen Chicken Patty", 1), ("Gochujang Sauce", 15), ("Caramelised Onions", 30, "tbsp"), ("Fresh Cucumber Slices", 3), ("Homemade Mayo", 30)],
     "B-SCB": [("Burger Bun", 1), ("Butter", 5), ("Frozen Chicken Patty", 1), ("Cheese Slice", 1), ("Iceberg Lettuce", 20), ("Caramelised Onions", 30, "tbsp"), ("Ketchup", 15), ("Homemade Mayo", 40), ("Chilli Oil", 15)],
 
-    "SP-AWS0": [("Spaghetti (Dry)", 90), ("White Sauce", 120), ("Sautéed Mushrooms", 75), ("Butter", 5), ("Garlic", 1), ("Garlic Powder", 0.75), ("Grated Parmesan Cheese", 10), ("Olive Oil", 5)],
-    "SP-AWS1": [("Spaghetti (Dry)", 90), ("White Sauce", 120), ("Tikka Marinated Mince", 70), ("Butter", 5), ("Garlic", 1), ("Garlic Powder", 0.75), ("Green Chilli", 1), ("Grated Parmesan Cheese", 10), ("Olive Oil", 5)],
+    # Round 28 (9/24 second follow-up, tbsp/tsp audit): both dishes' Garlic
+    # Powder row reads "1/4 tsp" in the SOP, tsp-only with no gram figure --
+    # corrected 0.75g -> 1.25g (1/4 tsp x 5g/tsp, the standing conversion
+    # rule; the old 0.75g predates this table row).
+    "SP-AWS0": [("Spaghetti (Dry)", 90), ("White Sauce", 120), ("Sautéed Mushrooms", 75), ("Butter", 5), ("Garlic", 1), ("Garlic Powder", 1.25), ("Grated Parmesan Cheese", 10), ("Olive Oil", 5)],
+    "SP-AWS1": [("Spaghetti (Dry)", 90), ("White Sauce", 120), ("Tikka Marinated Mince", 70), ("Butter", 5), ("Garlic", 1), ("Garlic Powder", 1.25), ("Green Chilli", 1), ("Grated Parmesan Cheese", 10), ("Olive Oil", 5)],
 
     # Round 28: revised Drinks SOP raised Black Tea Leaves 3g -> 5g on both,
     # and switched Fresh Lemon Juice -> Fresh Lime Juice (owner confirmed:

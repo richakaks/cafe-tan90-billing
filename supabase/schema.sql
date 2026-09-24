@@ -1453,6 +1453,45 @@ delete from primary_ingredients where primary_id in (select id from ingredients 
 delete from primary_ingredients where primary_id in (select id from ingredients where name = 'Veg Keema') and raw_ingredient_id in (select id from ingredients where name in ('Ginger Paste','Garlic Paste'));
 
 -- ---------------------------------------------------------------------------
+-- Round 28 second follow-up (9/24): owner-confirmed Full-Fat Milk / Meiji
+-- Milk consolidation, a full tbsp/tsp->g conversion re-audit of both SOPs
+-- (catching two long-standing gram figures that predated their current
+-- table rows), and a brand-new Caramelised Onions recipe the owner added
+-- to the SOP.
+-- ---------------------------------------------------------------------------
+
+-- Full-Fat Milk and Meiji Milk are the same purchased product (owner
+-- confirmed: one milk, brand Meiji, used in both White Sauce and Base
+-- Milk). Re-point White Sauce's link from Full-Fat Milk to Meiji Milk; the
+-- new 200ml link is added by seed.sql's own on-conflict-do-nothing insert.
+-- The now-unlinked "Full-Fat Milk" ingredient row is left in place (same
+-- treatment as the Ginger Paste/Garlic Paste consolidation above) rather
+-- than deleted outright.
+delete from primary_ingredients where primary_id in (select id from ingredients where name = 'White Sauce') and raw_ingredient_id in (select id from ingredients where name = 'Full-Fat Milk');
+
+-- Peri-Peri Fries: the current SOP table has only two ingredient rows
+-- (Frozen Fries, Peri-peri seasoning) -- Garlic Powder and Smoked Paprika
+-- are no longer separate table lines, so their links are removed (same
+-- "table is authoritative, trust the revised SOP" treatment used above for
+-- Potato Patty/Veg Keema). The seasoning's own gram figure is fixed below.
+delete from menu_item_ingredients where menu_item_code = 'SN-PPF' and ingredient_id in (select id from ingredients where name in ('Garlic Powder','Smoked Paprika'));
+
+-- tbsp/tsp -> g conversion re-audit (owner's standing rule: 1 tbsp = 15
+-- g/ml, 1 tsp = 5 g/ml): both figures below were coded before their
+-- current SOP table rows existed and were never re-derived from them.
+-- Peri-Peri Seasoning "3/4 tsp" = 3.75g, not the old 2.25g.
+update menu_item_ingredients set qty_per_order = 3.75 where menu_item_code = 'SN-PPF' and ingredient_id in (select id from ingredients where name = 'Peri-Peri Seasoning');
+-- Garlic Powder "1/4 tsp" = 1.25g, not the old 0.75g -- same row, same
+-- text, in both Spaghetti Alfredo variants.
+update menu_item_ingredients set qty_per_order = 1.25 where menu_item_code in ('SP-AWS0','SP-AWS1') and ingredient_id in (select id from ingredients where name = 'Garlic Powder');
+
+-- Caramelised Onions previously had no ingredient table in the SOP at all
+-- and was a directly-restocked primary with no nested deduction. The owner
+-- has now added a real recipe (Primary 1.11); its three new
+-- primary_ingredients rows are added by seed.sql's own on-conflict-do-
+-- nothing insert -- nothing to delete or update here.
+
+-- ---------------------------------------------------------------------------
 -- Explicit grants for the service role. Newer Supabase projects no longer
 -- auto-grant service_role access to tables created by hand (the "Automatically
 -- expose new tables" project setting) — these grants make this schema work
