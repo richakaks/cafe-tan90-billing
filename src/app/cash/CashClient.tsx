@@ -117,7 +117,7 @@ export default function CashClient({ initialDay, initialRecent, today, staff }: 
         <div className="space-y-1 rounded-lg bg-navy-100/60 p-4 text-sm">
           <div className="flex justify-between"><span>+ Cash taken today</span><span>{baht(day.cashReceived)}</span></div>
           {day.cashRefunded > 0 && <div className="flex justify-between"><span>− Cash refunded</span><span>{baht(day.cashRefunded)}</span></div>}
-          <div className="flex justify-between text-navy-600"><span>− Cash purchases from the drawer</span><span>{baht(day.cashPurchases)} <span className="text-[11px]">(purchase tracker coming next)</span></span></div>
+          <div className="flex justify-between"><span>− Purchases paid from the drawer <a href="/purchases" className="text-[11px] text-navy-700 underline">see Purchases</a></span><span>{baht(day.cashPurchases)}</span></div>
           <div className="flex justify-between border-t border-card-border pt-1 font-semibold"><span>Expected closing</span><span>{baht(expected)}</span></div>
           <p className="text-[11px] text-navy-600">Only cash counts here — online and coupon payments never go in the drawer.</p>
         </div>

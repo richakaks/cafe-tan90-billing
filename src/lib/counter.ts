@@ -12,6 +12,8 @@ import type {
   OrderCouponRow,
   OrderPaymentRow,
   PaymentMethod,
+  Purchase,
+  PurchasePaidVia,
   StaffMember,
 } from "./types";
 
@@ -47,6 +49,8 @@ export class CounterError extends Error {
       "invalid_amount",
       "invalid_coupon_input",
       "unknown_order_coupon",
+      "trial_no_coupons",
+      "trial_walk_in_only",
     ].includes(this.code);
   }
 
@@ -74,6 +78,10 @@ export class CounterError extends Error {
         return "Enter an amount.";
       case "invalid_payment_method":
         return "Pick Cash or Online.";
+      case "trial_no_coupons":
+        return "Trial orders can't use real coupon codes (that would use the coupon up). Use \"code later\" with a value instead.";
+      case "trial_walk_in_only":
+        return "Trial orders can only be normal orders, not pre-orders.";
       default:
         return "Something went wrong. Please try again.";
     }
@@ -139,6 +147,8 @@ export interface CounterOrderInput {
   discountNote?: string;
   coupons?: ({ code: string } | { pendingAmount: number })[];
   payments?: { method: PaymentMethod; amount: number }[];
+  // Round 33: practice order -- never counted anywhere.
+  trial?: boolean;
 }
 
 export type CounterSyncResult =
@@ -234,7 +244,7 @@ export async function setDayLocked(day: string, locked: boolean, staffId: string
 // ---------------------------------------------------------------------------
 
 const COUNTER_ORDER_SELECT =
-  "id, daily_order_number, order_date, seat_id, status, order_type, requested_date, requested_time, coupon_code, discount_amount, payment_method, created_at, source, customer_label, manual_discount_pct, manual_discount_amount, discount_note, voided_at, void_reason, staff:staff_id(name), order_items(id, menu_item_code, item_name, qty, price_at_order, fulfillment_type, note), order_payments(id, method, amount, received_on, note, created_at, staff:staff_id(name)), order_coupons(id, coupon_code, amount, attempted_code)";
+  "id, daily_order_number, order_date, seat_id, status, order_type, requested_date, requested_time, coupon_code, discount_amount, payment_method, created_at, source, customer_label, manual_discount_pct, manual_discount_amount, discount_note, voided_at, void_reason, is_trial, staff:staff_id(name), order_items(id, menu_item_code, item_name, qty, price_at_order, fulfillment_type, note), order_payments(id, method, amount, received_on, note, created_at, staff:staff_id(name)), order_coupons(id, coupon_code, amount, attempted_code)";
 
 type RawCounterOrder = {
   id: string;
@@ -256,6 +266,7 @@ type RawCounterOrder = {
   discount_note: string | null;
   voided_at: string | null;
   void_reason: string | null;
+  is_trial: boolean | null;
   staff: { name: string } | null;
   order_items: { id: number; menu_item_code: string; item_name: string; qty: number; price_at_order: number; fulfillment_type: string; note: string | null }[] | null;
   order_payments: { id: number; method: string; amount: number; received_on: string; note: string | null; created_at: string; staff: { name: string } | null }[] | null;
@@ -308,6 +319,7 @@ function mapCounterOrder(o: RawCounterOrder): CounterOrder {
     source: o.source === "counter" ? "counter" : "qr",
     customerLabel: o.customer_label,
     amountPaid,
+    isTrial: !!o.is_trial,
     staffName: o.staff?.name ?? null,
     manualDiscountPct: o.manual_discount_pct === null ? null : Number(o.manual_discount_pct),
     manualDiscountAmount: Number(o.manual_discount_amount),
@@ -324,8 +336,13 @@ function mapCounterOrder(o: RawCounterOrder): CounterOrder {
 
 export async function getCounterDay(date: string): Promise<CounterDay> {
   const [{ data: orders, error: ordersErr }, { data: received, error: recErr }, { data: lock, error: lockErr }] = await Promise.all([
-    db().from("orders").select(COUNTER_ORDER_SELECT).eq("order_date", date).order("daily_order_number"),
-    db().from("order_payments").select("method, amount, orders!inner(status)").eq("received_on", date).neq("orders.status", "void"),
+    db().from("orders").select(COUNTER_ORDER_SELECT).eq("order_date", date).eq("is_trial", false).order("daily_order_number"),
+    db()
+      .from("order_payments")
+      .select("method, amount, orders!inner(status, is_trial)")
+      .eq("received_on", date)
+      .neq("orders.status", "void")
+      .eq("orders.is_trial", false),
     db().from("day_locks").select("day").eq("day", date).maybeSingle(),
   ]);
   if (ordersErr) throw ordersErr;
@@ -373,6 +390,7 @@ export async function getCounterOpenItems(): Promise<{ pickups: CounterOrder[]; 
       .from("orders")
       .select(COUNTER_ORDER_SELECT)
       .eq("source", "counter")
+      .eq("is_trial", false)
       .neq("status", "void")
       .gte("created_at", since)
       .order("created_at", { ascending: false }),
@@ -411,11 +429,18 @@ export async function getCashDay(day: string): Promise<CashDay> {
   const [{ data: row, error: rowErr }, { data: prev, error: prevErr }, { data: pays, error: payErr }] = await Promise.all([
     db().from("cash_days").select("day, opening, closing_counted, note, updated_at").eq("day", day).maybeSingle(),
     db().from("cash_days").select("day, closing_counted").lt("day", day).not("closing_counted", "is", null).order("day", { ascending: false }).limit(1),
-    db().from("order_payments").select("amount, orders!inner(status)").eq("received_on", day).eq("method", "cash").neq("orders.status", "void"),
+    db()
+      .from("order_payments")
+      .select("amount, orders!inner(status, is_trial)")
+      .eq("received_on", day)
+      .eq("method", "cash")
+      .neq("orders.status", "void")
+      .eq("orders.is_trial", false),
   ]);
   if (rowErr) throw rowErr;
   if (prevErr) throw prevErr;
   if (payErr) throw payErr;
+  const drawerOut = await getDrawerPurchaseTotal(day);
 
   let cashReceived = 0;
   let cashRefunded = 0;
@@ -424,9 +449,9 @@ export async function getCashDay(day: string): Promise<CashDay> {
     if (a >= 0) cashReceived += a;
     else cashRefunded += -a;
   }
-  // Purchases paid from the drawer arrive with the purchase tracker (next
-  // round); until then this is always 0.
-  const cashPurchases = 0;
+  // Round 33: purchases paid with drawer cash that day, plus own-pocket
+  // purchases paid back to someone from the drawer that day.
+  const cashPurchases = drawerOut.total;
 
   const opening = row?.opening === null || row?.opening === undefined ? null : Number(row.opening);
   const closingCounted = row?.closing_counted === null || row?.closing_counted === undefined ? null : Number(row.closing_counted);
@@ -446,6 +471,7 @@ export async function getCashDay(day: string): Promise<CashDay> {
     expectedClosing,
     difference: expectedClosing === null || closingCounted === null ? null : Math.round((closingCounted - expectedClosing) * 100) / 100,
     updatedAt: row?.updated_at ?? null,
+    cashPurchaseCount: drawerOut.count,
   };
 }
 
@@ -464,4 +490,168 @@ export async function saveCashDay(day: string, opening: number | null, closingCo
     .from("cash_days")
     .upsert({ day, opening, closing_counted: closingCounted, note, staff_id: staffId, updated_at: new Date().toISOString() });
   if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// Trial orders (Round 33)
+// ---------------------------------------------------------------------------
+
+export async function getTrialOrders(): Promise<CounterOrder[]> {
+  const { data, error } = await db().from("orders").select(COUNTER_ORDER_SELECT).eq("is_trial", true).order("created_at");
+  if (error) throw error;
+  return (data ?? []).map((o) => mapCounterOrder(o as unknown as RawCounterOrder));
+}
+
+export async function clearTrialOrders(): Promise<number> {
+  const { data, error } = await db().rpc("clear_trial_orders");
+  if (error) throw error;
+  return Number(data ?? 0);
+}
+
+// ---------------------------------------------------------------------------
+// Purchase tracker (Round 33)
+// ---------------------------------------------------------------------------
+
+const PURCHASE_SELECT =
+  "id, purchase_date, item, brand, quantity, unit, price, paid_via, paid_by, reimbursed_on, reimbursed_via, note, created_at, staff:staff_id(name)";
+
+type RawPurchase = {
+  id: number;
+  purchase_date: string;
+  item: string;
+  brand: string | null;
+  quantity: number | null;
+  unit: string | null;
+  price: number;
+  paid_via: string;
+  paid_by: string | null;
+  reimbursed_on: string | null;
+  reimbursed_via: string | null;
+  note: string | null;
+  created_at: string;
+  staff: { name: string } | null;
+};
+
+function mapPurchase(r: RawPurchase): Purchase {
+  return {
+    id: r.id,
+    purchaseDate: r.purchase_date,
+    item: r.item,
+    brand: r.brand,
+    quantity: r.quantity === null ? null : Number(r.quantity),
+    unit: r.unit,
+    price: Number(r.price),
+    paidVia: r.paid_via as PurchasePaidVia,
+    paidBy: r.paid_by,
+    reimbursedOn: r.reimbursed_on,
+    reimbursedVia: (r.reimbursed_via as Purchase["reimbursedVia"]) ?? null,
+    note: r.note,
+    staffName: r.staff?.name ?? null,
+    createdAt: r.created_at,
+  };
+}
+
+export interface PurchaseInput {
+  purchaseDate: string;
+  item: string;
+  brand: string | null;
+  quantity: number | null;
+  unit: string | null;
+  price: number;
+  paidVia: PurchasePaidVia;
+  paidBy: string | null;
+  note: string | null;
+  reimbursedOn?: string | null;
+  reimbursedVia?: "drawer" | "online" | null;
+}
+
+function purchaseRow(input: Partial<PurchaseInput>): Record<string, unknown> {
+  const row: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (input.purchaseDate !== undefined) row.purchase_date = input.purchaseDate;
+  if (input.item !== undefined) row.item = input.item.trim();
+  if (input.brand !== undefined) row.brand = input.brand?.trim() || null;
+  if (input.quantity !== undefined) row.quantity = input.quantity;
+  if (input.unit !== undefined) row.unit = input.unit?.trim() || null;
+  if (input.price !== undefined) row.price = input.price;
+  if (input.paidVia !== undefined) row.paid_via = input.paidVia;
+  if (input.paidBy !== undefined) row.paid_by = input.paidBy?.trim() || null;
+  if (input.note !== undefined) row.note = input.note?.trim() || null;
+  if (input.reimbursedOn !== undefined) row.reimbursed_on = input.reimbursedOn;
+  if (input.reimbursedVia !== undefined) row.reimbursed_via = input.reimbursedVia;
+  return row;
+}
+
+export async function getPurchases(from: string, to: string): Promise<Purchase[]> {
+  const { data, error } = await db()
+    .from("purchases")
+    .select(PURCHASE_SELECT)
+    .gte("purchase_date", from)
+    .lte("purchase_date", to)
+    .order("purchase_date")
+    .order("id");
+  if (error) throw error;
+  return (data ?? []).map((r) => mapPurchase(r as unknown as RawPurchase));
+}
+
+// Own-pocket purchases nobody has been paid back for yet (any date).
+export async function getOwedBack(): Promise<Purchase[]> {
+  const { data, error } = await db()
+    .from("purchases")
+    .select(PURCHASE_SELECT)
+    .eq("paid_via", "own_pocket")
+    .is("reimbursed_on", null)
+    .order("purchase_date")
+    .order("id");
+  if (error) throw error;
+  return (data ?? []).map((r) => mapPurchase(r as unknown as RawPurchase));
+}
+
+export async function addPurchases(rows: PurchaseInput[], staffId: string | null): Promise<void> {
+  if (rows.length === 0) return;
+  const { error } = await db()
+    .from("purchases")
+    .insert(rows.map((r) => ({ ...purchaseRow(r), staff_id: staffId })));
+  if (error) throw error;
+}
+
+export async function updatePurchase(id: number, updates: Partial<PurchaseInput>): Promise<void> {
+  const { error } = await db().from("purchases").update(purchaseRow(updates)).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deletePurchase(id: number): Promise<void> {
+  const { error } = await db().from("purchases").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// Past items / brands / units / payer names, for the add form's suggestions.
+export async function getPurchaseSuggestions(): Promise<{ items: string[]; brands: string[]; units: string[]; payers: string[] }> {
+  const { data, error } = await db()
+    .from("purchases")
+    .select("item, brand, unit, paid_by")
+    .order("id", { ascending: false })
+    .limit(1000);
+  if (error) throw error;
+  const uniq = (vals: (string | null)[]) => Array.from(new Set(vals.filter((v): v is string => !!v && v.trim() !== "").map((v) => v.trim()))).sort((a, b) => a.localeCompare(b));
+  const rows = (data ?? []) as { item: string; brand: string | null; unit: string | null; paid_by: string | null }[];
+  return {
+    items: uniq(rows.map((r) => r.item)),
+    brands: uniq(rows.map((r) => r.brand)),
+    units: uniq(["g", "kg", "ml", "L", "pcs", "pack", "box", "bottle", "bag", ...rows.map((r) => r.unit)]),
+    payers: uniq(rows.map((r) => r.paid_by)),
+  };
+}
+
+// Money that left the cash drawer on a day because of purchases: drawer-paid
+// purchases dated that day + own-pocket purchases paid back from the drawer
+// that day.
+async function getDrawerPurchaseTotal(day: string): Promise<{ total: number; count: number }> {
+  const [{ data: bought, error: e1 }, { data: repaid, error: e2 }] = await Promise.all([
+    db().from("purchases").select("price").eq("purchase_date", day).eq("paid_via", "drawer"),
+    db().from("purchases").select("price").eq("reimbursed_on", day).eq("reimbursed_via", "drawer"),
+  ]);
+  if (e1) throw e1;
+  if (e2) throw e2;
+  const all = [...(bought ?? []), ...(repaid ?? [])] as { price: number }[];
+  return { total: all.reduce((s, r) => s + Number(r.price), 0), count: all.length };
 }

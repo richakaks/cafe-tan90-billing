@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { OrderRow } from "@/lib/types";
-import SourceBadge from "@/components/SourceBadge";
+import SourceBadge, { TrialBadge } from "@/components/SourceBadge";
 
 const POLL_MS = 6000;
 const PICKUP_BUCKET = "Pickup (pre-order)";
 const COUNTER_BUCKET = "Counter";
+const TRIAL_BUCKET = "Trial orders (practice — not counted)";
 
 function timeAgo(iso: string): string {
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
@@ -47,7 +48,9 @@ export default function ServeClient({ initialOrders, initialPreOrders }: { initi
     const map = new Map<string, OrderRow[]>();
     for (const order of orders) {
       // Round 32: counter orders have no seat -- grouped under "Counter".
-      const key = order.seatId ?? (order.source === "counter" && order.orderType === "counter" ? COUNTER_BUCKET : PICKUP_BUCKET);
+      const key = order.isTrial
+        ? TRIAL_BUCKET
+        : order.seatId ?? (order.source === "counter" && order.orderType === "counter" ? COUNTER_BUCKET : PICKUP_BUCKET);
       const list = map.get(key) ?? [];
       list.push(order);
       map.set(key, list);
@@ -65,6 +68,29 @@ export default function ServeClient({ initialOrders, initialPreOrders }: { initi
     }
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [preOrders]);
+
+  // Round 33: practice orders for trying out the serving screen.
+  const [trialBusy, setTrialBusy] = useState(false);
+  const [trialMsg, setTrialMsg] = useState<string | null>(null);
+  async function addTrial() {
+    setTrialBusy(true);
+    setTrialMsg(null);
+    try {
+      const res = await fetch("/api/counter/trial", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const body = await res.json().catch(() => ({}));
+      setTrialMsg(res.ok ? "Trial order added below — try marking it served, then pay it on Billing. It's never counted." : body.error ?? "Could not add a trial order.");
+      refresh();
+    } finally {
+      setTrialBusy(false);
+    }
+  }
+  async function clearTrials() {
+    if (!window.confirm("Delete all trial orders?")) return;
+    await fetch("/api/counter/trial", { method: "DELETE" }).catch(() => null);
+    setTrialMsg("Trial orders cleared.");
+    refresh();
+  }
+  const hasTrials = orders.some((o) => o.isTrial);
 
   async function markServed(id: string) {
     setServingId(id);
@@ -96,6 +122,20 @@ export default function ServeClient({ initialOrders, initialPreOrders }: { initi
 
   return (
     <div className="space-y-8">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-dashed border-orange-300 px-4 py-3">
+        <span className="text-sm text-navy-700">Practise the serving screen with an order that is never recorded.</span>
+        <span className="flex gap-2">
+          {hasTrials && (
+            <button type="button" onClick={clearTrials} className="rounded-lg border border-orange-300 px-3 py-2 text-sm font-medium text-orange-700">
+              Clear trial orders
+            </button>
+          )}
+          <button type="button" disabled={trialBusy} onClick={addTrial} className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+            {trialBusy ? "Adding…" : "Trial order"}
+          </button>
+        </span>
+        {trialMsg && <p className="w-full text-xs text-orange-700">{trialMsg}</p>}
+      </div>
       {preOrders.length > 0 && (
         <section>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-navy-600">Upcoming pre-orders</h2>
@@ -157,8 +197,9 @@ export default function ServeClient({ initialOrders, initialPreOrders }: { initi
                     <div key={order.id} className="border-t border-card-border pt-3 first:border-t-0 first:pt-0">
                       <div className="flex items-center justify-between">
                         <p className="flex items-center gap-1.5 font-semibold text-navy-950">
-                          Order #{order.dailyOrderNumber}
+                          {order.isTrial ? "Trial" : "Order"} #{order.dailyOrderNumber}
                           <SourceBadge source={order.source} />
+                          {order.isTrial && <TrialBadge />}
                           {order.customerLabel && <span className="text-xs font-normal text-navy-700">{order.customerLabel}</span>}
                         </p>
                         <p className="text-xs text-navy-600">{timeAgo(order.createdAt)}</p>

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { OrderRow } from "@/lib/types";
-import SourceBadge from "@/components/SourceBadge";
+import SourceBadge, { TrialBadge } from "@/components/SourceBadge";
 
 const POLL_MS = 8000;
 const PICKUP_BUCKET = "Pickup (pre-order)";
@@ -126,7 +126,7 @@ export default function BillingClient({ initialOrders }: { initialOrders: OrderR
   const bySeat = useMemo(() => {
     const map = new Map<string, OrderRow[]>();
     for (const order of orders) {
-      const key = order.seatId ?? (order.source === "counter" ? (order.customerLabel ? `Counter · ${order.customerLabel}` : "Counter") : PICKUP_BUCKET);
+      const key = order.isTrial ? "Trial orders (practice — not counted)" : order.seatId ?? (order.source === "counter" ? (order.customerLabel ? `Counter · ${order.customerLabel}` : "Counter") : PICKUP_BUCKET);
       const list = map.get(key) ?? [];
       list.push(order);
       map.set(key, list);
@@ -185,7 +185,8 @@ export default function BillingClient({ initialOrders }: { initialOrders: OrderR
                   return (
                     <div key={order.id} className="border-t border-card-border pt-3 first:border-t-0 first:pt-0">
                       <p className="flex items-center gap-1.5 font-semibold text-navy-950">
-                        Order #{order.dailyOrderNumber ?? "—"} <SourceBadge source={order.source} />
+                        {order.isTrial ? "Trial" : "Order"} #{order.dailyOrderNumber ?? "—"} <SourceBadge source={order.source} />
+                        {order.isTrial && <TrialBadge />}
                       </p>
                       <ul className="mt-1 space-y-0.5 text-sm text-navy-800">
                         {order.items.map((it) => (

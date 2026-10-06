@@ -2099,7 +2099,11 @@ declare
   v_soft boolean := coalesce((p ->> 'softCoupons')::boolean, false);
   v_value numeric;
   v_warnings text[] := '{}';
+  v_trial boolean := coalesce((p ->> 'trial')::boolean, false);
 begin
+  -- Round 33: trial orders older than a day clean themselves up.
+  delete from orders where is_trial and created_at < now() - interval '1 day';
+
   if coalesce(p ->> 'clientKey', '') = '' then
     raise exception 'missing_client_key' using errcode = 'P0001';
   end if;
@@ -2119,14 +2123,24 @@ begin
   if v_kind = 'pre_order' and coalesce(p ->> 'requestedDate', '') = '' then
     raise exception 'missing_requested_date' using errcode = 'P0001';
   end if;
-  if v_kind = 'walk_in' and counter_day_locked(v_day) then
+  if v_trial and v_kind <> 'walk_in' then
+    raise exception 'trial_walk_in_only' using errcode = 'P0001';
+  end if;
+  if v_trial and exists (select 1 from jsonb_array_elements(coalesce(p -> 'coupons', '[]'::jsonb)) c
+                         where coalesce(trim(c ->> 'code'), '') <> '') then
+    raise exception 'trial_no_coupons' using errcode = 'P0001';
+  end if;
+  if v_kind = 'walk_in' and not v_trial and counter_day_locked(v_day) then
     raise exception 'day_locked: %', v_day using errcode = 'P0001';
   end if;
   if v_staff is not null and not exists (select 1 from staff where id = v_staff) then
     v_staff := null;
   end if;
 
-  if v_kind = 'walk_in' then
+  if v_trial then
+    -- Own little sequence (Trial #1, #2...), never the real daily numbers.
+    select count(*) + 1 into v_number from orders where is_trial;
+  elsif v_kind = 'walk_in' then
     perform pg_advisory_xact_lock(hashtext(v_day::text));
     select coalesce(max(daily_order_number), 0) + 1 into v_number from orders where order_date = v_day;
   end if;
@@ -2134,10 +2148,10 @@ begin
   insert into orders (
     daily_order_number, order_date, seat_id, status, order_type, requested_date, requested_time,
     source, staff_id, customer_label, client_key, inventory_applied,
-    manual_discount_pct, manual_discount_amount, discount_note, created_at
+    manual_discount_pct, manual_discount_amount, discount_note, created_at, is_trial
   ) values (
     v_number,
-    case when v_kind = 'walk_in' then v_day end,
+    case when v_kind = 'walk_in' and not v_trial then v_day end,
     null,
     case when v_kind = 'walk_in' then 'placed' else 'pending_pickup' end,
     case when v_kind = 'walk_in' then 'counter' else 'pre_order' end,
@@ -2147,7 +2161,8 @@ begin
     nullif((p ->> 'discountPct')::numeric, 0),
     coalesce(nullif(p ->> 'discountAmount', '')::numeric, 0),
     nullif(trim(p ->> 'discountNote'), ''),
-    v_created_at
+    v_created_at,
+    v_trial
   ) returning id into v_order_id;
 
   for v_item in select * from jsonb_array_elements(p -> 'items')
@@ -2210,7 +2225,7 @@ begin
   values (v_order_id, v_staff, 'created', jsonb_build_object('kind', v_kind, 'warnings', to_jsonb(v_warnings)));
 
   return jsonb_build_object('order_id', v_order_id, 'daily_order_number', v_number,
-    'order_date', case when v_kind = 'walk_in' then v_day end,
+    'order_date', case when v_kind = 'walk_in' and not v_trial then v_day end, 'trial', v_trial,
     'status', case when v_kind = 'walk_in' then 'placed' else 'pending_pickup' end,
     'already_existed', false, 'warnings', to_jsonb(v_warnings));
 end;
@@ -2464,7 +2479,9 @@ begin
   if counter_day_locked(v_order.order_date) then
     raise exception 'day_locked: %', v_order.order_date using errcode = 'P0001';
   end if;
-  if coalesce(trim(p_code), '') <> '' then
+  if coalesce(trim(p_code), '') <> '' and v_order.is_trial then
+    raise exception 'trial_no_coupons' using errcode = 'P0001';
+  elsif coalesce(trim(p_code), '') <> '' then
     perform attach_coupon_to_order(p_order_id, trim(p_code));
   elsif coalesce(p_pending_amount, 0) > 0 then
     insert into order_coupons (order_id, coupon_code, amount) values (p_order_id, null, p_pending_amount);
@@ -2535,6 +2552,64 @@ where c.redeemed and c.redeemed_order_id is not null
   and exists (select 1 from orders o where o.id = c.redeemed_order_id)
 on conflict (coupon_code) do nothing;
 
+
+-- ---------------------------------------------------------------------------
+-- Round 33 (10/7) -- trial orders + purchase tracker.
+--
+-- Trial orders (owner: "add a trial order button so we can test it out. it
+-- should not get recorded"): real rows in `orders` so a trial placed on the
+-- counter tablet shows up on the serving screen / billing on any device,
+-- but flagged is_trial = true and kept out of everything that counts: no
+-- order_date (so no sales report, analytics, export or restock forecast can
+-- pick them up -- those all filter on order_date, and the app also filters
+-- is_trial explicitly), no daily number from the real sequence (they get
+-- their own "Trial #n"), never a real coupon, never stock. Deleted by
+-- clear_trial_orders() and automatically after a day.
+-- ---------------------------------------------------------------------------
+alter table orders add column if not exists is_trial boolean not null default false;
+create index if not exists orders_is_trial_idx on orders(is_trial) where is_trial;
+
+create or replace function clear_trial_orders()
+returns int
+language plpgsql
+as $$
+declare
+  v_count int;
+begin
+  delete from orders where is_trial;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+-- --- Purchase tracker -----------------------------------------------------
+-- One row per purchased line (small daily buys or a big Makro trip), every
+-- field editable afterwards. paid_via: 'drawer' = cash taken from the till
+-- (reduces that day's expected cash closing), 'online', or 'own_pocket' =
+-- someone paid with their own money (paid_by says who). An own-pocket row
+-- is "owed back" until reimbursed_on is set; reimbursed_via 'drawer' means
+-- they were paid back from the till that day (reduces that day's drawer).
+create table if not exists purchases (
+  id bigserial primary key,
+  purchase_date date not null,
+  item text not null,
+  brand text,
+  quantity numeric,
+  unit text,
+  price numeric not null default 0 check (price >= 0),
+  paid_via text not null default 'drawer' check (paid_via in ('drawer', 'online', 'own_pocket')),
+  paid_by text,
+  reimbursed_on date,
+  reimbursed_via text check (reimbursed_via is null or reimbursed_via in ('drawer', 'online')),
+  note text,
+  staff_id uuid references staff(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists purchases_date_idx on purchases(purchase_date);
+create index if not exists purchases_reimbursed_on_idx on purchases(reimbursed_on);
+alter table purchases enable row level security;
+
 -- ---------------------------------------------------------------------------
 -- Explicit grants for the service role. Newer Supabase projects no longer
 -- auto-grant service_role access to tables created by hand (the "Automatically
@@ -2569,3 +2644,4 @@ grant execute on function delete_order_payment(bigint, uuid) to service_role;
 grant execute on function add_order_coupon(uuid, text, numeric, uuid) to service_role;
 grant execute on function mark_order_served(uuid) to service_role;
 grant execute on function pay_orders(uuid[], text, uuid) to service_role;
+grant execute on function clear_trial_orders() to service_role;

@@ -284,7 +284,7 @@ export async function placePreOrder(items: CartItem[], requestedDate: string, re
 // ---------------------------------------------------------------------------
 
 const ORDER_ROW_SELECT =
-  "id, daily_order_number, order_date, seat_id, status, order_type, requested_date, requested_time, coupon_code, discount_amount, payment_method, created_at, source, customer_label, order_items(id, menu_item_code, item_name, qty, price_at_order, fulfillment_type, note), order_payments(amount)";
+  "id, daily_order_number, order_date, seat_id, status, order_type, requested_date, requested_time, coupon_code, discount_amount, payment_method, created_at, source, customer_label, order_items(id, menu_item_code, item_name, qty, price_at_order, fulfillment_type, note), order_payments(amount), is_trial";
 
 type RawOrderRow = {
   id: string;
@@ -305,6 +305,7 @@ type RawOrderRow = {
     | { id: number; menu_item_code: string; item_name: string; qty: number; price_at_order: number; fulfillment_type: string; note: string | null }[]
     | null;
   order_payments: { amount: number }[] | null;
+  is_trial: boolean | null;
 };
 
 function mapOrderRow(o: RawOrderRow): OrderRow {
@@ -335,6 +336,7 @@ function mapOrderRow(o: RawOrderRow): OrderRow {
     source: o.source === "counter" ? "counter" : "qr",
     customerLabel: o.customer_label ?? null,
     amountPaid: (o.order_payments ?? []).reduce((sum, p) => sum + Number(p.amount), 0),
+    isTrial: !!o.is_trial,
   };
 }
 
@@ -615,6 +617,7 @@ export async function getRestockSignals(): Promise<Record<string, RestockSignal>
       .from("orders")
       .select("order_date, order_items(menu_item_code, qty)")
       .in("status", ["placed", "served", "paid"])
+      .eq("is_trial", false)
       .gte("order_date", from)
       .lte("order_date", today),
   ]);
@@ -1104,6 +1107,7 @@ async function getPeriodTotals(from: string, to: string): Promise<PeriodTotals> 
       .from("orders")
       .select("discount_amount, order_items(qty, price_at_order)")
       .in("status", ["placed", "served", "paid"])
+      .eq("is_trial", false)
       .gte("order_date", from)
       .lte("order_date", to),
     db().from("historical_sales").select("total_revenue").gte("sale_date", from).lte("sale_date", to),
@@ -1150,6 +1154,7 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
       .from("orders")
       .select("id, order_date, discount_amount, payment_method, created_at, source, order_items(menu_item_code, item_name, qty, price_at_order), order_payments(method, amount)")
       .in("status", ["placed", "served", "paid"])
+      .eq("is_trial", false)
       .gte("order_date", from)
       .lte("order_date", to),
     // Round 24: category for the category-totals chart, cogs_thb for the
@@ -1472,6 +1477,7 @@ export async function getOrdersForExport(from: string, to: string): Promise<Orde
     .from("orders")
     .select(ORDER_ROW_SELECT)
     .in("status", ["placed", "served", "paid"])
+    .eq("is_trial", false)
     .gte("order_date", from)
     .lte("order_date", to)
     .order("order_date")

@@ -148,6 +148,8 @@ export interface OrderRow {
   customerLabel: string | null;
   // Sum of order_payments rows so far (0 for QR orders until billed).
   amountPaid: number;
+  // Round 33: a practice order -- shown with a TRIAL badge, never counted.
+  isTrial: boolean;
 }
 
 export interface PlacedPreOrder {
@@ -482,4 +484,26 @@ export interface CashDay {
   expectedClosing: number | null;
   difference: number | null;
   updatedAt: string | null;
+  // Round 33: purchases paid from the drawer + owed-back payouts from the drawer.
+  cashPurchaseCount: number;
+}
+
+// Round 33: purchase tracker.
+export type PurchasePaidVia = "drawer" | "online" | "own_pocket";
+
+export interface Purchase {
+  id: number;
+  purchaseDate: string;
+  item: string;
+  brand: string | null;
+  quantity: number | null;
+  unit: string | null;
+  price: number;
+  paidVia: PurchasePaidVia;
+  paidBy: string | null;
+  reimbursedOn: string | null;
+  reimbursedVia: "drawer" | "online" | null;
+  note: string | null;
+  staffName: string | null;
+  createdAt: string;
 }

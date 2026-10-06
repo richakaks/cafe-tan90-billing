@@ -95,6 +95,25 @@ export default function CounterClient({
   const [openItems, setOpenItems] = useState<OpenItems>(initialOpen);
   const [lockBusy, setLockBusy] = useState(false);
   const [showVoided, setShowVoided] = useState(false);
+  // Round 33: practice mode -- orders go in as TRIAL (never counted).
+  const [trialMode, setTrialMode] = useState(false);
+  const [trialOrders, setTrialOrders] = useState<CounterOrder[]>([]);
+
+  const loadTrials = useCallback(async () => {
+    try {
+      const res = await fetch("/api/counter/trial", { cache: "no-store" });
+      if (res.ok) setTrialOrders((await res.json()).orders as CounterOrder[]);
+    } catch {
+      // offline -- keep what we have
+    }
+  }, []);
+
+  async function clearTrials() {
+    if (!window.confirm("Delete all trial orders? (They were never counted anywhere.)")) return;
+    await fetch("/api/counter/trial", { method: "DELETE" }).catch(() => null);
+    setTrialOrders([]);
+    setToast("Trial orders cleared.");
+  }
 
   // ---- boot: restore staff pick, queue, caches; register offline worker ----
   useEffect(() => {
@@ -215,15 +234,18 @@ export default function CounterClient({
     const t = setInterval(() => {
       syncQueue();
       loadDay(viewDate);
+      loadTrials();
       setToday(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date()));
     }, 15000);
     syncQueue();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetches trial orders from the server
+    loadTrials();
     return () => {
       window.removeEventListener("online", goOnline);
       window.removeEventListener("offline", goOffline);
       clearInterval(t);
     };
-  }, [syncQueue, loadDay, viewDate]);
+  }, [syncQueue, loadDay, loadTrials, viewDate]);
 
   useEffect(() => {
     if (!toast) return;
@@ -417,6 +439,42 @@ export default function CounterClient({
         return;
       }
 
+      if (trialMode) {
+        // Trial: sent straight away, never queued, never counted.
+        if (kind === "pre_order") {
+          setFormError("Trial orders can only be normal orders, not pre-orders.");
+          return;
+        }
+        if (coupons.some((c) => c.kind === "code")) {
+          setFormError('Trial orders can\'t use real coupon codes (that would use them up). Remove them or use "Code later" with a value.');
+          return;
+        }
+        const trialInput: CounterOrderInput = {
+          clientKey: newClientKey(),
+          clientCreatedAt: new Date().toISOString(),
+          staffId,
+          kind: "walk_in",
+          trial: true,
+          customerLabel: customerLabel.trim() || undefined,
+          items: items.map(({ code, qty, fulfillmentType, note }) => ({ code, qty, fulfillmentType, note })),
+          ...discount,
+          discountNote: discountNote.trim() || undefined,
+          coupons: coupons.map((c) => (c.kind === "pending" ? { pendingAmount: c.amount } : null)).filter(Boolean) as CounterOrderInput["coupons"],
+          payments,
+        };
+        const out = await sendOrders([trialInput], false);
+        if (out.kind === "results" && out.results[0]?.ok) {
+          setToast(`TRIAL order #${out.results[0].dailyOrderNumber} placed — it shows on Serve and Billing as TRIAL and is never counted.`);
+          resetForm();
+          loadTrials();
+        } else if (out.kind === "results" && out.results[0] && !out.results[0].ok) {
+          setFormError(out.results[0].error);
+        } else {
+          setFormError("Trial orders need the internet. Try again when you're online.");
+        }
+        return;
+      }
+
       const input: CounterOrderInput = {
         clientKey: newClientKey(),
         clientCreatedAt: new Date().toISOString(),
@@ -562,6 +620,26 @@ export default function CounterClient({
         )}
       </div>
 
+      <div className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 px-4 py-3 ${trialMode ? "border-orange-400 bg-orange-50" : "border-dashed border-card-border"}`}>
+        <div className="text-sm">
+          {trialMode ? (
+            <span className="font-semibold text-orange-700">TRIAL MODE — orders you place now are practice only. They show on Serve and Billing marked TRIAL, and are never counted in sales, cash or stock.</span>
+          ) : (
+            <span className="text-navy-700">Want to practise? Turn on trial mode to place test orders that are never recorded.</span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setTrialMode(!trialMode);
+            setKind("walk_in");
+          }}
+          className={`rounded-lg px-4 py-2 text-sm font-semibold ${trialMode ? "bg-orange-600 text-white" : "border border-card-border bg-white text-navy-900"}`}
+        >
+          {trialMode ? "Turn trial mode off" : "Trial order"}
+        </button>
+      </div>
+
       {toast && <div className="rounded-lg bg-navy-900 px-4 py-3 text-sm text-white">{toast}</div>}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_400px]">
@@ -606,7 +684,7 @@ export default function CounterClient({
                 <button type="button" onClick={() => setKind("walk_in")} className={`rounded-md px-2.5 py-1 font-medium ${kind === "walk_in" ? "bg-navy-900 text-white" : "text-navy-800"}`}>
                   Now
                 </button>
-                <button type="button" onClick={() => setKind("pre_order")} className={`rounded-md px-2.5 py-1 font-medium ${kind === "pre_order" ? "bg-navy-900 text-white" : "text-navy-800"}`}>
+                <button type="button" disabled={trialMode} onClick={() => setKind("pre_order")} className={`rounded-md px-2.5 py-1 font-medium ${kind === "pre_order" ? "bg-navy-900 text-white" : "text-navy-800"}`}>
                   Pre-order
                 </button>
               </div>
@@ -849,9 +927,9 @@ export default function CounterClient({
               type="button"
               disabled={submitting || cart.length === 0}
               onClick={submit}
-              className="flex-1 rounded-lg bg-navy-900 px-4 py-3 text-base font-semibold text-white transition hover:bg-navy-800 disabled:opacity-50"
+              className={`flex-1 rounded-lg px-4 py-3 text-base font-semibold text-white transition disabled:opacity-50 ${trialMode && !editing ? "bg-orange-600 hover:bg-orange-700" : "bg-navy-900 hover:bg-navy-800"}`}
             >
-              {submitting ? "Saving…" : editing ? "Save changes" : kind === "pre_order" ? `Book pre-order · ${formatBaht(toPay)}` : `Place order · ${formatBaht(toPay)}`}
+              {submitting ? "Saving…" : editing ? "Save changes" : trialMode ? `Place TRIAL order · ${formatBaht(toPay)}` : kind === "pre_order" ? `Book pre-order · ${formatBaht(toPay)}` : `Place order · ${formatBaht(toPay)}`}
             </button>
           </div>
           {staffName && <p className="text-center text-[11px] text-navy-600">Recorded as taken by {staffName}</p>}
@@ -887,6 +965,23 @@ export default function CounterClient({
               Send now
             </button>
           )}
+        </section>
+      )}
+
+      {/* Trial orders (practice only) */}
+      {trialOrders.length > 0 && (
+        <section className="card space-y-2 border-2 border-orange-300 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-orange-700">Trial orders ({trialOrders.length}) — not counted</h2>
+            <button type="button" onClick={clearTrials} className="rounded-md border border-orange-300 px-3 py-1.5 text-xs font-semibold text-orange-700">
+              Clear all trial orders
+            </button>
+          </div>
+          <div className="grid gap-2 md:grid-cols-2">
+            {trialOrders.map((o) => (
+              <OrderCard key={o.id} order={o} staffId={staffId} today={today} online={online} locked={false} onChanged={() => loadTrials()} onEdit={startEdit} />
+            ))}
+          </div>
         </section>
       )}
 

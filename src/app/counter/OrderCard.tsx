@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { CounterOrder, PaymentMethod } from "@/lib/types";
-import SourceBadge from "@/components/SourceBadge";
+import SourceBadge, { TrialBadge } from "@/components/SourceBadge";
 
 export function formatBaht(n: number): string {
   const rounded = Math.round(n * 100) / 100;
@@ -119,7 +119,7 @@ export default function OrderCard({
     order.orderType === "pre_order" && order.status === "pending_pickup"
       ? `Pickup ${order.requestedDate ?? ""}${order.requestedTime ? ` ${order.requestedTime.slice(0, 5)}` : ""}`
       : order.dailyOrderNumber
-        ? `#${order.dailyOrderNumber}`
+        ? `${order.isTrial ? "Trial " : ""}#${order.dailyOrderNumber}`
         : "Pending";
 
   const btn = "rounded-md border border-card-border px-2.5 py-1.5 text-xs font-medium text-navy-900 hover:bg-navy-100 disabled:opacity-40";
@@ -131,6 +131,7 @@ export default function OrderCard({
           <div className="flex flex-wrap items-center gap-1.5">
             <span className={`font-semibold text-navy-950 ${isVoid ? "line-through" : ""}`}>{headerLabel}</span>
             <SourceBadge source={order.source} />
+            {order.isTrial && <TrialBadge />}
             <span className="text-xs text-navy-600">{bangkokTime(order.createdAt)}</span>
             {order.customerLabel && <span className="truncate text-xs font-medium text-navy-800">· {order.customerLabel}</span>}
             {order.seatId && <span className="text-xs text-navy-600">· {order.seatId}</span>}

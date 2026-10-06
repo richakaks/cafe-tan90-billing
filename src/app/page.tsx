@@ -43,6 +43,12 @@ export default function Home() {
             Cash Balance
           </Link>
           <Link
+            href="/purchases"
+            className="rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm font-medium text-navy-900 transition hover:border-navy-900 hover:bg-navy-100"
+          >
+            Purchases
+          </Link>
+          <Link
             href="/serve"
             className="rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm font-medium text-navy-900 transition hover:border-navy-900 hover:bg-navy-100"
           >
