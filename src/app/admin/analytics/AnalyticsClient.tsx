@@ -478,7 +478,7 @@ export default function AnalyticsClient() {
 
             <div className="card p-5">
               <h2 className="text-sm font-semibold text-navy-950">Payment method</h2>
-              <p className="mt-1 text-xs text-navy-600">Live orders, recorded when a bill is marked paid.</p>
+              <p className="mt-1 text-xs text-navy-600">Live orders, from the payments recorded (a split bill counts toward both).</p>
               {data.paymentSplit.cashOrders + data.paymentSplit.onlineOrders + data.paymentSplit.unknownOrders === 0 ? (
                 <p className="mt-2 text-sm text-navy-600">No orders in this range yet.</p>
               ) : (
@@ -504,6 +504,25 @@ export default function AnalyticsClient() {
                       </span>
                     </li>
                   )}
+                </ul>
+              )}
+              <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-navy-600">Where orders came from</h3>
+              {data.sourceSplit.qrOrders + data.sourceSplit.counterOrders === 0 ? (
+                <p className="mt-1 text-sm text-navy-600">No live orders in this range.</p>
+              ) : (
+                <ul className="mt-1.5 space-y-1.5 text-sm text-navy-800">
+                  <li className="flex justify-between">
+                    <span>QR (customer scanned)</span>
+                    <span className="text-navy-600">
+                      {formatBaht(data.sourceSplit.qrRevenue)} &middot; {data.sourceSplit.qrOrders} order{data.sourceSplit.qrOrders === 1 ? "" : "s"}
+                    </span>
+                  </li>
+                  <li className="flex justify-between">
+                    <span>Counter (staff took it)</span>
+                    <span className="text-navy-600">
+                      {formatBaht(data.sourceSplit.counterRevenue)} &middot; {data.sourceSplit.counterOrders} order{data.sourceSplit.counterOrders === 1 ? "" : "s"}
+                    </span>
+                  </li>
                 </ul>
               )}
               {data.historicalCashNote.count > 0 && (

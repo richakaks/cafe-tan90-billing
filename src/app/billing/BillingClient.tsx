@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { OrderRow } from "@/lib/types";
+import SourceBadge from "@/components/SourceBadge";
 
 const POLL_MS = 8000;
 const PICKUP_BUCKET = "Pickup (pre-order)";
@@ -13,7 +14,10 @@ function formatBaht(amount: number): string {
 function orderTotals(order: OrderRow) {
   const gross = order.items.reduce((sum, it) => sum + it.qty * it.priceAtOrder, 0);
   const net = Math.max(0, gross - order.discountAmount);
-  return { gross, net };
+  // Round 32: counter orders may be partly paid already (deposit / split);
+  // the Cash / Online buttons then record only what's still owed.
+  const due = Math.max(0, net - order.amountPaid);
+  return { gross, net, due };
 }
 
 function CouponBox({ order, onApplied }: { order: OrderRow; onApplied: () => void }) {
@@ -122,7 +126,7 @@ export default function BillingClient({ initialOrders }: { initialOrders: OrderR
   const bySeat = useMemo(() => {
     const map = new Map<string, OrderRow[]>();
     for (const order of orders) {
-      const key = order.seatId ?? PICKUP_BUCKET;
+      const key = order.seatId ?? (order.source === "counter" ? (order.customerLabel ? `Counter · ${order.customerLabel}` : "Counter") : PICKUP_BUCKET);
       const list = map.get(key) ?? [];
       list.push(order);
       map.set(key, list);
@@ -164,7 +168,7 @@ export default function BillingClient({ initialOrders }: { initialOrders: OrderR
       <div className="grid gap-4 sm:grid-cols-2">
         {bySeat.map(([seatKey, seatOrders]) => {
           const combinedGross = seatOrders.reduce((sum, o) => sum + orderTotals(o).gross, 0);
-          const combinedNet = seatOrders.reduce((sum, o) => sum + orderTotals(o).net, 0);
+          const combinedNet = seatOrders.reduce((sum, o) => sum + orderTotals(o).due, 0);
           const allIds = seatOrders.map((o) => o.id);
           const anyBusy = allIds.some((id) => payingIds.has(id));
 
@@ -177,10 +181,12 @@ export default function BillingClient({ initialOrders }: { initialOrders: OrderR
 
               <div className="mt-3 space-y-4">
                 {seatOrders.map((order) => {
-                  const { gross, net } = orderTotals(order);
+                  const { gross, net, due } = orderTotals(order);
                   return (
                     <div key={order.id} className="border-t border-card-border pt-3 first:border-t-0 first:pt-0">
-                      <p className="font-semibold text-navy-950">Order #{order.dailyOrderNumber ?? "—"}</p>
+                      <p className="flex items-center gap-1.5 font-semibold text-navy-950">
+                        Order #{order.dailyOrderNumber ?? "—"} <SourceBadge source={order.source} />
+                      </p>
                       <ul className="mt-1 space-y-0.5 text-sm text-navy-800">
                         {order.items.map((it) => (
                           <li key={it.id}>
@@ -197,6 +203,11 @@ export default function BillingClient({ initialOrders }: { initialOrders: OrderR
                           formatBaht(gross)
                         )}
                       </div>
+                      {order.amountPaid !== 0 && (
+                        <p className="text-xs text-navy-700">
+                          Already paid {formatBaht(order.amountPaid)} &middot; <span className="font-semibold">still owed {formatBaht(due)}</span>
+                        </p>
+                      )}
                       <CouponBox order={order} onApplied={refresh} />
                       <p className="mt-2 text-xs text-navy-600">Mark paid — how?</p>
                       <PayButtons busy={payingIds.has(order.id)} onPick={(method) => pay([order.id], method)} />

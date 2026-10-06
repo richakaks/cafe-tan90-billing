@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { OrderRow } from "@/lib/types";
+import SourceBadge from "@/components/SourceBadge";
 
 const POLL_MS = 6000;
 const PICKUP_BUCKET = "Pickup (pre-order)";
+const COUNTER_BUCKET = "Counter";
 
 function timeAgo(iso: string): string {
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
@@ -44,7 +46,8 @@ export default function ServeClient({ initialOrders, initialPreOrders }: { initi
   const bySeat = useMemo(() => {
     const map = new Map<string, OrderRow[]>();
     for (const order of orders) {
-      const key = order.seatId ?? PICKUP_BUCKET;
+      // Round 32: counter orders have no seat -- grouped under "Counter".
+      const key = order.seatId ?? (order.source === "counter" && order.orderType === "counter" ? COUNTER_BUCKET : PICKUP_BUCKET);
       const list = map.get(key) ?? [];
       list.push(order);
       map.set(key, list);
@@ -106,11 +109,16 @@ export default function ServeClient({ initialOrders, initialPreOrders }: { initi
                 <div className="mt-3 space-y-4">
                   {dateOrders.map((order) => (
                     <div key={order.id} className="border-t border-card-border pt-3 first:border-t-0 first:pt-0">
-                      <p className="text-xs text-navy-600">{order.requestedTime ? `Around ${order.requestedTime.slice(0, 5)}` : "Any time"}</p>
+                      <p className="flex items-center gap-1.5 text-xs text-navy-600">
+                        <SourceBadge source={order.source} />
+                        {order.requestedTime ? `Around ${order.requestedTime.slice(0, 5)}` : "Any time"}
+                        {order.customerLabel ? ` · ${order.customerLabel}` : ""}
+                      </p>
                       <ul className="mt-1 space-y-0.5 text-sm text-navy-800">
                         {order.items.map((it) => (
                           <li key={it.id}>
                             {it.qty}&times; {it.itemName}
+                            {it.note && <span className="ml-1 text-xs italic text-navy-600">&ldquo;{it.note}&rdquo;</span>}
                             {it.fulfillmentType === "takeaway" && (
                               <span className="ml-1.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-status-low">
                                 Takeaway
@@ -124,7 +132,7 @@ export default function ServeClient({ initialOrders, initialPreOrders }: { initi
                         disabled={fulfillingId === order.id}
                         className="mt-2 w-full rounded-lg border border-card-border px-3 py-2 text-sm font-medium text-navy-900 transition hover:bg-navy-100 disabled:opacity-50"
                       >
-                        {fulfillingId === order.id ? "Fulfilling…" : "Fulfill now (deducts stock)"}
+                        {fulfillingId === order.id ? "Fulfilling…" : order.source === "counter" ? "Fulfill now" : "Fulfill now (deducts stock)"}
                       </button>
                     </div>
                   ))}
@@ -148,13 +156,18 @@ export default function ServeClient({ initialOrders, initialPreOrders }: { initi
                   {seatOrders.map((order) => (
                     <div key={order.id} className="border-t border-card-border pt-3 first:border-t-0 first:pt-0">
                       <div className="flex items-center justify-between">
-                        <p className="font-semibold text-navy-950">Order #{order.dailyOrderNumber}</p>
+                        <p className="flex items-center gap-1.5 font-semibold text-navy-950">
+                          Order #{order.dailyOrderNumber}
+                          <SourceBadge source={order.source} />
+                          {order.customerLabel && <span className="text-xs font-normal text-navy-700">{order.customerLabel}</span>}
+                        </p>
                         <p className="text-xs text-navy-600">{timeAgo(order.createdAt)}</p>
                       </div>
                       <ul className="mt-1 space-y-0.5 text-sm text-navy-800">
                         {order.items.map((it) => (
                           <li key={it.id}>
                             {it.qty}&times; {it.itemName}
+                            {it.note && <span className="ml-1 text-xs italic text-navy-600">&ldquo;{it.note}&rdquo;</span>}
                             {it.fulfillmentType === "takeaway" && (
                               <span className="ml-1.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-status-low">
                                 Takeaway

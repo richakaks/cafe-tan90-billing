@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   try {
     const orders = await getOrdersForExport(from, to);
     const csv = toCsv(
-      ["Order #", "Date", "Seat", "Type", "Status", "Items", "Gross", "Discount", "Net", "Coupon", "Payment", "Placed at"],
+      ["Order #", "Date", "Source", "Seat / customer", "Type", "Status", "Items", "Gross", "Discount", "Net", "Paid", "Coupon", "Payment", "Placed at"],
       orders.map((o) => {
         const gross = o.items.reduce((sum, it) => sum + it.qty * it.priceAtOrder, 0);
         const net = Math.max(0, gross - o.discountAmount);
@@ -22,13 +22,15 @@ export async function GET(req: NextRequest) {
         return [
           o.dailyOrderNumber ?? "",
           o.orderDate ?? "",
-          o.seatId ?? "",
+          o.source === "counter" ? "Counter" : "QR",
+          o.seatId ?? o.customerLabel ?? "",
           o.orderType,
           o.status,
           items,
           gross,
           o.discountAmount,
           net,
+          o.amountPaid,
           o.couponCode ?? "",
           o.paymentMethod ?? "",
           new Date(o.createdAt).toISOString(),

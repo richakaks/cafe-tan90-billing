@@ -3,6 +3,8 @@ import Link from "next/link";
 import LowStockAlert from "./LowStockAlert";
 
 const NAV = [
+  { href: "/counter", label: "Counter" },
+  { href: "/cash", label: "Cash" },
   { href: "/serve", label: "Serve" },
   { href: "/billing", label: "Billing" },
   { href: "/admin/inventory", label: "Inventory" },

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { upsertMenuItem } from "@/lib/data";
 import type { MenuItem } from "@/lib/types";
 
-const PACKAGING_TYPES: MenuItem["packagingType"][] = ["food", "hot_drink", "cold_drink"];
+const PACKAGING_TYPES: MenuItem["packagingType"][] = ["food", "hot_drink", "cold_drink", "straw_only", "none"];
 
 export async function POST(req: NextRequest) {
   const body = await req.json();

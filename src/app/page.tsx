@@ -31,6 +31,18 @@ export default function Home() {
 
         <div className="mt-8 flex flex-col gap-3">
           <Link
+            href="/counter"
+            className="rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm font-medium text-navy-900 transition hover:border-navy-900 hover:bg-navy-100"
+          >
+            Counter
+          </Link>
+          <Link
+            href="/cash"
+            className="rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm font-medium text-navy-900 transition hover:border-navy-900 hover:bg-navy-100"
+          >
+            Cash Balance
+          </Link>
+          <Link
             href="/serve"
             className="rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm font-medium text-navy-900 transition hover:border-navy-900 hover:bg-navy-100"
           >

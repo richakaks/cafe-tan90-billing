@@ -33,7 +33,9 @@ export interface Ingredient {
 // explicit, editable field (not inferred purely from category), per the
 // owner's own instruction -- see place_order()'s Round 22 comment in
 // schema.sql for the exact deduction rule.
-export type MenuPackagingType = "food" | "hot_drink" | "cold_drink";
+// Round 32: straw_only = handed over as-is with just a straw (Water, Coke,
+// Soda); none = no packaging at all (mousse in a ceramic bowl).
+export type MenuPackagingType = "food" | "hot_drink" | "cold_drink" | "straw_only" | "none";
 
 export interface MenuItem {
   code: string;
@@ -105,8 +107,13 @@ export interface PlacedOrder {
   total: number;
 }
 
-export type OrderStatus = "pending_pickup" | "placed" | "served" | "paid";
-export type OrderType = "immediate" | "pre_order";
+// Round 32: 'void' = cancelled after the fact (kept for the audit trail,
+// never counted in sales). 'counter' = walk-in order taken at the counter.
+export type OrderStatus = "pending_pickup" | "placed" | "served" | "paid" | "void";
+export type OrderType = "immediate" | "pre_order" | "counter";
+// Where the order came from: a customer scanning a QR code (table menu or
+// /preorder) or staff entering it on /counter.
+export type OrderSource = "qr" | "counter";
 export type PaymentMethod = "cash" | "online";
 
 export interface OrderItemRow {
@@ -116,6 +123,7 @@ export interface OrderItemRow {
   qty: number;
   priceAtOrder: number;
   fulfillmentType: FulfillmentType;
+  note: string | null;
 }
 
 export interface OrderRow {
@@ -135,6 +143,11 @@ export interface OrderRow {
   paymentMethod: PaymentMethod | null;
   createdAt: string;
   items: OrderItemRow[];
+  // Round 32
+  source: OrderSource;
+  customerLabel: string | null;
+  // Sum of order_payments rows so far (0 for QR orders until billed).
+  amountPaid: number;
 }
 
 export interface PlacedPreOrder {
@@ -242,6 +255,14 @@ export interface CouponSummary {
 // Round 17: cash vs online split for live orders paid within the selected
 // range. "unknown" covers orders marked paid before this feature existed —
 // deliberately not guessed into cash or online.
+// Round 32: QR vs counter, live orders only.
+export interface SourceSplit {
+  qrRevenue: number;
+  qrOrders: number;
+  counterRevenue: number;
+  counterOrders: number;
+}
+
 export interface PaymentSplit {
   cash: number;
   cashOrders: number;
@@ -308,6 +329,7 @@ export interface SalesAnalytics {
   weekdayTotals: WeekdayTotal[];
   couponSummary: CouponSummary;
   paymentSplit: PaymentSplit;
+  sourceSplit: SourceSplit;
   historicalCashNote: HistoricalCashNote;
   profit: ProfitEstimate;
 }
@@ -379,4 +401,85 @@ export interface RestockSignal {
   // Menu items (by name) that actually sold in the last 30 days and use
   // this ingredient -- the reasoning shown next to the verdict.
   usedIn: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Counter system (Round 32)
+// ---------------------------------------------------------------------------
+
+export interface StaffMember {
+  id: string;
+  name: string;
+  active: boolean;
+  sortOrder: number;
+}
+
+export interface OrderPaymentRow {
+  id: number;
+  method: PaymentMethod;
+  amount: number;
+  receivedOn: string;
+  staffName: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface OrderCouponRow {
+  id: number;
+  code: string | null; // null = "code pending"
+  amount: number;
+  attemptedCode: string | null;
+}
+
+export interface CounterOrder extends OrderRow {
+  staffName: string | null;
+  manualDiscountPct: number | null;
+  manualDiscountAmount: number;
+  discountNote: string | null;
+  voidedAt: string | null;
+  voidReason: string | null;
+  payments: OrderPaymentRow[];
+  coupons: OrderCouponRow[];
+  gross: number;
+  net: number;
+  outstanding: number;
+}
+
+export interface CounterDaySummary {
+  date: string;
+  locked: boolean;
+  orderCount: number;
+  qrOrders: number;
+  counterOrders: number;
+  gross: number;
+  discount: number;
+  net: number;
+  // Money received ON this day (by payment date), whatever day the order was.
+  cashReceived: number;
+  onlineReceived: number;
+  // Coupons used on this day's orders.
+  couponTotal: number;
+  pendingCoupons: number;
+  // Still owed on this day's orders.
+  outstanding: number;
+}
+
+export interface CounterDay {
+  summary: CounterDaySummary;
+  orders: CounterOrder[];
+}
+
+export interface CashDay {
+  day: string;
+  opening: number | null;
+  closingCounted: number | null;
+  note: string | null;
+  // Opening pre-fill suggestion: the most recent earlier day's counted closing.
+  suggestedOpening: number | null;
+  cashReceived: number;
+  cashRefunded: number;
+  cashPurchases: number;
+  expectedClosing: number | null;
+  difference: number | null;
+  updatedAt: string | null;
 }

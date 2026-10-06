@@ -544,6 +544,16 @@ MENU_ITEMS = [
     ("SO-LLS", "Lychee Lemon Soda", "Soda", 45),
     ("SO-BHS", "Blue Hawaii Soda", "Soda", 45),
     ("SO-CRC", "Crispy Coke", "Soda", 45),
+    # Round 32 (10/6): extra items the counter already sells, added to the
+    # QR menu too at the owner's request. No recipes yet (stock tracking for
+    # them starts once inventory is running again) -- see NO_RECIPE.
+    # Other Drinks: handed over as-is with a straw (packaging straw_only).
+    ("OD-WTR", "Water", "Other Drinks", 10),
+    ("OD-COK", "Coke", "Other Drinks", 30),
+    ("OD-SOD", "Soda", "Other Drinks", 20),
+    # Dessert: served in a ceramic bowl today (packaging none).
+    ("DS-CMS", "Chocolate Mousse (Small)", "Dessert", 40),
+    ("DS-CMB", "Chocolate Mousse (Big)", "Dessert", 45),
 ]
 
 # ---------------------------------------------------------------------------
@@ -717,7 +727,7 @@ MAPPINGS = {
 # No-recipe items -- deliberately zero mappings. Empty now that Momo has
 # real recipes; kept as a set (not deleted) so the pattern is ready for the
 # next item that ships without a recipe.
-NO_RECIPE = set()
+NO_RECIPE = {"OD-WTR", "OD-COK", "OD-SOD", "DS-CMS", "DS-CMB"}  # Round 32: bought-in drinks + mousse, no tracked recipe yet
 
 # sort_order overrides for items inserted into the MIDDLE of MENU_ITEMS after
 # production has already been seeded once. The normal (index+1)*10 formula
@@ -751,6 +761,12 @@ def packaging_type_for(code, category):
         return "cold_drink"
     if category in ("Tea", "Coffee"):
         return "hot_drink" if code.endswith("0") else "cold_drink"
+    # Round 32: Water/Coke/Soda are handed over as they are with a straw
+    # (no glass); mousse is served in a ceramic bowl (no packaging at all).
+    if category == "Other Drinks":
+        return "straw_only"
+    if category == "Dessert":
+        return "none"
     raise ValueError(f"no packaging classification rule for category {category!r} (code {code})")
 
 

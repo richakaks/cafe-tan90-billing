@@ -284,7 +284,7 @@ export async function placePreOrder(items: CartItem[], requestedDate: string, re
 // ---------------------------------------------------------------------------
 
 const ORDER_ROW_SELECT =
-  "id, daily_order_number, order_date, seat_id, status, order_type, requested_date, requested_time, coupon_code, discount_amount, payment_method, created_at, order_items(id, menu_item_code, item_name, qty, price_at_order, fulfillment_type)";
+  "id, daily_order_number, order_date, seat_id, status, order_type, requested_date, requested_time, coupon_code, discount_amount, payment_method, created_at, source, customer_label, order_items(id, menu_item_code, item_name, qty, price_at_order, fulfillment_type, note), order_payments(amount)";
 
 type RawOrderRow = {
   id: string;
@@ -299,9 +299,12 @@ type RawOrderRow = {
   discount_amount: number;
   payment_method: string | null;
   created_at: string;
+  source: string | null;
+  customer_label: string | null;
   order_items:
-    | { id: number; menu_item_code: string; item_name: string; qty: number; price_at_order: number; fulfillment_type: string }[]
+    | { id: number; menu_item_code: string; item_name: string; qty: number; price_at_order: number; fulfillment_type: string; note: string | null }[]
     | null;
+  order_payments: { amount: number }[] | null;
 };
 
 function mapOrderRow(o: RawOrderRow): OrderRow {
@@ -326,8 +329,12 @@ function mapOrderRow(o: RawOrderRow): OrderRow {
         qty: it.qty,
         priceAtOrder: Number(it.price_at_order),
         fulfillmentType: it.fulfillment_type as OrderItemRow["fulfillmentType"],
+        note: it.note ?? null,
       })
     ),
+    source: o.source === "counter" ? "counter" : "qr",
+    customerLabel: o.customer_label ?? null,
+    amountPaid: (o.order_payments ?? []).reduce((sum, p) => sum + Number(p.amount), 0),
   };
 }
 
@@ -355,8 +362,10 @@ export async function getPendingPreOrders(): Promise<OrderRow[]> {
   return (data ?? []).map((o) => mapOrderRow(o as unknown as RawOrderRow));
 }
 
+// Round 32: via mark_order_served() -- a counter order that's already fully
+// paid goes straight to 'paid' instead of waiting on /billing.
 export async function markOrderServed(orderId: string): Promise<void> {
-  const { error } = await db().from("orders").update({ status: "served" }).eq("id", orderId);
+  const { error } = await db().rpc("mark_order_served", { p_order_id: orderId });
   if (error) throw error;
 }
 
@@ -385,13 +394,13 @@ export async function getServedOrders(): Promise<OrderRow[]> {
 // cooking or already paid. paymentMethod is required (Round 17) — a
 // combined bill is one real-world transaction, so every order in the same
 // call gets the same method.
+// Round 32: via pay_orders(), which also records a payment row for whatever
+// is still owed on each order (so the cash drawer and the counter's daily
+// summary see billing payments too) -- a counter order that was partly paid
+// at the counter only gets the remainder recorded.
 export async function markOrdersPaid(orderIds: string[], paymentMethod: PaymentMethod): Promise<void> {
   if (orderIds.length === 0) return;
-  const { error } = await db()
-    .from("orders")
-    .update({ status: "paid", payment_method: paymentMethod })
-    .in("id", orderIds)
-    .eq("status", "served");
+  const { error } = await db().rpc("pay_orders", { p_order_ids: orderIds, p_method: paymentMethod, p_staff_id: null });
   if (error) throw error;
 }
 
@@ -1139,7 +1148,7 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
   ] = await Promise.all([
     db()
       .from("orders")
-      .select("id, order_date, discount_amount, payment_method, created_at, order_items(menu_item_code, item_name, qty, price_at_order)")
+      .select("id, order_date, discount_amount, payment_method, created_at, source, order_items(menu_item_code, item_name, qty, price_at_order), order_payments(method, amount)")
       .in("status", ["placed", "served", "paid"])
       .gte("order_date", from)
       .lte("order_date", to),
@@ -1195,6 +1204,8 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
   // covers both an order not yet marked paid and one paid before this
   // feature existed; either way there's no real payment method to report.
   const paymentSplit = { cash: 0, cashOrders: 0, online: 0, onlineOrders: 0, unknown: 0, unknownOrders: 0 };
+  // Round 32: QR (customer scanned a code) vs counter (staff entered it).
+  const sourceSplit = { qrRevenue: 0, qrOrders: 0, counterRevenue: 0, counterOrders: 0 };
 
   type RawItem = { menu_item_code: string; item_name: string; qty: number; price_at_order: number };
   type RawOrder = {
@@ -1203,7 +1214,9 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
     discount_amount: number;
     payment_method: string | null;
     created_at: string;
+    source: string | null;
     order_items: RawItem[] | null;
+    order_payments: { method: string; amount: number }[] | null;
   };
 
   for (const order of (orders ?? []) as unknown as RawOrder[]) {
@@ -1215,7 +1228,40 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
     totalRevenue += orderNet;
     totalDiscount += discount;
 
-    if (order.payment_method === "cash") {
+    if (order.source === "counter") {
+      sourceSplit.counterRevenue += orderNet;
+      sourceSplit.counterOrders += 1;
+    } else {
+      sourceSplit.qrRevenue += orderNet;
+      sourceSplit.qrOrders += 1;
+    }
+
+    // Round 32: orders with recorded payment rows (every counter order, and
+    // every bill paid on /billing from now on) are split by what was actually
+    // received -- a split bill counts toward both methods. Anything still
+    // owed stays "unknown". Older orders fall back to payment_method.
+    const payments = order.order_payments ?? [];
+    if (payments.length > 0) {
+      let cashPaid = 0;
+      let onlinePaid = 0;
+      for (const p of payments) {
+        if (p.method === "cash") cashPaid += Number(p.amount);
+        else if (p.method === "online") onlinePaid += Number(p.amount);
+      }
+      if (cashPaid !== 0) {
+        paymentSplit.cash += cashPaid;
+        paymentSplit.cashOrders += 1;
+      }
+      if (onlinePaid !== 0) {
+        paymentSplit.online += onlinePaid;
+        paymentSplit.onlineOrders += 1;
+      }
+      const owed = orderNet - cashPaid - onlinePaid;
+      if (owed > 0.005) {
+        paymentSplit.unknown += owed;
+        paymentSplit.unknownOrders += 1;
+      }
+    } else if (order.payment_method === "cash") {
       paymentSplit.cash += orderNet;
       paymentSplit.cashOrders += 1;
     } else if (order.payment_method === "online") {
@@ -1404,6 +1450,7 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
       redeemedValue: (redeemedCoupons ?? []).reduce((sum, c) => sum + Number((c as { value: number }).value), 0),
     },
     paymentSplit,
+    sourceSplit,
     historicalCashNote: { count: historicalCashCount, revenue: historicalCashRevenue },
     profit: {
       estimated: profitRevenueCounted - profitCostCounted,

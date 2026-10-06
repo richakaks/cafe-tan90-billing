@@ -156,7 +156,7 @@ insert into ingredients (name, unit, current_stock, low_stock_threshold, kind) v
   ('Plastic Cutlery Set', 'pcs', 200, 50, 'consumable')
 on conflict (name) do nothing;
 
--- Menu items (47 total, matching the Menu tab item codes/prices).
+-- Menu items (52 total, matching the Menu tab item codes/prices).
 -- sort_order starts at 10 (never 0 -- 0 is reserved as the 'not yet migrated'
 -- sentinel the schema.sql backfill looks for) and steps by 10 in MENU_ITEMS'
 -- own order, which is already the Menu PRD's category order (Snacks, Momo,
@@ -209,11 +209,16 @@ insert into menu_items (code, name, category, price, active, sort_order, packagi
   ('SO-MBS', 'Mixed Berry Soda', 'Soda', 45, true, 435, 'cold_drink'),
   ('SO-LLS', 'Lychee Lemon Soda', 'Soda', 45, true, 450, 'cold_drink'),
   ('SO-BHS', 'Blue Hawaii Soda', 'Soda', 45, true, 460, 'cold_drink'),
-  ('SO-CRC', 'Crispy Coke', 'Soda', 45, true, 470, 'cold_drink')
+  ('SO-CRC', 'Crispy Coke', 'Soda', 45, true, 470, 'cold_drink'),
+  ('OD-WTR', 'Water', 'Other Drinks', 10, true, 480, 'straw_only'),
+  ('OD-COK', 'Coke', 'Other Drinks', 30, true, 490, 'straw_only'),
+  ('OD-SOD', 'Soda', 'Other Drinks', 20, true, 500, 'straw_only'),
+  ('DS-CMS', 'Chocolate Mousse (Small)', 'Dessert', 40, true, 510, 'none'),
+  ('DS-CMB', 'Chocolate Mousse (Big)', 'Dessert', 45, true, 520, 'none')
 on conflict (code) do nothing;
 
 -- Menu item -> ingredient mappings
--- (every active menu item has a recipe as of this generation)
+-- (DS-CMB, DS-CMS, OD-COK, OD-SOD, OD-WTR intentionally have none -- no SOP recipe exists for them yet)
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order, unit_label)
 select 'SN-FRF', id, 130, null from ingredients where name = 'Frozen Fries'
 union all

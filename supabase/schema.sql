@@ -272,7 +272,9 @@ begin
       select id, v_qty from ingredients where name = 'Cold Takeaway Glass'
       on conflict (ingredient_id) do update set needed = _required.needed + excluded.needed;
     end if;
-    if v_packaging = 'cold_drink' then
+    -- Round 32: straw_only items (Water/Coke/Soda, handed over as they are)
+    -- also take a straw -- and only a straw, no glass.
+    if v_packaging in ('cold_drink', 'straw_only') then
       insert into _required (ingredient_id, needed)
       select id, v_qty from ingredients where name = 'Straw'
       on conflict (ingredient_id) do update set needed = _required.needed + excluded.needed;
@@ -385,7 +387,9 @@ alter table orders
   add column if not exists discount_amount numeric not null default 0 check (discount_amount >= 0);
 
 alter table orders drop constraint if exists orders_status_check;
-alter table orders add constraint orders_status_check check (status in ('pending_pickup', 'placed', 'served', 'paid'));
+-- Round 32: widened in place to include 'void' (re-asserting the narrower
+-- list here would fail a re-paste once voided orders exist).
+alter table orders add constraint orders_status_check check (status in ('pending_pickup', 'placed', 'served', 'paid', 'void'));
 
 alter table orders drop constraint if exists orders_immediate_requires_seat;
 alter table orders add constraint orders_immediate_requires_seat
@@ -487,8 +491,9 @@ declare
   v_order_date date := (timezone('Asia/Bangkok', now()))::date;
   v_daily_number int;
   v_out_of_stock text[];
+  v_source text;
 begin
-  select order_type, status into v_order_type, v_status
+  select order_type, status, source into v_order_type, v_status, v_source
   from orders where id = p_order_id
   for update;
 
@@ -500,6 +505,19 @@ begin
   end if;
   if v_status <> 'pending_pickup' then
     raise exception 'already_fulfilled' using errcode = 'P0001';
+  end if;
+
+  -- Round 32: a pre-order booked at the counter never touches stock (the
+  -- counter is never blocked by inventory until the inventory switch exists)
+  -- -- it just gets today's date and the next daily number.
+  if v_source = 'counter' then
+    perform pg_advisory_xact_lock(hashtext(v_order_date::text));
+    select coalesce(max(daily_order_number), 0) + 1 into v_daily_number from orders where order_date = v_order_date;
+    update orders set order_date = v_order_date, daily_order_number = v_daily_number, status = 'placed', updated_at = now()
+    where id = p_order_id;
+    -- Money taken when booking was recorded against the booking day; nothing
+    -- to move here.
+    return jsonb_build_object('order_id', p_order_id, 'order_date', v_order_date, 'daily_order_number', v_daily_number);
   end if;
 
   create temporary table _required (
@@ -536,7 +554,7 @@ begin
     union all
     select
       oi.qty as qty_needed,
-      case when mi.packaging_type = 'cold_drink' then 'Straw' end as ingredient_name
+      case when mi.packaging_type in ('cold_drink', 'straw_only') then 'Straw' end as ingredient_name
     from order_items oi
     join menu_items mi on mi.code = oi.menu_item_code
     where oi.order_id = p_order_id
@@ -630,9 +648,14 @@ begin
   set redeemed = true, redeemed_at = now(), redeemed_order_id = p_order_id
   where code = p_coupon_code;
 
+  -- Round 32: added to (not replacing) any discount already on the bill,
+  -- and recorded in order_coupons like every counter coupon.
   update orders
-  set coupon_code = p_coupon_code, discount_amount = v_value
+  set coupon_code = p_coupon_code, discount_amount = discount_amount + v_value
   where id = p_order_id;
+  insert into order_coupons (order_id, coupon_code, amount, resolved_at)
+  values (p_order_id, p_coupon_code, v_value, now())
+  on conflict (coupon_code) do nothing;
 
   return jsonb_build_object('order_id', p_order_id, 'coupon_code', p_coupon_code, 'discount_amount', v_value);
 end;
@@ -1111,7 +1134,7 @@ where category in ('Tea', 'Coffee') and code like '%1' and packaging_type is nul
 alter table menu_items alter column packaging_type set not null;
 alter table menu_items drop constraint if exists menu_items_packaging_type_check;
 alter table menu_items add constraint menu_items_packaging_type_check
-  check (packaging_type in ('food', 'hot_drink', 'cold_drink'));
+  check (packaging_type in ('food', 'hot_drink', 'cold_drink', 'straw_only', 'none')); -- Round 32: widened in place
 
 -- Typable display-only unit override on each recipe link (e.g. show "1 box"
 -- instead of a raw stock unit). Purely cosmetic: place_order/fulfill_pre_order
@@ -1839,6 +1862,679 @@ from (values
 join ingredients p on p.name = 'Sautéed Mushrooms'
 join ingredients r on r.name = v.raw_name
 on conflict (primary_id, raw_ingredient_id) do nothing;
+
+-- ---------------------------------------------------------------------------
+-- Round 32 (10/6) -- Counter system, part 1: counter orders (walk-in and
+-- pre-order), payments, multiple / pending coupons, staff list, audit log,
+-- day locks, cash balance, and five new menu items. See the Project doc
+-- "Cafe Tan90 -- Counter system" for every owner decision behind this.
+--
+-- Nothing here touches stock: counter orders record inventory_applied =
+-- false and never deduct or block (the inventory switch is a later round).
+-- The QR flow (place_order / place_pre_order) keeps its blocking behaviour.
+-- Idempotent like the rest of this file.
+-- ---------------------------------------------------------------------------
+
+-- --- Menu: Other Drinks + Dessert, new packaging types ----------------------
+alter table menu_items drop constraint if exists menu_items_packaging_type_check;
+alter table menu_items add constraint menu_items_packaging_type_check
+  check (packaging_type in ('food', 'hot_drink', 'cold_drink', 'straw_only', 'none'));
+
+insert into menu_items (code, name, category, price, active, sort_order, packaging_type) values
+  ('OD-WTR', 'Water', 'Other Drinks', 10, true, 480, 'straw_only'),
+  ('OD-COK', 'Coke', 'Other Drinks', 30, true, 490, 'straw_only'),
+  ('OD-SOD', 'Soda', 'Other Drinks', 20, true, 500, 'straw_only'),
+  ('DS-CMS', 'Chocolate Mousse (Small)', 'Dessert', 40, true, 510, 'none'),
+  ('DS-CMB', 'Chocolate Mousse (Big)', 'Dessert', 45, true, 520, 'none')
+on conflict (code) do nothing;
+
+-- Buying prices from the owner (the mousses stay uncosted until a making
+-- cost is known). Only set when still empty so a later correction made some
+-- other way isn't overwritten by a re-paste.
+update menu_items set cogs_thb = 10 where code = 'OD-WTR' and cogs_thb is null;
+update menu_items set cogs_thb = 16 where code = 'OD-COK' and cogs_thb is null;
+update menu_items set cogs_thb = 8 where code = 'OD-SOD' and cogs_thb is null;
+
+-- --- Staff list ---------------------------------------------------------------
+create table if not exists staff (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  active boolean not null default true,
+  sort_order int not null default 0,
+  created_at timestamptz not null default now()
+);
+alter table staff enable row level security;
+
+-- --- orders / order_items ------------------------------------------------------
+-- source: where the order came from -- 'qr' (customer scanned a QR code:
+-- table menu or /preorder) or 'counter' (staff entered it on /counter).
+-- Every order before this round came from the QR side.
+alter table orders
+  add column if not exists source text not null default 'qr',
+  add column if not exists staff_id uuid references staff(id) on delete set null,
+  add column if not exists customer_label text,
+  add column if not exists client_key text,
+  add column if not exists inventory_applied boolean not null default true,
+  add column if not exists manual_discount_pct numeric,
+  add column if not exists manual_discount_amount numeric not null default 0,
+  add column if not exists discount_note text,
+  add column if not exists voided_at timestamptz,
+  add column if not exists void_reason text,
+  add column if not exists updated_at timestamptz;
+
+alter table orders drop constraint if exists orders_source_check;
+alter table orders add constraint orders_source_check check (source in ('qr', 'counter'));
+alter table orders drop constraint if exists orders_manual_discount_check;
+alter table orders add constraint orders_manual_discount_check
+  check (manual_discount_amount >= 0 and (manual_discount_pct is null or (manual_discount_pct >= 0 and manual_discount_pct <= 100)));
+create unique index if not exists orders_client_key_idx on orders(client_key) where client_key is not null;
+
+-- 'counter' = a walk-in order taken at the counter (no seat). 'void' = an
+-- order cancelled after the fact (kept for the audit trail, excluded from
+-- every sales figure because analytics only counts placed/served/paid).
+alter table orders drop constraint if exists orders_order_type_check;
+alter table orders add constraint orders_order_type_check check (order_type in ('immediate', 'pre_order', 'counter'));
+alter table orders drop constraint if exists orders_status_check;
+alter table orders add constraint orders_status_check check (status in ('pending_pickup', 'placed', 'served', 'paid', 'void'));
+
+alter table order_items add column if not exists note text;
+
+-- --- Payments ---------------------------------------------------------------------
+-- One row per money movement on an order: split bills are several rows,
+-- pay-later is a row dated the day it was settled, a refund is a negative
+-- row. received_on is the Bangkok calendar day the money changed hands --
+-- what the cash drawer for that day is checked against.
+create table if not exists order_payments (
+  id bigserial primary key,
+  order_id uuid not null references orders(id) on delete cascade,
+  method text not null check (method in ('cash', 'online')),
+  amount numeric not null check (amount <> 0),
+  received_on date not null,
+  staff_id uuid references staff(id) on delete set null,
+  note text,
+  created_at timestamptz not null default now()
+);
+create index if not exists order_payments_order_id_idx on order_payments(order_id);
+create index if not exists order_payments_received_on_idx on order_payments(received_on);
+alter table order_payments enable row level security;
+
+-- --- Coupons on an order (several allowed; "code pending" allowed) -------------
+-- coupon_code null = paid by coupon but the code wasn't to hand; the amount
+-- is recorded now and the code is filled in (and validated) later.
+-- attempted_code keeps what staff typed if a code couldn't be accepted when
+-- an offline order synced (e.g. already used) -- shown on the to-fix list.
+create table if not exists order_coupons (
+  id bigserial primary key,
+  order_id uuid not null references orders(id) on delete cascade,
+  coupon_code text unique references coupons(code) on delete set null,
+  amount numeric not null check (amount > 0),
+  attempted_code text,
+  created_at timestamptz not null default now(),
+  resolved_at timestamptz
+);
+create index if not exists order_coupons_order_id_idx on order_coupons(order_id);
+alter table order_coupons enable row level security;
+
+-- --- Audit log, day locks, cash balance -------------------------------------
+create table if not exists order_audit_log (
+  id bigserial primary key,
+  order_id uuid references orders(id) on delete cascade,
+  staff_id uuid references staff(id) on delete set null,
+  action text not null,
+  detail jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists order_audit_log_order_id_idx on order_audit_log(order_id);
+alter table order_audit_log enable row level security;
+
+create table if not exists day_locks (
+  day date primary key,
+  staff_id uuid references staff(id) on delete set null,
+  locked_at timestamptz not null default now()
+);
+alter table day_locks enable row level security;
+
+create table if not exists cash_days (
+  day date primary key,
+  opening numeric,
+  closing_counted numeric,
+  note text,
+  staff_id uuid references staff(id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+alter table cash_days enable row level security;
+
+-- --- Helpers --------------------------------------------------------------------
+create or replace function counter_day_locked(p_day date)
+returns boolean
+language sql
+stable
+as $$
+  select p_day is not null and exists (select 1 from day_locks where day = p_day);
+$$;
+
+-- Validates one real coupon code and attaches it to an order (locks the
+-- coupon row so two tablets can't use the same code). Raises the same
+-- error codes as redeem_coupon.
+create or replace function attach_coupon_to_order(p_order_id uuid, p_code text)
+returns numeric
+language plpgsql
+as $$
+declare
+  v_value numeric;
+  v_redeemed boolean;
+begin
+  select value, redeemed into v_value, v_redeemed
+  from coupons where code = p_code
+  for update;
+  if v_value is null then
+    raise exception 'unknown_coupon: %', p_code using errcode = 'P0001';
+  end if;
+  if v_redeemed then
+    raise exception 'coupon_already_redeemed: %', p_code using errcode = 'P0001';
+  end if;
+  update coupons set redeemed = true, redeemed_at = now(), redeemed_order_id = p_order_id where code = p_code;
+  insert into order_coupons (order_id, coupon_code, amount, resolved_at) values (p_order_id, p_code, v_value, now());
+  return v_value;
+end;
+$$;
+
+-- Recomputes orders.discount_amount (the figure every sales report already
+-- subtracts) = all coupons on the order + the manual discount. A % discount
+-- is taken off the bill before coupons.
+create or replace function recompute_order_discount(p_order_id uuid)
+returns void
+language plpgsql
+as $$
+declare
+  v_gross numeric;
+  v_pct numeric;
+  v_manual numeric;
+  v_coupons numeric;
+begin
+  select coalesce(sum(qty * price_at_order), 0) into v_gross from order_items where order_id = p_order_id;
+  select manual_discount_pct, manual_discount_amount into v_pct, v_manual from orders where id = p_order_id;
+  if v_pct is not null and v_pct > 0 then
+    v_manual := round(v_gross * v_pct / 100, 2);
+    update orders set manual_discount_amount = v_manual where id = p_order_id;
+  end if;
+  select coalesce(sum(amount), 0) into v_coupons from order_coupons where order_id = p_order_id;
+  update orders set discount_amount = coalesce(v_manual, 0) + v_coupons where id = p_order_id;
+end;
+$$;
+
+-- --- place_counter_order ---------------------------------------------------------
+-- p shape:
+-- { clientKey, clientCreatedAt (ISO), staffId, kind: 'walk_in'|'pre_order',
+--   customerLabel, requestedDate, requestedTime,
+--   items: [{code, qty, fulfillmentType, note}],
+--   discountPct, discountAmount, discountNote,
+--   coupons: [{code} | {pendingAmount}],
+--   payments: [{method, amount}],
+--   softCoupons: bool }
+-- Idempotent on clientKey: a retried sync returns the existing order
+-- (already_existed = true) instead of creating a second one. Never checks
+-- or deducts stock. softCoupons (set by offline sync) records a code that
+-- can't be accepted as a pending coupon instead of failing the whole order.
+create or replace function place_counter_order(p jsonb)
+returns jsonb
+language plpgsql
+as $$
+declare
+  v_existing record;
+  v_order_id uuid;
+  v_kind text := coalesce(p ->> 'kind', 'walk_in');
+  v_created_at timestamptz := coalesce((p ->> 'clientCreatedAt')::timestamptz, now());
+  v_day date := (timezone('Asia/Bangkok', coalesce((p ->> 'clientCreatedAt')::timestamptz, now())))::date;
+  v_staff uuid := nullif(p ->> 'staffId', '')::uuid;
+  v_number int;
+  v_item jsonb;
+  v_code text;
+  v_qty int;
+  v_fulfillment text;
+  v_name text;
+  v_price numeric;
+  v_coupon jsonb;
+  v_pay jsonb;
+  v_soft boolean := coalesce((p ->> 'softCoupons')::boolean, false);
+  v_value numeric;
+  v_warnings text[] := '{}';
+begin
+  if coalesce(p ->> 'clientKey', '') = '' then
+    raise exception 'missing_client_key' using errcode = 'P0001';
+  end if;
+
+  select id, daily_order_number, order_date, status into v_existing from orders where client_key = p ->> 'clientKey';
+  if found then
+    return jsonb_build_object('order_id', v_existing.id, 'daily_order_number', v_existing.daily_order_number,
+      'order_date', v_existing.order_date, 'status', v_existing.status, 'already_existed', true);
+  end if;
+
+  if p -> 'items' is null or jsonb_array_length(p -> 'items') = 0 then
+    raise exception 'empty_order' using errcode = 'P0001';
+  end if;
+  if v_kind not in ('walk_in', 'pre_order') then
+    raise exception 'invalid_kind' using errcode = 'P0001';
+  end if;
+  if v_kind = 'pre_order' and coalesce(p ->> 'requestedDate', '') = '' then
+    raise exception 'missing_requested_date' using errcode = 'P0001';
+  end if;
+  if v_kind = 'walk_in' and counter_day_locked(v_day) then
+    raise exception 'day_locked: %', v_day using errcode = 'P0001';
+  end if;
+  if v_staff is not null and not exists (select 1 from staff where id = v_staff) then
+    v_staff := null;
+  end if;
+
+  if v_kind = 'walk_in' then
+    perform pg_advisory_xact_lock(hashtext(v_day::text));
+    select coalesce(max(daily_order_number), 0) + 1 into v_number from orders where order_date = v_day;
+  end if;
+
+  insert into orders (
+    daily_order_number, order_date, seat_id, status, order_type, requested_date, requested_time,
+    source, staff_id, customer_label, client_key, inventory_applied,
+    manual_discount_pct, manual_discount_amount, discount_note, created_at
+  ) values (
+    v_number,
+    case when v_kind = 'walk_in' then v_day end,
+    null,
+    case when v_kind = 'walk_in' then 'placed' else 'pending_pickup' end,
+    case when v_kind = 'walk_in' then 'counter' else 'pre_order' end,
+    case when v_kind = 'pre_order' then (p ->> 'requestedDate')::date end,
+    case when v_kind = 'pre_order' then nullif(p ->> 'requestedTime', '')::time end,
+    'counter', v_staff, nullif(trim(p ->> 'customerLabel'), ''), p ->> 'clientKey', false,
+    nullif((p ->> 'discountPct')::numeric, 0),
+    coalesce(nullif(p ->> 'discountAmount', '')::numeric, 0),
+    nullif(trim(p ->> 'discountNote'), ''),
+    v_created_at
+  ) returning id into v_order_id;
+
+  for v_item in select * from jsonb_array_elements(p -> 'items')
+  loop
+    v_code := v_item ->> 'code';
+    v_qty := (v_item ->> 'qty')::int;
+    v_fulfillment := coalesce(v_item ->> 'fulfillmentType', 'dine_in');
+    if v_code is null or v_qty is null or v_qty <= 0 then
+      raise exception 'invalid_item' using errcode = 'P0001';
+    end if;
+    if v_fulfillment not in ('dine_in', 'takeaway') then
+      raise exception 'invalid_fulfillment_type: %', v_fulfillment using errcode = 'P0001';
+    end if;
+    -- Inactive items are still accepted here (unlike the QR menu): an order
+    -- taken offline must still sync even if the item was hidden meanwhile.
+    select name, price into v_name, v_price from menu_items where code = v_code;
+    if v_name is null then
+      raise exception 'unknown_item: %', v_code using errcode = 'P0001';
+    end if;
+    insert into order_items (order_id, menu_item_code, item_name, qty, price_at_order, fulfillment_type, note)
+    values (v_order_id, v_code, v_name, v_qty, v_price, v_fulfillment, nullif(trim(v_item ->> 'note'), ''));
+  end loop;
+
+  for v_coupon in select * from jsonb_array_elements(coalesce(p -> 'coupons', '[]'::jsonb))
+  loop
+    if coalesce(trim(v_coupon ->> 'code'), '') <> '' then
+      begin
+        perform attach_coupon_to_order(v_order_id, trim(v_coupon ->> 'code'));
+      exception when others then
+        if not v_soft then
+          raise;
+        end if;
+        -- Offline sync: keep the sale, park the coupon on the to-fix list.
+        select value into v_value from coupons where code = trim(v_coupon ->> 'code');
+        insert into order_coupons (order_id, coupon_code, amount, attempted_code)
+        values (v_order_id, null, coalesce(nullif(v_coupon ->> 'amount', '')::numeric, v_value, 1), trim(v_coupon ->> 'code'));
+        v_warnings := v_warnings || ('coupon ' || trim(v_coupon ->> 'code') || ' could not be used (' ||
+          case when sqlerrm like 'coupon_already_redeemed%' then 'already used' when sqlerrm like 'unknown_coupon%' then 'not in the system' else sqlerrm end ||
+          ') and was saved as "code pending"');
+      end;
+    elsif coalesce((v_coupon ->> 'pendingAmount')::numeric, 0) > 0 then
+      insert into order_coupons (order_id, coupon_code, amount) values (v_order_id, null, (v_coupon ->> 'pendingAmount')::numeric);
+    end if;
+  end loop;
+
+  perform recompute_order_discount(v_order_id);
+
+  for v_pay in select * from jsonb_array_elements(coalesce(p -> 'payments', '[]'::jsonb))
+  loop
+    if coalesce((v_pay ->> 'amount')::numeric, 0) <> 0 then
+      if (v_pay ->> 'method') not in ('cash', 'online') then
+        raise exception 'invalid_payment_method' using errcode = 'P0001';
+      end if;
+      insert into order_payments (order_id, method, amount, received_on, staff_id)
+      values (v_order_id, v_pay ->> 'method', (v_pay ->> 'amount')::numeric, v_day, v_staff);
+    end if;
+  end loop;
+
+  insert into order_audit_log (order_id, staff_id, action, detail)
+  values (v_order_id, v_staff, 'created', jsonb_build_object('kind', v_kind, 'warnings', to_jsonb(v_warnings)));
+
+  return jsonb_build_object('order_id', v_order_id, 'daily_order_number', v_number,
+    'order_date', case when v_kind = 'walk_in' then v_day end,
+    'status', case when v_kind = 'walk_in' then 'placed' else 'pending_pickup' end,
+    'already_existed', false, 'warnings', to_jsonb(v_warnings));
+end;
+$$;
+
+-- --- update_counter_order: edit items / label / discount / pickup time -------
+-- Replaces the order's items wholesale (the edit screen sends the full new
+-- list) and logs before/after. Refused on a locked day or a voided order.
+create or replace function update_counter_order(p_order_id uuid, p jsonb)
+returns void
+language plpgsql
+as $$
+declare
+  v_order record;
+  v_before jsonb;
+  v_item jsonb;
+  v_name text;
+  v_price numeric;
+  v_staff uuid := nullif(p ->> 'staffId', '')::uuid;
+begin
+  select * into v_order from orders where id = p_order_id for update;
+  if not found then
+    raise exception 'unknown_order' using errcode = 'P0001';
+  end if;
+  if v_order.status = 'void' then
+    raise exception 'order_voided' using errcode = 'P0001';
+  end if;
+  if counter_day_locked(v_order.order_date) then
+    raise exception 'day_locked: %', v_order.order_date using errcode = 'P0001';
+  end if;
+  if p -> 'items' is null or jsonb_array_length(p -> 'items') = 0 then
+    raise exception 'empty_order' using errcode = 'P0001';
+  end if;
+  if v_staff is not null and not exists (select 1 from staff where id = v_staff) then
+    v_staff := null;
+  end if;
+
+  select jsonb_build_object(
+    'items', coalesce((select jsonb_agg(jsonb_build_object('code', menu_item_code, 'qty', qty, 'price', price_at_order,
+               'fulfillmentType', fulfillment_type, 'note', note) order by id) from order_items where order_id = p_order_id), '[]'::jsonb),
+    'customerLabel', v_order.customer_label, 'discountPct', v_order.manual_discount_pct,
+    'discountAmount', v_order.manual_discount_amount, 'discountNote', v_order.discount_note,
+    'requestedDate', v_order.requested_date, 'requestedTime', v_order.requested_time
+  ) into v_before;
+
+  delete from order_items where order_id = p_order_id;
+  for v_item in select * from jsonb_array_elements(p -> 'items')
+  loop
+    if coalesce((v_item ->> 'qty')::int, 0) <= 0 then
+      raise exception 'invalid_item' using errcode = 'P0001';
+    end if;
+    -- Keep the price the item was sold at when it's already on the order
+    -- (sent back as "price"); new lines take today's menu price.
+    select name, price into v_name, v_price from menu_items where code = v_item ->> 'code';
+    if v_name is null then
+      raise exception 'unknown_item: %', v_item ->> 'code' using errcode = 'P0001';
+    end if;
+    insert into order_items (order_id, menu_item_code, item_name, qty, price_at_order, fulfillment_type, note)
+    values (p_order_id, v_item ->> 'code', v_name, (v_item ->> 'qty')::int,
+      coalesce(nullif(v_item ->> 'price', '')::numeric, v_price),
+      coalesce(v_item ->> 'fulfillmentType', 'dine_in'), nullif(trim(v_item ->> 'note'), ''));
+  end loop;
+
+  update orders set
+    customer_label = nullif(trim(p ->> 'customerLabel'), ''),
+    manual_discount_pct = nullif((p ->> 'discountPct')::numeric, 0),
+    manual_discount_amount = coalesce(nullif(p ->> 'discountAmount', '')::numeric, 0),
+    discount_note = nullif(trim(p ->> 'discountNote'), ''),
+    requested_date = case when order_type = 'pre_order' and status = 'pending_pickup'
+                          then coalesce(nullif(p ->> 'requestedDate', '')::date, requested_date) else requested_date end,
+    requested_time = case when order_type = 'pre_order' and status = 'pending_pickup'
+                          then nullif(p ->> 'requestedTime', '')::time else requested_time end,
+    updated_at = now()
+  where id = p_order_id;
+
+  perform recompute_order_discount(p_order_id);
+
+  insert into order_audit_log (order_id, staff_id, action, detail)
+  values (p_order_id, v_staff, 'edited', jsonb_build_object('before', v_before, 'after', p - 'staffId'));
+end;
+$$;
+
+-- --- void_order: cancel an order, free its coupons, keep it for the record --
+create or replace function void_order(p_order_id uuid, p_reason text, p_staff_id uuid)
+returns void
+language plpgsql
+as $$
+declare
+  v_order record;
+begin
+  select * into v_order from orders where id = p_order_id for update;
+  if not found then
+    raise exception 'unknown_order' using errcode = 'P0001';
+  end if;
+  if v_order.status = 'void' then
+    return;
+  end if;
+  if counter_day_locked(v_order.order_date) then
+    raise exception 'day_locked: %', v_order.order_date using errcode = 'P0001';
+  end if;
+
+  update coupons set redeemed = false, redeemed_at = null, redeemed_order_id = null
+  where redeemed_order_id = p_order_id;
+  -- The order_coupons rows stay (history), but release the codes so the
+  -- physical coupons can be used again.
+  update order_coupons set coupon_code = null, attempted_code = coalesce(attempted_code, coupon_code)
+  where order_id = p_order_id and coupon_code is not null;
+
+  update orders set status = 'void', voided_at = now(), void_reason = nullif(trim(p_reason), ''), updated_at = now()
+  where id = p_order_id;
+
+  insert into order_audit_log (order_id, staff_id, action, detail)
+  values (p_order_id, case when exists (select 1 from staff where id = p_staff_id) then p_staff_id end, 'voided',
+    jsonb_build_object('reason', p_reason, 'previous_status', v_order.status));
+end;
+$$;
+
+-- --- resolve_pending_coupon: type in the code for a "code pending" coupon ---
+create or replace function resolve_pending_coupon(p_order_coupon_id bigint, p_code text, p_staff_id uuid)
+returns void
+language plpgsql
+as $$
+declare
+  v_row record;
+  v_value numeric;
+  v_redeemed boolean;
+begin
+  select oc.*, o.order_date, o.status as order_status into v_row
+  from order_coupons oc join orders o on o.id = oc.order_id
+  where oc.id = p_order_coupon_id for update of oc;
+  if not found then
+    raise exception 'unknown_order_coupon' using errcode = 'P0001';
+  end if;
+  if v_row.coupon_code is not null then
+    raise exception 'already_resolved' using errcode = 'P0001';
+  end if;
+  if v_row.order_status = 'void' then
+    raise exception 'order_voided' using errcode = 'P0001';
+  end if;
+
+  select value, redeemed into v_value, v_redeemed from coupons where code = trim(p_code) for update;
+  if v_value is null then
+    raise exception 'unknown_coupon: %', p_code using errcode = 'P0001';
+  end if;
+  if v_redeemed then
+    raise exception 'coupon_already_redeemed: %', p_code using errcode = 'P0001';
+  end if;
+
+  update coupons set redeemed = true, redeemed_at = now(), redeemed_order_id = v_row.order_id where code = trim(p_code);
+  update order_coupons set coupon_code = trim(p_code), amount = v_value, resolved_at = now() where id = p_order_coupon_id;
+  perform recompute_order_discount(v_row.order_id);
+
+  insert into order_audit_log (order_id, staff_id, action, detail)
+  values (v_row.order_id, case when exists (select 1 from staff where id = p_staff_id) then p_staff_id end,
+    'coupon_resolved', jsonb_build_object('code', trim(p_code), 'pending_amount', v_row.amount, 'coupon_value', v_value));
+end;
+$$;
+
+-- Net amount still owed on an order: items - discount - payments so far.
+create or replace function order_outstanding(p_order_id uuid)
+returns numeric
+language sql
+stable
+as $$
+  select greatest(0, coalesce((select sum(qty * price_at_order) from order_items where order_id = p_order_id), 0)
+                     - coalesce((select discount_amount from orders where id = p_order_id), 0))
+         - coalesce((select sum(amount) from order_payments where order_id = p_order_id), 0);
+$$;
+
+-- --- Payments added after the order (pay-later, top-up, refund) ------------
+-- A refund is a negative amount. Refused on a locked day (either the
+-- order's day or the day the money moves) or a voided order.
+create or replace function add_order_payment(p_order_id uuid, p_method text, p_amount numeric, p_received_on date, p_staff_id uuid, p_note text)
+returns bigint
+language plpgsql
+as $$
+declare
+  v_order record;
+  v_id bigint;
+  v_staff uuid := case when exists (select 1 from staff where id = p_staff_id) then p_staff_id end;
+begin
+  select * into v_order from orders where id = p_order_id for update;
+  if not found then
+    raise exception 'unknown_order' using errcode = 'P0001';
+  end if;
+  if v_order.status = 'void' then
+    raise exception 'order_voided' using errcode = 'P0001';
+  end if;
+  if p_method not in ('cash', 'online') then
+    raise exception 'invalid_payment_method' using errcode = 'P0001';
+  end if;
+  if p_amount is null or p_amount = 0 then
+    raise exception 'invalid_amount' using errcode = 'P0001';
+  end if;
+  if counter_day_locked(p_received_on) then
+    raise exception 'day_locked: %', p_received_on using errcode = 'P0001';
+  end if;
+
+  insert into order_payments (order_id, method, amount, received_on, staff_id, note)
+  values (p_order_id, p_method, p_amount, p_received_on, v_staff, nullif(trim(p_note), ''))
+  returning id into v_id;
+
+  -- A served counter order that is now fully paid closes itself.
+  if v_order.status = 'served' and order_outstanding(p_order_id) <= 0 then
+    update orders set status = 'paid', payment_method = coalesce(payment_method, p_method) where id = p_order_id;
+  end if;
+
+  insert into order_audit_log (order_id, staff_id, action, detail)
+  values (p_order_id, v_staff, case when p_amount < 0 then 'refund' else 'payment' end,
+    jsonb_build_object('method', p_method, 'amount', p_amount, 'received_on', p_received_on, 'note', p_note));
+  return v_id;
+end;
+$$;
+
+create or replace function delete_order_payment(p_payment_id bigint, p_staff_id uuid)
+returns void
+language plpgsql
+as $$
+declare
+  v_pay record;
+begin
+  select * into v_pay from order_payments where id = p_payment_id for update;
+  if not found then
+    return;
+  end if;
+  if counter_day_locked(v_pay.received_on) then
+    raise exception 'day_locked: %', v_pay.received_on using errcode = 'P0001';
+  end if;
+  delete from order_payments where id = p_payment_id;
+  insert into order_audit_log (order_id, staff_id, action, detail)
+  values (v_pay.order_id, case when exists (select 1 from staff where id = p_staff_id) then p_staff_id end,
+    'payment_removed', jsonb_build_object('method', v_pay.method, 'amount', v_pay.amount, 'received_on', v_pay.received_on));
+end;
+$$;
+
+-- --- Add a coupon to an existing order (real code, or "code pending") ------
+create or replace function add_order_coupon(p_order_id uuid, p_code text, p_pending_amount numeric, p_staff_id uuid)
+returns void
+language plpgsql
+as $$
+declare
+  v_order record;
+begin
+  select * into v_order from orders where id = p_order_id for update;
+  if not found then
+    raise exception 'unknown_order' using errcode = 'P0001';
+  end if;
+  if v_order.status = 'void' then
+    raise exception 'order_voided' using errcode = 'P0001';
+  end if;
+  if counter_day_locked(v_order.order_date) then
+    raise exception 'day_locked: %', v_order.order_date using errcode = 'P0001';
+  end if;
+  if coalesce(trim(p_code), '') <> '' then
+    perform attach_coupon_to_order(p_order_id, trim(p_code));
+  elsif coalesce(p_pending_amount, 0) > 0 then
+    insert into order_coupons (order_id, coupon_code, amount) values (p_order_id, null, p_pending_amount);
+  else
+    raise exception 'invalid_coupon_input' using errcode = 'P0001';
+  end if;
+  perform recompute_order_discount(p_order_id);
+  insert into order_audit_log (order_id, staff_id, action, detail)
+  values (p_order_id, case when exists (select 1 from staff where id = p_staff_id) then p_staff_id end, 'coupon_added',
+    jsonb_build_object('code', nullif(trim(p_code), ''), 'pending_amount', p_pending_amount));
+end;
+$$;
+
+-- --- Serving / billing hooks (used by /serve and /billing for every order) --
+-- Served: a counter order that is already fully paid skips Billing and goes
+-- straight to 'paid'; anything else waits on /billing as before.
+create or replace function mark_order_served(p_order_id uuid)
+returns text
+language plpgsql
+as $$
+declare
+  v_order record;
+  v_new text;
+begin
+  select * into v_order from orders where id = p_order_id for update;
+  if not found or v_order.status <> 'placed' then
+    return coalesce(v_order.status, 'unknown');
+  end if;
+  v_new := case when v_order.source = 'counter' and order_outstanding(p_order_id) <= 0 then 'paid' else 'served' end;
+  update orders set status = v_new where id = p_order_id;
+  return v_new;
+end;
+$$;
+
+-- Billing's Cash / Online buttons: records a payment row for whatever is
+-- still owed on each order (so the cash drawer and the daily summary see
+-- it), then marks the order paid. Same one-method-per-click rule as before.
+create or replace function pay_orders(p_order_ids uuid[], p_method text, p_staff_id uuid)
+returns void
+language plpgsql
+as $$
+declare
+  v_id uuid;
+  v_owed numeric;
+  v_today date := (timezone('Asia/Bangkok', now()))::date;
+begin
+  if p_method not in ('cash', 'online') then
+    raise exception 'invalid_payment_method' using errcode = 'P0001';
+  end if;
+  for v_id in select id from orders where id = any(p_order_ids) and status = 'served' order by id for update
+  loop
+    v_owed := order_outstanding(v_id);
+    if v_owed > 0 then
+      insert into order_payments (order_id, method, amount, received_on, staff_id)
+      values (v_id, p_method, v_owed, v_today, case when exists (select 1 from staff where id = p_staff_id) then p_staff_id end);
+    end if;
+    update orders set status = 'paid', payment_method = p_method where id = v_id;
+  end loop;
+end;
+$$;
+
+-- Backfill: coupons redeemed on QR bills before this round get an
+-- order_coupons row too, so every coupon on every bill lives in one place.
+insert into order_coupons (order_id, coupon_code, amount, resolved_at)
+select c.redeemed_order_id, c.code, c.value, coalesce(c.redeemed_at, now())
+from coupons c
+where c.redeemed and c.redeemed_order_id is not null
+  and exists (select 1 from orders o where o.id = c.redeemed_order_id)
+on conflict (coupon_code) do nothing;
+
 -- ---------------------------------------------------------------------------
 -- Explicit grants for the service role. Newer Supabase projects no longer
 -- auto-grant service_role access to tables created by hand (the "Automatically
@@ -1860,3 +2556,16 @@ grant execute on function clear_stock_history() to service_role;
 grant execute on function reset_orders_in_range(date, date) to service_role;
 grant execute on function rename_menu_item_code(text, text) to service_role;
 grant execute on function prep_batch(uuid, numeric) to service_role;
+grant execute on function counter_day_locked(date) to service_role;
+grant execute on function attach_coupon_to_order(uuid, text) to service_role;
+grant execute on function recompute_order_discount(uuid) to service_role;
+grant execute on function place_counter_order(jsonb) to service_role;
+grant execute on function update_counter_order(uuid, jsonb) to service_role;
+grant execute on function void_order(uuid, text, uuid) to service_role;
+grant execute on function resolve_pending_coupon(bigint, text, uuid) to service_role;
+grant execute on function order_outstanding(uuid) to service_role;
+grant execute on function add_order_payment(uuid, text, numeric, date, uuid, text) to service_role;
+grant execute on function delete_order_payment(bigint, uuid) to service_role;
+grant execute on function add_order_coupon(uuid, text, numeric, uuid) to service_role;
+grant execute on function mark_order_served(uuid) to service_role;
+grant execute on function pay_orders(uuid[], text, uuid) to service_role;

@@ -10,6 +10,8 @@ const PACKAGING_TYPE_OPTIONS: { value: MenuItem["packagingType"]; label: string 
   { value: "food", label: "Food" },
   { value: "hot_drink", label: "Drink — Hot" },
   { value: "cold_drink", label: "Drink — Cold" },
+  { value: "straw_only", label: "As-is with a straw (no glass)" },
+  { value: "none", label: "No packaging" },
 ];
 
 function LinkedIngredientRow({
