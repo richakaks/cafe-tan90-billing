@@ -23,7 +23,15 @@ SEATS = [(f"T{i}", f"Table {i}", "table") for i in range(1, 10)] + [
 # ---------------------------------------------------------------------------
 PRIMARIES = {
     "White Sauce": ("ml", 1000, 200),
-    "Sautéed Mushrooms": ("g", 800, 150),
+    # Round 29 (9/24 fourth follow-up): retired as its own tracked primary --
+    # the owner's call is that sautéing mushrooms in-kitchen doesn't need its
+    # own separate inventory line, it's just "Mushroom." Recipes that used to
+    # deduct Sautéed Mushrooms now deduct the plain "Mushroom" raw ingredient
+    # directly, at the same gram figure (see MAPPINGS' SD-MUS/SP-AWS0 below).
+    # This does mean the small amount of Garlic/Green Chilli/Butter/Olive Oil/
+    # Salt/Black Pepper that went into the sauté step is no longer tracked
+    # per-order -- flagged to the owner as a real (if minor) loss of
+    # granularity, not silently dropped.
     "Potato Patty": ("pcs", 24, 6),
     "Tikka Marinated Mince": ("g", 800, 150),
     "Homemade Mayo": ("ml", 750, 150),
@@ -50,6 +58,17 @@ PRIMARIES = {
     "Chicken Keema": ("g", 1200, 250),
     "Veg Keema": ("g", 2200, 400),
     "Tomato Sauce": ("ml", 650, 150),
+    # Round 29 (9/24 third follow-up): the owner reversed the prior round's
+    # "Ginger-Garlic Paste" consolidation -- ginger paste and garlic paste
+    # are prepped as two separate batch items in the kitchen (even though
+    # both SOP recipes that use them happen to call for a 1:1 ratio), so
+    # they're split back out here. Neither SOP documents a raw-ginger/
+    # raw-garlic-to-paste conversion ratio (no batch-prep sub-section for
+    # either), so -- same treatment Caramelised Onions got before its own
+    # recipe existed -- these are directly-restocked primaries with no
+    # nested PRIMARY_RECIPES entry.
+    "Ginger Paste": ("g", 500, 100),
+    "Garlic Paste": ("g", 500, 100),
 }
 
 RAW = {
@@ -65,12 +84,18 @@ RAW = {
     "Ketchup": ("ml", 2000, 400),
     "Peri-Peri Seasoning": ("g", 300, 60),
     "Garlic Powder": ("g", 300, 60),
-    "Smoked Paprika": ("g", 200, 40),
     "Zab Seasoning": ("g", 300, 60),
     # Added when the Zab Fries SOP picked up a second dry seasoning
     # alongside Zab Seasoning.
     "Lime Seasoning": ("g", 300, 60),
-    "Fresh Lime Juice": ("ml", 500, 100),
+    # Round 29 (9/24 third follow-up): "Fresh Lemon Juice" removed and every
+    # recipe that used it (Tikka Marinated Mince, Homemade Mayo, SD-CHS)
+    # switched to this -- owner's explicit instruction, overriding the
+    # Round 28 decision below (T-GLT0 etc.) that lemon/lime were genuinely
+    # different bottles; the "Fresh" prefix was also dropped from the name
+    # as part of the same round's broader "Fresh X" cleanup (see Ginger/
+    # Coriander below too).
+    "Lime Juice": ("ml", 500, 100),
     "Frozen Samosas": ("pcs", 60, 15),
     "Maggi Noodles": ("g", 2000, 400),
     "Maggi Masala Sachet": ("pcs", 30, 8),
@@ -83,14 +108,17 @@ RAW = {
     "Sandwich Bread": ("slices", 100, 20),
     "Cheese Slice": ("pcs", 150, 30),
     "Tikka Masala Paste": ("ml", 500, 100),
-    "Fresh Lemon Juice": ("ml", 1500, 300),
     "Iceberg Lettuce": ("g", 2000, 400),
     "Burger Bun": ("pcs", 60, 15),
     "Frozen Chicken Patty": ("pcs", 60, 15),
-    "Tomato Slices": ("slices", 200, 40),
-    "Pickled Cucumber Slices": ("slices", 150, 30),
-    "Fresh Cucumber Slices": ("slices", 150, 30),
-    "Pickled Cabbage / Coleslaw": ("g", 1000, 200),
+    # Round 29 (9/24 third follow-up): "Fresh Cucumber Slices" renamed to
+    # plain "Cucumber" and switched from a "slices" unit to grams (owner:
+    # cucumber and cucumber slices are the same ingredient, tracking by
+    # slice count was the inconsistency). ~8g/slice is an owner-authorized
+    # estimate (same "assume a reasonable conversion" treatment as Garlic's
+    # existing ~5g/clove figure) -- the SOP itself only ever says "3 slices,"
+    # never a weight. Recipe link updated below (3 slices -> 24g).
+    "Cucumber": ("g", 1200, 240),
     "Spaghetti (Dry)": ("g", 3000, 600),
     "Garlic": ("cloves", 200, 40),
     "Grated Parmesan Cheese": ("g", 800, 150),
@@ -104,11 +132,10 @@ RAW = {
     "Black Tea Leaves": ("g", 500, 100),
     "Red Label Tea Leaves": ("g", 300, 60),
     "Red Label Masala Powder": ("g", 300, 60),
-    "Fresh Ginger": ("g", 500, 100),
+    "Ginger": ("g", 500, 100),
     "Honey": ("ml", 800, 150),
     "Ground Coffee": ("g", 2000, 400),
     "Thai Tea Powder": ("g", 500, 100),
-    "Evaporated Milk": ("ml", 1000, 200),
     "Dried Butterfly Pea Flowers": ("pcs", 200, 40),
     "Hazelnut Syrup": ("ml", 800, 150),
     "Chocolate Sauce": ("ml", 800, 150),
@@ -132,7 +159,14 @@ RAW = {
     "Soda Water": ("ml", 5000, 1000),
     "Cola": ("can", 48, 12),
     "Pink Salt": ("g", 200, 40),
-    "Lemon Slice": ("pcs", 200, 40),
+    # Round 29 (9/24 fourth follow-up): merged the separate "Lemon" duplicate
+    # (a legacy production row, gram-tracked) into this one -- owner's call
+    # that lemon and lemon slice garnish are the same ingredient, tracked by
+    # weight. Renamed from "Lemon Slice" (pcs) to "Lemon" (g); recipe qty
+    # converted from "1 slice" to an assumed 8g/slice (same estimation
+    # convention as Cucumber's ~8g/slice below) -- worth the owner's
+    # confirmation if a real average slice weight is known.
+    "Lemon": ("g", 1600, 320),
 
     # ------------------------------------------------------------------
     # Round 23: raw sub-ingredients behind the batch-prep primaries above.
@@ -151,11 +185,15 @@ RAW = {
     "Salt": ("g", 5000, 1000),
     "White Pepper": ("g", 200, 40),
     "Nutmeg": ("g", 100, 20),
-    "Button Mushrooms (Raw)": ("g", 3000, 600),
+    # Round 29 (9/24 fourth follow-up): renamed from "Button Mushrooms (Raw)"
+    # -- the owner's call that Sautéed Mushrooms is the same ingredient as
+    # this one and doesn't need its own separate batch-prep tracking; see the
+    # PRIMARIES section's own comment on retiring Sautéed Mushrooms.
+    "Mushroom": ("g", 3000, 600),
     "Black Pepper": ("g", 500, 100),
     "Corn Flour": ("g", 2000, 400),
     "Onion": ("g", 5000, 1000),
-    "Fresh Coriander": ("g", 500, 100),
+    "Coriander": ("g", 500, 100),
     "Cumin Powder": ("g", 300, 60),
     "Coriander Powder": ("g", 300, 60),
     "Garam Masala": ("g", 300, 60),
@@ -165,7 +203,10 @@ RAW = {
     "Raw Chicken Breast Mince": ("g", 5000, 1000),
     "Eggs": ("pcs", 200, 40),
     "Mustard Powder": ("g", 100, 20),
-    "Tomatoes": ("g", 3000, 600),
+    # Round 29 (9/24 fourth follow-up): renamed from "Tomatoes" -- merged
+    # with the separate legacy "Tomato" and "Tomato Slices" production
+    # duplicates, per the owner's instruction to have one canonical "Tomato."
+    "Tomato": ("g", 3000, 600),
     # Named "(Store-Bought)" to distinguish the purchased base sauce from the
     # "Gochujang Sauce" primary it's mixed into -- same product name in the
     # SOP, different inventory rows.
@@ -180,15 +221,6 @@ RAW = {
     # itself, which is the finished, seasoned product made FROM this.
     "Raw Chicken Mince (Momo Grade)": ("g", 5000, 1000),
     "Spring Onion": ("g", 500, 100),
-    # Round 28 (9/24 follow-up): the owner confirmed "Ginger Paste" and
-    # "Garlic Paste" (as used separately in Veg Keema) are the same physical
-    # product as this combined paste, not two more distinct SKUs -- Veg
-    # Keema's recipe was consolidated onto this single ingredient (see
-    # PRIMARY_RECIPES below); "Ginger Paste"/"Garlic Paste" were removed
-    # from this dict since nothing references them anymore. Whole "Garlic"
-    # and whole "Fresh Ginger" (used elsewhere) remain genuinely distinct
-    # from this paste.
-    "Ginger-Garlic Paste": ("g", 500, 100),
     "MSG": ("g", 100, 20),
     "Sesame Oil": ("ml", 500, 100),
     # Generic cooking oil, distinct from "Olive Oil" (which the SOP calls out
@@ -198,7 +230,6 @@ RAW = {
     "Cabbage": ("g", 2000, 400),
     # Shared between Potato Patty and Veg Keema.
     "Potato": ("g", 5000, 1000),
-    "Cauliflower": ("g", 1500, 300),
     "Turmeric": ("g", 300, 60),
     "Paprika": ("g", 300, 60),
     "Timur Pepper": ("g", 100, 20),
@@ -211,14 +242,42 @@ RAW = {
     # the Drinks SOP's Base Milk recipe draw from it. Merged into this one
     # ingredient; White Sauce's primary recipe now points here instead of
     # the now-removed "Full-Fat Milk" row (see PRIMARY_RECIPES below).
-    "Meiji Milk": ("ml", 6000, 1000),
-    "Carnation Evaporated Milk": ("ml", 3000, 500),
-    "Mali Condensed Milk": ("ml", 3000, 500),
+    # Round 30 (9/30): owner doesn't want to distinguish brand for the
+    # fresh-milk pool at all -- renamed "Meiji Milk" -> plain "Milk" (no
+    # brand). The other two named components turned out to be mislabeled:
+    # a fresh SOP re-read shows Carnation is the evaporated milk (not
+    # condensed, as first guessed) and Mali is the condensed milk -- both
+    # renamed to generic names with the brand moved to the ingredient's
+    # own brand field instead of baked into the name.
+    "Milk": ("ml", 6000, 1000),
+    "Evaporated Milk": ("ml", 3000, 500),  # brand: Carnation
+    "Condensed Milk": ("ml", 3000, 500),  # brand: Mali
     "Instant Coffee": ("g", 2000, 400),
     # Plain granulated sugar, used inside Sugar Syrup and Chocolate Syrup's
     # own recipes -- distinct from the "Sugar Syrup" primary itself.
     "Sugar": ("g", 10000, 2000),
     "Breadcrumbs (Dry)": ("g", 2000, 400),
+
+    # ------------------------------------------------------------------
+    # Round 29 (9/24 third follow-up): full ingredient-vs-menu-item audit
+    # (owner's request: "account for every ingredient used in a menu item").
+    # These 5 rows came back as genuinely orphaned -- not referenced by any
+    # current recipe -- and a fresh full re-read of both SOPs found no
+    # mention of any of them anywhere, in any dish, under any name. Kept as
+    # restockable rows (not deleted) and moved to UNLINKED_VISIBILITY_ONLY
+    # below rather than force-linked to a guessed recipe. Cauliflower in
+    # particular was actually purchased (Sep 17 restock, 700g/฿89) -- worth
+    # the owner's attention specifically, since as of this recipe no dish
+    # deducts it at all.
+    # ------------------------------------------------------------------
+    "Smoked Paprika": ("g", 200, 40),
+    # "Tomato Slices" removed here as of Round 29 (9/24 fourth follow-up) --
+    # merged into "Tomato" above, per the owner's instruction to have one
+    # canonical Tomato ingredient rather than separate whole/slices/plural
+    # rows. See PRIMARIES' "Tomato" comment.
+    "Pickled Cucumber Slices": ("slices", 150, 30),
+    "Pickled Cabbage / Coleslaw": ("g", 1000, 200),
+    "Cauliflower": ("g", 1500, 300),
 }
 
 # ---------------------------------------------------------------------------
@@ -258,65 +317,76 @@ RAW = {
 PRIMARY_RECIPES = {
     # Round 28 (9/24 second follow-up): "Full-fat milk" -> "Meiji Milk",
     # same 200ml, per the owner-confirmed Full-Fat Milk/Meiji Milk merge
-    # (see the Meiji Milk RAW entry's comment above).
+    # (see the Meiji Milk RAW entry's comment above). Round 30: "Meiji
+    # Milk" -> plain "Milk" (see the RAW entry's Round 30 comment).
     "White Sauce": (250, [
-        ("Butter", 15), ("All-Purpose Flour", 15), ("Meiji Milk", 200),
+        ("Butter", 15), ("All-Purpose Flour", 15), ("Milk", 200),
         ("Cream Cheese", 25), ("Salt", 2.5), ("White Pepper", 0.3), ("Nutmeg", 0.3),
     ]),
-    "Sautéed Mushrooms": (200, [
-        ("Button Mushrooms (Raw)", 300), ("Garlic", 3), ("Green Chilli", 2),
-        ("Butter", 15), ("Olive Oil", 10), ("Salt", 2.5), ("Black Pepper", 1.25),
-    ]),
+    # "Sautéed Mushrooms" removed here as of Round 29 (9/24 fourth follow-up)
+    # -- retired as its own primary; see PRIMARIES' comment and MAPPINGS'
+    # SD-MUS/SP-AWS0 entries, which now deduct "Mushroom" directly.
     # Round 28: revised Food SOP's Potato Patty table/method no longer
     # includes Fresh Lemon Juice at all -- removed rather than guessed as
     # still-current (owner confirmed: trust the revised SOP).
     "Potato Patty": (8, [
         ("Potato", 750), ("Breadcrumbs (Dry)", 60), ("Corn Flour", 20), ("Onion", 60),
-        ("Green Chilli", 2), ("Fresh Coriander", 30), ("Cumin Powder", 2.5),
+        ("Green Chilli", 2), ("Coriander", 30), ("Cumin Powder", 2.5),
         ("Coriander Powder", 2.5), ("Garam Masala", 1.25), ("Red Chilli Powder", 2.5),
         ("Salt", 3.75),
     ]),
     "Tikka Marinated Mince": (400, [
         ("Raw Chicken Breast Mince", 400), ("Tikka Masala Paste", 30), ("Garlic", 3),
-        ("Fresh Ginger", 5), ("Fresh Lemon Juice", 15), ("Salt", 2.5), ("Cooking Oil", 15),
+        ("Ginger", 5), ("Lime Juice", 15), ("Salt", 2.5), ("Cooking Oil", 15),
     ]),
     "Homemade Mayo": (250, [
-        ("Eggs", 2), ("Garlic", 2), ("Fresh Lemon Juice", 22.5), ("Olive Oil", 160),
+        ("Eggs", 2), ("Garlic", 2), ("Lime Juice", 22.5), ("Olive Oil", 160),
         ("Salt", 2.5), ("White Pepper", 0.3), ("Mustard Powder", 1.25),
     ]),
     "Fresh Salsa": (150, [
-        ("Tomatoes", 300), ("Onion", 60), ("Garlic", 3), ("Green Chilli", 2),
-        ("Salt", 2.5), ("Black Pepper", 1.25), ("Fresh Lime Juice", 15), ("Fresh Coriander", 30),
+        ("Tomato", 300), ("Onion", 60), ("Garlic", 3), ("Green Chilli", 2),
+        ("Salt", 2.5), ("Black Pepper", 1.25), ("Lime Juice", 15), ("Coriander", 30),
     ]),
     "Gochujang Sauce": (65, [
         ("Gochujang Paste (Store-Bought)", 45), ("Light Soy Sauce", 5), ("Store-Bought Mayo", 15),
     ]),
+    # Round 29 (9/24 third follow-up): Chicken Keema's own SOP table (Primary
+    # 1.8) lists Ginger paste 40g and Garlic paste 40g as two separate rows
+    # -- a 1160g-batch re-audit found the previous single "Ginger-Garlic
+    # Paste" 10g figure was wrong (predated this consolidation entirely, an
+    # old error, not something this round's split caused) and has been
+    # corrected to the real 40g/40g split.
     "Chicken Keema": (1160, [
         ("Raw Chicken Mince (Momo Grade)", 1000), ("Onion", 588), ("Spring Onion", 59),
-        ("Ginger-Garlic Paste", 10), ("Salt", 3.6), ("Black Pepper", 3.6), ("MSG", 3.6),
-        ("Coriander Powder", 3.6), ("Fresh Coriander", 59), ("Cumin Powder", 3.6),
+        ("Ginger Paste", 40), ("Garlic Paste", 40), ("Salt", 3.6), ("Black Pepper", 3.6), ("MSG", 3.6),
+        ("Coriander Powder", 3.6), ("Coriander", 59), ("Cumin Powder", 3.6),
         ("Butter", 24), ("Sesame Oil", 24), ("Cooking Oil", 24),
     ]),
     # Round 28: revised Food SOP has a genuinely blank row exactly where
     # Cauliflower used to be (confirmed via direct PDF image inspection, not
     # a text-extraction artifact) -- removed per the owner's instruction to
     # trust the revised SOP.
+    # Round 29 (9/24 third follow-up): split back out of "Ginger-Garlic
+    # Paste" into separate Ginger Paste / Garlic Paste lines, 5g each (the
+    # owner reversed the prior round's consolidation -- see the PRIMARIES
+    # entries' own comment). Same total (10g) as before, just split by name.
     "Veg Keema": (2145, [
         ("Carrot", 400), ("Cabbage", 400), ("Potato", 300),
-        ("Onion", 300), ("Fresh Coriander", 50), ("Spring Onion", 50), ("Salt", 15),
+        ("Onion", 300), ("Coriander", 50), ("Spring Onion", 50), ("Salt", 15),
         ("Black Pepper", 7.5), ("Garam Masala", 7.5), ("Butter", 20), ("Cumin Powder", 5),
-        # Round 28 (9/24 follow-up): consolidated from two separate 5g
-        # Ginger Paste / Garlic Paste lines -- owner confirmed these are the
-        # same physical product as Ginger-Garlic Paste, not distinct SKUs.
-        ("Coriander Powder", 5), ("Ginger-Garlic Paste", 10),
+        ("Coriander Powder", 5), ("Ginger Paste", 5), ("Garlic Paste", 5),
         ("Light Soy Sauce", 10), ("Sesame Oil", 20),
     ]),
     "Tomato Sauce": (700, [
-        ("Tomatoes", 400), ("Fresh Ginger", 40), ("Garlic", 8), ("Turmeric", 15),
+        ("Tomato", 400), ("Ginger", 40), ("Garlic", 8), ("Turmeric", 15),
         ("Salt", 15), ("Paprika", 15), ("Timur Pepper", 5),
     ]),
+    # Round 30: "Meiji Milk" -> "Milk", "Carnation Evaporated Milk" ->
+    # "Evaporated Milk" (brand Carnation), "Mali Condensed Milk" ->
+    # "Condensed Milk" (brand Mali). Same 700/200/100 split as before, just
+    # renamed (see the RAW entries' Round 30 comment).
     "Base Milk": (1000, [
-        ("Meiji Milk", 700), ("Carnation Evaporated Milk", 200), ("Mali Condensed Milk", 100),
+        ("Milk", 700), ("Evaporated Milk", 200), ("Condensed Milk", 100),
     ]),
     "Coffee Concentrate": (1000, [("Instant Coffee", 330)]),
     "Sugar Syrup": (1000, [("Sugar", 500)]),
@@ -354,6 +424,14 @@ UNLINKED_VISIBILITY_ONLY = {
     # drizzle garnish on Mocha (previously 15ml mixed-in).
     "Cocoa Powder",
     "Chocolate Sauce",
+    # Round 29 (9/24 third follow-up): full ingredient-vs-menu-item audit --
+    # see these rows' own comment up in RAW for the full explanation.
+    # ("Tomato Slices" was also on this list originally but was merged into
+    # "Tomato" in the fourth follow-up instead -- see RAW's "Tomato" comment.)
+    "Smoked Paprika",
+    "Pickled Cucumber Slices",
+    "Pickled Cabbage / Coleslaw",
+    "Cauliflower",
 }
 
 # Ingredients excluded ENTIRELY -- no ingredients row at all, same manual
@@ -461,9 +539,11 @@ MENU_ITEMS = [
 
 # ---------------------------------------------------------------------------
 # Menu item -> ingredient mappings: code -> [(ingredient_name, qty), ...]
-# Items with recipes not found anywhere in the SOP docs (Veg Momo, Chicken
-# Momo) are intentionally absent here -- they're seeded as active/orderable
-# but with zero ingredient links.
+# (Round 29 (9/24 third follow-up): the comment that used to be here said
+# Veg Momo/Chicken Momo were intentionally absent because no SOP recipe
+# existed for them -- that's stale. Both now have full recipes (Primary
+# 1.8/1.9 Chicken/Veg Keema -> Momo Wrap + Tomato Sauce achar) and are
+# mapped below via M-VMM/M-CMM, same as everything else.)
 # ---------------------------------------------------------------------------
 MAPPINGS = {
     # Round 28: revised Food SOP's table says Mayo 30ml only (no Ketchup) --
@@ -502,9 +582,9 @@ MAPPINGS = {
 
     # Round 28: each sandwich's "served with Ketchup 30ml" line was never
     # auto-deducted before -- owner confirmed deduct every listed condiment.
-    "SD-MUS": [("Sandwich Bread", 2), ("Butter", 10), ("Sautéed Mushrooms", 70), ("White Sauce", 50), ("Cheese Slice", 1), ("Ketchup", 30)],
+    "SD-MUS": [("Sandwich Bread", 2), ("Butter", 10), ("Mushroom", 70), ("White Sauce", 50), ("Cheese Slice", 1), ("Ketchup", 30)],
     "SD-GCS": [("Sandwich Bread", 2), ("Butter", 10), ("Cheese Slice", 2), ("Mozzarella Cheese Shredded", 20), ("Ketchup", 30)],
-    "SD-CHS": [("Sandwich Bread", 2), ("Butter", 5), ("Tikka Marinated Mince", 70), ("Homemade Mayo", 45), ("Tikka Masala Paste", 5), ("Fresh Lemon Juice", 2.5), ("Iceberg Lettuce", 30), ("Ketchup", 30)],
+    "SD-CHS": [("Sandwich Bread", 2), ("Butter", 5), ("Tikka Marinated Mince", 70), ("Homemade Mayo", 45), ("Tikka Masala Paste", 5), ("Lime Juice", 2.5), ("Iceberg Lettuce", 30), ("Ketchup", 30)],
 
     # Round 28: revised Food SOP dropped Tomato Slices from every burger
     # (consistently absent across all 5, read as a deliberate removal) and
@@ -525,21 +605,23 @@ MAPPINGS = {
     # owner removed that contradicting method line, so this burger now gets
     # the same 30ml Homemade Mayo side-dip as the other four (added fresh --
     # this burger never had any Homemade Mayo link before).
-    "B-GCB": [("Burger Bun", 1), ("Butter", 5), ("Frozen Chicken Patty", 1), ("Gochujang Sauce", 15), ("Caramelised Onions", 30, "tbsp"), ("Fresh Cucumber Slices", 3), ("Homemade Mayo", 30)],
+    # Round 29 (9/24 third follow-up): "Fresh Cucumber Slices" (3 slices) ->
+    # "Cucumber" (24g), see its RAW entry's comment for the g/slice estimate.
+    "B-GCB": [("Burger Bun", 1), ("Butter", 5), ("Frozen Chicken Patty", 1), ("Gochujang Sauce", 15), ("Caramelised Onions", 30, "tbsp"), ("Cucumber", 24), ("Homemade Mayo", 30)],
     "B-SCB": [("Burger Bun", 1), ("Butter", 5), ("Frozen Chicken Patty", 1), ("Cheese Slice", 1), ("Iceberg Lettuce", 20), ("Caramelised Onions", 30, "tbsp"), ("Ketchup", 15), ("Homemade Mayo", 40), ("Chilli Oil", 15)],
 
     # Round 28 (9/24 second follow-up, tbsp/tsp audit): both dishes' Garlic
     # Powder row reads "1/4 tsp" in the SOP, tsp-only with no gram figure --
     # corrected 0.75g -> 1.25g (1/4 tsp x 5g/tsp, the standing conversion
     # rule; the old 0.75g predates this table row).
-    "SP-AWS0": [("Spaghetti (Dry)", 90), ("White Sauce", 120), ("Sautéed Mushrooms", 75), ("Butter", 5), ("Garlic", 1), ("Garlic Powder", 1.25), ("Grated Parmesan Cheese", 10), ("Olive Oil", 5)],
+    "SP-AWS0": [("Spaghetti (Dry)", 90), ("White Sauce", 120), ("Mushroom", 75), ("Butter", 5), ("Garlic", 1), ("Garlic Powder", 1.25), ("Grated Parmesan Cheese", 10), ("Olive Oil", 5)],
     "SP-AWS1": [("Spaghetti (Dry)", 90), ("White Sauce", 120), ("Tikka Marinated Mince", 70), ("Butter", 5), ("Garlic", 1), ("Garlic Powder", 1.25), ("Green Chilli", 1), ("Grated Parmesan Cheese", 10), ("Olive Oil", 5)],
 
     # Round 28: revised Drinks SOP raised Black Tea Leaves 3g -> 5g on both,
     # and switched Fresh Lemon Juice -> Fresh Lime Juice (owner confirmed:
     # genuinely different stocked bottles, not the same product renamed).
-    "T-GLT0": [("Black Tea Leaves", 5), ("Fresh Ginger", 3), ("Fresh Lime Juice", 20), ("Honey", 7.5)],
-    "T-GLT1": [("Black Tea Leaves", 5), ("Fresh Ginger", 3), ("Fresh Lime Juice", 20), ("Sugar Syrup", 7.5)],
+    "T-GLT0": [("Black Tea Leaves", 5), ("Ginger", 3), ("Lime Juice", 20), ("Honey", 7.5)],
+    "T-GLT1": [("Black Tea Leaves", 5), ("Ginger", 3), ("Lime Juice", 20), ("Sugar Syrup", 7.5)],
     # Round 28: revised table raised Black Tea Leaves 3g -> 5g.
     "T-BLT0": [("Black Tea Leaves", 5)],
     "T-BLT1": [("Black Tea Concentrate", 110)],
@@ -547,17 +629,23 @@ MAPPINGS = {
     # Milk/Evaporated Milk to the Base Milk primary (same volumes as before).
     # Round 28: revised table lowered Thai Tea Powder 18g -> 10g and raised
     # Base Milk to a matching 100ml on both variants.
-    "T-TMT0": [("Thai Tea Powder", 10), ("Base Milk", 100)],
-    "T-TMT1": [("Thai Tea Powder", 10), ("Base Milk", 100)],
+    # Round 29 (9/24 third follow-up): both variants also separately list a
+    # "Milk (for froth) 15ml" line on top of the 100ml Base Milk -- this was
+    # never linked before (Base Milk alone was tracked). Now that Meiji
+    # Milk/Full-Fat Milk are one consolidated ingredient (owner: "it's just
+    # milk"), added as a straight Meiji Milk deduction.
+    # Round 30: "Meiji Milk" -> plain "Milk" (see RAW entry's Round 30 comment).
+    "T-TMT0": [("Thai Tea Powder", 10), ("Base Milk", 100), ("Milk", 15)],
+    "T-TMT1": [("Thai Tea Powder", 10), ("Base Milk", 100), ("Milk", 15)],
     # Round 21: SOP switched Masala Tea (hot & cold) from Full-Fat Milk to
     # the Base Milk primary, same 75ml either way.
     # Round 28: revised table raised both tea leaves and masala powder.
-    "T-MST0": [("Red Label Tea Leaves", 7.5), ("Red Label Masala Powder", 2.5), ("Fresh Ginger", 4.5), ("Base Milk", 75)],
-    "T-MST1": [("Red Label Tea Leaves", 10), ("Red Label Masala Powder", 5), ("Fresh Ginger", 4.5), ("Base Milk", 75)],
+    "T-MST0": [("Red Label Tea Leaves", 7.5), ("Red Label Masala Powder", 2.5), ("Ginger", 4.5), ("Base Milk", 75)],
+    "T-MST1": [("Red Label Tea Leaves", 10), ("Red Label Masala Powder", 5), ("Ginger", 4.5), ("Base Milk", 75)],
     # Round 28: switched Fresh Lemon Juice -> Fresh Lime Juice (see T-GLT0
     # above -- same owner-confirmed genuinely-different-bottles decision).
-    "T-BPT0": [("Dried Butterfly Pea Flowers", 9), ("Honey", 15), ("Fresh Lime Juice", 10)],
-    "T-BPT1": [("Dried Butterfly Pea Flowers", 9), ("Sugar Syrup", 15), ("Fresh Lime Juice", 10)],
+    "T-BPT0": [("Dried Butterfly Pea Flowers", 9), ("Honey", 15), ("Lime Juice", 10)],
+    "T-BPT1": [("Dried Butterfly Pea Flowers", 9), ("Sugar Syrup", 15), ("Lime Juice", 10)],
 
     # Round 28: revised Drinks SOP's table clearly calls for Instant Coffee
     # 8g -- previously deducting Ground Coffee 20g, an ingredient this SOP
@@ -570,7 +658,13 @@ MAPPINGS = {
     # default -- same "on request" treatment used elsewhere (e.g. milk in
     # Black Tea). The old cocoa/cinnamon dusting garnish is no longer
     # mentioned in the SOP at all for this drink.
-    "C-CPN0": [("Coffee Concentrate", 25), ("Base Milk", 85)],
+    # Round 29 (9/24 third follow-up): the hot version's table also lists a
+    # separate "Milk (for froth) 15ml" line on top of its 85ml Base Milk --
+    # never linked before, added now (see T-TMT0 above for the same fix and
+    # its reasoning). The iced version has no equivalent separate line in
+    # the SOP (its Base Milk is simply upsized to 100ml instead), so C-CPN1
+    # is unchanged.
+    "C-CPN0": [("Coffee Concentrate", 25), ("Base Milk", 85), ("Milk", 15)],
     "C-CPN1": [("Coffee Concentrate", 30), ("Base Milk", 100)],
     # Coffee Concentrate volume increased, milk stays Full-Fat Milk (not
     # switched to Base Milk like the other three), single quantity now
@@ -597,18 +691,18 @@ MAPPINGS = {
     # quantities both changed too.
     # Round 28: switched Fresh Lemon Juice -> Fresh Lime Juice on both iced
     # teas and all 5 sodas below (see T-GLT0 above for the same decision).
-    "I-LIT": [("Lemon Iced Tea Powder", 22.5, "tbsp"), ("Fresh Lime Juice", 5), ("Sugar Syrup", 10), ("Lemon Slice", 1)],
+    "I-LIT": [("Lemon Iced Tea Powder", 22.5, "tbsp"), ("Lime Juice", 5), ("Sugar Syrup", 10), ("Lemon", 8)],
     # Round 21: same base swap; syrup is 1 tbsp mixed in + 1 tbsp garnish on
     # top per the SOP (2 tbsp / 30ml total, both drawn from stock).
-    "I-PIT": [("Lemon Iced Tea Powder", 22.5, "tbsp"), ("Passionfruit Syrup", 30), ("Sugar Syrup", 10), ("Fresh Lime Juice", 5)],
+    "I-PIT": [("Lemon Iced Tea Powder", 22.5, "tbsp"), ("Passionfruit Syrup", 30), ("Sugar Syrup", 10), ("Lime Juice", 5)],
 
-    "SO-SLS": [("Strawberry Syrup", 35), ("Fresh Lime Juice", 15), ("Sugar Syrup", 10), ("Soda Water", 180), ("Lemon Slice", 1)],
-    "SO-MPS": [("Mango Syrup", 20), ("Passionfruit Syrup", 15), ("Fresh Lime Juice", 5), ("Soda Water", 180)],
-    "SO-MBS": [("Mixed Berry Syrup", 35), ("Fresh Lime Juice", 10), ("Sugar Syrup", 2), ("Soda Water", 180)],
-    "SO-LLS": [("Lychee Syrup", 35), ("Fresh Lime Juice", 15), ("Soda Water", 180), ("Lemon Slice", 1)],
-    "SO-BHS": [("Blue Curacao Syrup (Non-Alcoholic)", 20), ("Coconut Syrup", 15), ("Fresh Lime Juice", 10), ("Soda Water", 170), ("Lemon Slice", 1)],
+    "SO-SLS": [("Strawberry Syrup", 35), ("Lime Juice", 15), ("Sugar Syrup", 10), ("Soda Water", 180), ("Lemon", 8)],
+    "SO-MPS": [("Mango Syrup", 20), ("Passionfruit Syrup", 15), ("Lime Juice", 5), ("Soda Water", 180)],
+    "SO-MBS": [("Mixed Berry Syrup", 35), ("Lime Juice", 10), ("Sugar Syrup", 2), ("Soda Water", 180)],
+    "SO-LLS": [("Lychee Syrup", 35), ("Lime Juice", 15), ("Soda Water", 180), ("Lemon", 8)],
+    "SO-BHS": [("Blue Curacao Syrup (Non-Alcoholic)", 20), ("Coconut Syrup", 15), ("Lime Juice", 10), ("Soda Water", 170), ("Lemon", 8)],
     # Round 28: revised table raised Pink Salt 0.75g -> 1.25g (1/4 tsp).
-    "SO-CRC": [("Cola", 1), ("Fresh Lime Juice", 10), ("Pink Salt", 1.25), ("Lemon Slice", 1)],
+    "SO-CRC": [("Cola", 1), ("Lime Juice", 10), ("Pink Salt", 1.25), ("Lemon", 8)],
 }
 
 # No-recipe items -- deliberately zero mappings. Empty now that Momo has

@@ -9,7 +9,7 @@
 -- The following are deliberately absent (no ingredient row at all) --
 -- manual par stock, not digitally tracked: Chilli Flakes, Condensed Milk, Whipped Cream.
 --
--- Chocolate Sauce, Cocoa Powder, Frying Oil, Ground Coffee has an ingredient row for
+-- Cauliflower, Chocolate Sauce, Cocoa Powder, Frying Oil, Ground Coffee, Pickled Cabbage / Coleslaw, Pickled Cucumber Slices, Smoked Paprika has an ingredient row for
 -- manual restock tracking, but is NOT linked to any menu item -- the SOP
 -- gives no fixed per-order quantity ("sufficient to submerge"), so orders
 -- never auto-deduct it. Restock/monitor it directly via /admin/inventory.
@@ -31,10 +31,9 @@ insert into seats (id, label, kind) values
   ('S4', 'Counter 4', 'counter')
 on conflict (id) do nothing;
 
--- Ingredients (16 batch-prep primaries + 102 raw/purchased ingredients + 5 packaging consumables)
+-- Ingredients (17 batch-prep primaries + 98 raw/purchased ingredients + 5 packaging consumables)
 insert into ingredients (name, unit, current_stock, low_stock_threshold, kind) values
   ('White Sauce', 'ml', 1000, 200, 'batch_prep'),
-  ('Sautéed Mushrooms', 'g', 800, 150, 'batch_prep'),
   ('Potato Patty', 'pcs', 24, 6, 'batch_prep'),
   ('Tikka Marinated Mince', 'g', 800, 150, 'batch_prep'),
   ('Homemade Mayo', 'ml', 750, 150, 'batch_prep'),
@@ -49,15 +48,16 @@ insert into ingredients (name, unit, current_stock, low_stock_threshold, kind) v
   ('Chicken Keema', 'g', 1200, 250, 'batch_prep'),
   ('Veg Keema', 'g', 2200, 400, 'batch_prep'),
   ('Tomato Sauce', 'ml', 650, 150, 'batch_prep'),
+  ('Ginger Paste', 'g', 500, 100, 'batch_prep'),
+  ('Garlic Paste', 'g', 500, 100, 'batch_prep'),
   ('Frozen Fries', 'g', 5000, 1000, 'raw'),
   ('Frying Oil', 'L', 5, 1, 'raw'),
   ('Ketchup', 'ml', 2000, 400, 'raw'),
   ('Peri-Peri Seasoning', 'g', 300, 60, 'raw'),
   ('Garlic Powder', 'g', 300, 60, 'raw'),
-  ('Smoked Paprika', 'g', 200, 40, 'raw'),
   ('Zab Seasoning', 'g', 300, 60, 'raw'),
   ('Lime Seasoning', 'g', 300, 60, 'raw'),
-  ('Fresh Lime Juice', 'ml', 500, 100, 'raw'),
+  ('Lime Juice', 'ml', 500, 100, 'raw'),
   ('Frozen Samosas', 'pcs', 60, 15, 'raw'),
   ('Maggi Noodles', 'g', 2000, 400, 'raw'),
   ('Maggi Masala Sachet', 'pcs', 30, 8, 'raw'),
@@ -70,14 +70,10 @@ insert into ingredients (name, unit, current_stock, low_stock_threshold, kind) v
   ('Sandwich Bread', 'slices', 100, 20, 'raw'),
   ('Cheese Slice', 'pcs', 150, 30, 'raw'),
   ('Tikka Masala Paste', 'ml', 500, 100, 'raw'),
-  ('Fresh Lemon Juice', 'ml', 1500, 300, 'raw'),
   ('Iceberg Lettuce', 'g', 2000, 400, 'raw'),
   ('Burger Bun', 'pcs', 60, 15, 'raw'),
   ('Frozen Chicken Patty', 'pcs', 60, 15, 'raw'),
-  ('Tomato Slices', 'slices', 200, 40, 'raw'),
-  ('Pickled Cucumber Slices', 'slices', 150, 30, 'raw'),
-  ('Fresh Cucumber Slices', 'slices', 150, 30, 'raw'),
-  ('Pickled Cabbage / Coleslaw', 'g', 1000, 200, 'raw'),
+  ('Cucumber', 'g', 1200, 240, 'raw'),
   ('Spaghetti (Dry)', 'g', 3000, 600, 'raw'),
   ('Garlic', 'cloves', 200, 40, 'raw'),
   ('Grated Parmesan Cheese', 'g', 800, 150, 'raw'),
@@ -90,11 +86,10 @@ insert into ingredients (name, unit, current_stock, low_stock_threshold, kind) v
   ('Black Tea Leaves', 'g', 500, 100, 'raw'),
   ('Red Label Tea Leaves', 'g', 300, 60, 'raw'),
   ('Red Label Masala Powder', 'g', 300, 60, 'raw'),
-  ('Fresh Ginger', 'g', 500, 100, 'raw'),
+  ('Ginger', 'g', 500, 100, 'raw'),
   ('Honey', 'ml', 800, 150, 'raw'),
   ('Ground Coffee', 'g', 2000, 400, 'raw'),
   ('Thai Tea Powder', 'g', 500, 100, 'raw'),
-  ('Evaporated Milk', 'ml', 1000, 200, 'raw'),
   ('Dried Butterfly Pea Flowers', 'pcs', 200, 40, 'raw'),
   ('Hazelnut Syrup', 'ml', 800, 150, 'raw'),
   ('Chocolate Sauce', 'ml', 800, 150, 'raw'),
@@ -110,17 +105,17 @@ insert into ingredients (name, unit, current_stock, low_stock_threshold, kind) v
   ('Soda Water', 'ml', 5000, 1000, 'raw'),
   ('Cola', 'can', 48, 12, 'raw'),
   ('Pink Salt', 'g', 200, 40, 'raw'),
-  ('Lemon Slice', 'pcs', 200, 40, 'raw'),
+  ('Lemon', 'g', 1600, 320, 'raw'),
   ('All-Purpose Flour', 'g', 3000, 600, 'raw'),
   ('Cream Cheese', 'g', 1000, 200, 'raw'),
   ('Salt', 'g', 5000, 1000, 'raw'),
   ('White Pepper', 'g', 200, 40, 'raw'),
   ('Nutmeg', 'g', 100, 20, 'raw'),
-  ('Button Mushrooms (Raw)', 'g', 3000, 600, 'raw'),
+  ('Mushroom', 'g', 3000, 600, 'raw'),
   ('Black Pepper', 'g', 500, 100, 'raw'),
   ('Corn Flour', 'g', 2000, 400, 'raw'),
   ('Onion', 'g', 5000, 1000, 'raw'),
-  ('Fresh Coriander', 'g', 500, 100, 'raw'),
+  ('Coriander', 'g', 500, 100, 'raw'),
   ('Cumin Powder', 'g', 300, 60, 'raw'),
   ('Coriander Powder', 'g', 300, 60, 'raw'),
   ('Garam Masala', 'g', 300, 60, 'raw'),
@@ -128,29 +123,31 @@ insert into ingredients (name, unit, current_stock, low_stock_threshold, kind) v
   ('Raw Chicken Breast Mince', 'g', 5000, 1000, 'raw'),
   ('Eggs', 'pcs', 200, 40, 'raw'),
   ('Mustard Powder', 'g', 100, 20, 'raw'),
-  ('Tomatoes', 'g', 3000, 600, 'raw'),
+  ('Tomato', 'g', 3000, 600, 'raw'),
   ('Gochujang Paste (Store-Bought)', 'ml', 1000, 200, 'raw'),
   ('Light Soy Sauce', 'ml', 1000, 200, 'raw'),
   ('Store-Bought Mayo', 'ml', 1000, 200, 'raw'),
   ('Raw Chicken Mince (Momo Grade)', 'g', 5000, 1000, 'raw'),
   ('Spring Onion', 'g', 500, 100, 'raw'),
-  ('Ginger-Garlic Paste', 'g', 500, 100, 'raw'),
   ('MSG', 'g', 100, 20, 'raw'),
   ('Sesame Oil', 'ml', 500, 100, 'raw'),
   ('Cooking Oil', 'ml', 3000, 500, 'raw'),
   ('Carrot', 'g', 2000, 400, 'raw'),
   ('Cabbage', 'g', 2000, 400, 'raw'),
   ('Potato', 'g', 5000, 1000, 'raw'),
-  ('Cauliflower', 'g', 1500, 300, 'raw'),
   ('Turmeric', 'g', 300, 60, 'raw'),
   ('Paprika', 'g', 300, 60, 'raw'),
   ('Timur Pepper', 'g', 100, 20, 'raw'),
-  ('Meiji Milk', 'ml', 6000, 1000, 'raw'),
-  ('Carnation Evaporated Milk', 'ml', 3000, 500, 'raw'),
-  ('Mali Condensed Milk', 'ml', 3000, 500, 'raw'),
+  ('Milk', 'ml', 6000, 1000, 'raw'),
+  ('Evaporated Milk', 'ml', 3000, 500, 'raw'),
+  ('Condensed Milk', 'ml', 3000, 500, 'raw'),
   ('Instant Coffee', 'g', 2000, 400, 'raw'),
   ('Sugar', 'g', 10000, 2000, 'raw'),
   ('Breadcrumbs (Dry)', 'g', 2000, 400, 'raw'),
+  ('Smoked Paprika', 'g', 200, 40, 'raw'),
+  ('Pickled Cucumber Slices', 'slices', 150, 30, 'raw'),
+  ('Pickled Cabbage / Coleslaw', 'g', 1000, 200, 'raw'),
+  ('Cauliflower', 'g', 1500, 300, 'raw'),
   ('Takeaway Food Box', 'pcs', 200, 50, 'consumable'),
   ('Hot Takeaway Glass', 'pcs', 200, 50, 'consumable'),
   ('Cold Takeaway Glass', 'pcs', 200, 50, 'consumable'),
@@ -309,7 +306,7 @@ select 'SD-MUS', id, 2, null from ingredients where name = 'Sandwich Bread'
 union all
 select 'SD-MUS', id, 10, null from ingredients where name = 'Butter'
 union all
-select 'SD-MUS', id, 70, null from ingredients where name = 'Sautéed Mushrooms'
+select 'SD-MUS', id, 70, null from ingredients where name = 'Mushroom'
 union all
 select 'SD-MUS', id, 50, null from ingredients where name = 'White Sauce'
 union all
@@ -341,7 +338,7 @@ select 'SD-CHS', id, 45, null from ingredients where name = 'Homemade Mayo'
 union all
 select 'SD-CHS', id, 5, null from ingredients where name = 'Tikka Masala Paste'
 union all
-select 'SD-CHS', id, 2.5, null from ingredients where name = 'Fresh Lemon Juice'
+select 'SD-CHS', id, 2.5, null from ingredients where name = 'Lime Juice'
 union all
 select 'SD-CHS', id, 30, null from ingredients where name = 'Iceberg Lettuce'
 union all
@@ -413,7 +410,7 @@ select 'B-GCB', id, 15, null from ingredients where name = 'Gochujang Sauce'
 union all
 select 'B-GCB', id, 30, 'tbsp' from ingredients where name = 'Caramelised Onions'
 union all
-select 'B-GCB', id, 3, null from ingredients where name = 'Fresh Cucumber Slices'
+select 'B-GCB', id, 24, null from ingredients where name = 'Cucumber'
 union all
 select 'B-GCB', id, 30, null from ingredients where name = 'Homemade Mayo'
 on conflict (menu_item_code, ingredient_id) do nothing;
@@ -443,7 +440,7 @@ select 'SP-AWS0', id, 90, null from ingredients where name = 'Spaghetti (Dry)'
 union all
 select 'SP-AWS0', id, 120, null from ingredients where name = 'White Sauce'
 union all
-select 'SP-AWS0', id, 75, null from ingredients where name = 'Sautéed Mushrooms'
+select 'SP-AWS0', id, 75, null from ingredients where name = 'Mushroom'
 union all
 select 'SP-AWS0', id, 5, null from ingredients where name = 'Butter'
 union all
@@ -479,9 +476,9 @@ on conflict (menu_item_code, ingredient_id) do nothing;
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order, unit_label)
 select 'T-GLT0', id, 5, null from ingredients where name = 'Black Tea Leaves'
 union all
-select 'T-GLT0', id, 3, null from ingredients where name = 'Fresh Ginger'
+select 'T-GLT0', id, 3, null from ingredients where name = 'Ginger'
 union all
-select 'T-GLT0', id, 20, null from ingredients where name = 'Fresh Lime Juice'
+select 'T-GLT0', id, 20, null from ingredients where name = 'Lime Juice'
 union all
 select 'T-GLT0', id, 7.5, null from ingredients where name = 'Honey'
 on conflict (menu_item_code, ingredient_id) do nothing;
@@ -489,9 +486,9 @@ on conflict (menu_item_code, ingredient_id) do nothing;
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order, unit_label)
 select 'T-GLT1', id, 5, null from ingredients where name = 'Black Tea Leaves'
 union all
-select 'T-GLT1', id, 3, null from ingredients where name = 'Fresh Ginger'
+select 'T-GLT1', id, 3, null from ingredients where name = 'Ginger'
 union all
-select 'T-GLT1', id, 20, null from ingredients where name = 'Fresh Lime Juice'
+select 'T-GLT1', id, 20, null from ingredients where name = 'Lime Juice'
 union all
 select 'T-GLT1', id, 7.5, null from ingredients where name = 'Sugar Syrup'
 on conflict (menu_item_code, ingredient_id) do nothing;
@@ -508,12 +505,16 @@ insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order,
 select 'T-TMT0', id, 10, null from ingredients where name = 'Thai Tea Powder'
 union all
 select 'T-TMT0', id, 100, null from ingredients where name = 'Base Milk'
+union all
+select 'T-TMT0', id, 15, null from ingredients where name = 'Milk'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order, unit_label)
 select 'T-TMT1', id, 10, null from ingredients where name = 'Thai Tea Powder'
 union all
 select 'T-TMT1', id, 100, null from ingredients where name = 'Base Milk'
+union all
+select 'T-TMT1', id, 15, null from ingredients where name = 'Milk'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order, unit_label)
@@ -521,7 +522,7 @@ select 'T-MST0', id, 7.5, null from ingredients where name = 'Red Label Tea Leav
 union all
 select 'T-MST0', id, 2.5, null from ingredients where name = 'Red Label Masala Powder'
 union all
-select 'T-MST0', id, 4.5, null from ingredients where name = 'Fresh Ginger'
+select 'T-MST0', id, 4.5, null from ingredients where name = 'Ginger'
 union all
 select 'T-MST0', id, 75, null from ingredients where name = 'Base Milk'
 on conflict (menu_item_code, ingredient_id) do nothing;
@@ -531,7 +532,7 @@ select 'T-MST1', id, 10, null from ingredients where name = 'Red Label Tea Leave
 union all
 select 'T-MST1', id, 5, null from ingredients where name = 'Red Label Masala Powder'
 union all
-select 'T-MST1', id, 4.5, null from ingredients where name = 'Fresh Ginger'
+select 'T-MST1', id, 4.5, null from ingredients where name = 'Ginger'
 union all
 select 'T-MST1', id, 75, null from ingredients where name = 'Base Milk'
 on conflict (menu_item_code, ingredient_id) do nothing;
@@ -541,7 +542,7 @@ select 'T-BPT0', id, 9, null from ingredients where name = 'Dried Butterfly Pea 
 union all
 select 'T-BPT0', id, 15, null from ingredients where name = 'Honey'
 union all
-select 'T-BPT0', id, 10, null from ingredients where name = 'Fresh Lime Juice'
+select 'T-BPT0', id, 10, null from ingredients where name = 'Lime Juice'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order, unit_label)
@@ -549,7 +550,7 @@ select 'T-BPT1', id, 9, null from ingredients where name = 'Dried Butterfly Pea 
 union all
 select 'T-BPT1', id, 15, null from ingredients where name = 'Sugar Syrup'
 union all
-select 'T-BPT1', id, 10, null from ingredients where name = 'Fresh Lime Juice'
+select 'T-BPT1', id, 10, null from ingredients where name = 'Lime Juice'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order, unit_label)
@@ -564,6 +565,8 @@ insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order,
 select 'C-CPN0', id, 25, null from ingredients where name = 'Coffee Concentrate'
 union all
 select 'C-CPN0', id, 85, null from ingredients where name = 'Base Milk'
+union all
+select 'C-CPN0', id, 15, null from ingredients where name = 'Milk'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order, unit_label)
@@ -619,11 +622,11 @@ on conflict (menu_item_code, ingredient_id) do nothing;
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order, unit_label)
 select 'I-LIT', id, 22.5, 'tbsp' from ingredients where name = 'Lemon Iced Tea Powder'
 union all
-select 'I-LIT', id, 5, null from ingredients where name = 'Fresh Lime Juice'
+select 'I-LIT', id, 5, null from ingredients where name = 'Lime Juice'
 union all
 select 'I-LIT', id, 10, null from ingredients where name = 'Sugar Syrup'
 union all
-select 'I-LIT', id, 1, null from ingredients where name = 'Lemon Slice'
+select 'I-LIT', id, 8, null from ingredients where name = 'Lemon'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order, unit_label)
@@ -633,19 +636,19 @@ select 'I-PIT', id, 30, null from ingredients where name = 'Passionfruit Syrup'
 union all
 select 'I-PIT', id, 10, null from ingredients where name = 'Sugar Syrup'
 union all
-select 'I-PIT', id, 5, null from ingredients where name = 'Fresh Lime Juice'
+select 'I-PIT', id, 5, null from ingredients where name = 'Lime Juice'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order, unit_label)
 select 'SO-SLS', id, 35, null from ingredients where name = 'Strawberry Syrup'
 union all
-select 'SO-SLS', id, 15, null from ingredients where name = 'Fresh Lime Juice'
+select 'SO-SLS', id, 15, null from ingredients where name = 'Lime Juice'
 union all
 select 'SO-SLS', id, 10, null from ingredients where name = 'Sugar Syrup'
 union all
 select 'SO-SLS', id, 180, null from ingredients where name = 'Soda Water'
 union all
-select 'SO-SLS', id, 1, null from ingredients where name = 'Lemon Slice'
+select 'SO-SLS', id, 8, null from ingredients where name = 'Lemon'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order, unit_label)
@@ -653,7 +656,7 @@ select 'SO-MPS', id, 20, null from ingredients where name = 'Mango Syrup'
 union all
 select 'SO-MPS', id, 15, null from ingredients where name = 'Passionfruit Syrup'
 union all
-select 'SO-MPS', id, 5, null from ingredients where name = 'Fresh Lime Juice'
+select 'SO-MPS', id, 5, null from ingredients where name = 'Lime Juice'
 union all
 select 'SO-MPS', id, 180, null from ingredients where name = 'Soda Water'
 on conflict (menu_item_code, ingredient_id) do nothing;
@@ -661,7 +664,7 @@ on conflict (menu_item_code, ingredient_id) do nothing;
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order, unit_label)
 select 'SO-MBS', id, 35, null from ingredients where name = 'Mixed Berry Syrup'
 union all
-select 'SO-MBS', id, 10, null from ingredients where name = 'Fresh Lime Juice'
+select 'SO-MBS', id, 10, null from ingredients where name = 'Lime Juice'
 union all
 select 'SO-MBS', id, 2, null from ingredients where name = 'Sugar Syrup'
 union all
@@ -671,11 +674,11 @@ on conflict (menu_item_code, ingredient_id) do nothing;
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order, unit_label)
 select 'SO-LLS', id, 35, null from ingredients where name = 'Lychee Syrup'
 union all
-select 'SO-LLS', id, 15, null from ingredients where name = 'Fresh Lime Juice'
+select 'SO-LLS', id, 15, null from ingredients where name = 'Lime Juice'
 union all
 select 'SO-LLS', id, 180, null from ingredients where name = 'Soda Water'
 union all
-select 'SO-LLS', id, 1, null from ingredients where name = 'Lemon Slice'
+select 'SO-LLS', id, 8, null from ingredients where name = 'Lemon'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order, unit_label)
@@ -683,21 +686,21 @@ select 'SO-BHS', id, 20, null from ingredients where name = 'Blue Curacao Syrup 
 union all
 select 'SO-BHS', id, 15, null from ingredients where name = 'Coconut Syrup'
 union all
-select 'SO-BHS', id, 10, null from ingredients where name = 'Fresh Lime Juice'
+select 'SO-BHS', id, 10, null from ingredients where name = 'Lime Juice'
 union all
 select 'SO-BHS', id, 170, null from ingredients where name = 'Soda Water'
 union all
-select 'SO-BHS', id, 1, null from ingredients where name = 'Lemon Slice'
+select 'SO-BHS', id, 8, null from ingredients where name = 'Lemon'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order, unit_label)
 select 'SO-CRC', id, 1, null from ingredients where name = 'Cola'
 union all
-select 'SO-CRC', id, 10, null from ingredients where name = 'Fresh Lime Juice'
+select 'SO-CRC', id, 10, null from ingredients where name = 'Lime Juice'
 union all
 select 'SO-CRC', id, 1.25, null from ingredients where name = 'Pink Salt'
 union all
-select 'SO-CRC', id, 1, null from ingredients where name = 'Lemon Slice'
+select 'SO-CRC', id, 8, null from ingredients where name = 'Lemon'
 on conflict (menu_item_code, ingredient_id) do nothing;
 
 -- Round 23: nested bill-of-materials -- primary -> its own raw-ingredient
@@ -714,7 +717,7 @@ where p.name = 'White Sauce' and r.name = 'All-Purpose Flour'
 union all
 select p.id, r.id, 200::numeric / 250
 from ingredients p, ingredients r
-where p.name = 'White Sauce' and r.name = 'Meiji Milk'
+where p.name = 'White Sauce' and r.name = 'Milk'
 union all
 select p.id, r.id, 25::numeric / 250
 from ingredients p, ingredients r
@@ -731,36 +734,6 @@ union all
 select p.id, r.id, 0.3::numeric / 250
 from ingredients p, ingredients r
 where p.name = 'White Sauce' and r.name = 'Nutmeg'
-on conflict (primary_id, raw_ingredient_id) do nothing;
-
-insert into primary_ingredients (primary_id, raw_ingredient_id, qty_per_unit)
-select p.id, r.id, 300::numeric / 200
-from ingredients p, ingredients r
-where p.name = 'Sautéed Mushrooms' and r.name = 'Button Mushrooms (Raw)'
-union all
-select p.id, r.id, 3::numeric / 200
-from ingredients p, ingredients r
-where p.name = 'Sautéed Mushrooms' and r.name = 'Garlic'
-union all
-select p.id, r.id, 2::numeric / 200
-from ingredients p, ingredients r
-where p.name = 'Sautéed Mushrooms' and r.name = 'Green Chilli'
-union all
-select p.id, r.id, 15::numeric / 200
-from ingredients p, ingredients r
-where p.name = 'Sautéed Mushrooms' and r.name = 'Butter'
-union all
-select p.id, r.id, 10::numeric / 200
-from ingredients p, ingredients r
-where p.name = 'Sautéed Mushrooms' and r.name = 'Olive Oil'
-union all
-select p.id, r.id, 2.5::numeric / 200
-from ingredients p, ingredients r
-where p.name = 'Sautéed Mushrooms' and r.name = 'Salt'
-union all
-select p.id, r.id, 1.25::numeric / 200
-from ingredients p, ingredients r
-where p.name = 'Sautéed Mushrooms' and r.name = 'Black Pepper'
 on conflict (primary_id, raw_ingredient_id) do nothing;
 
 insert into primary_ingredients (primary_id, raw_ingredient_id, qty_per_unit)
@@ -786,7 +759,7 @@ where p.name = 'Potato Patty' and r.name = 'Green Chilli'
 union all
 select p.id, r.id, 30::numeric / 8
 from ingredients p, ingredients r
-where p.name = 'Potato Patty' and r.name = 'Fresh Coriander'
+where p.name = 'Potato Patty' and r.name = 'Coriander'
 union all
 select p.id, r.id, 2.5::numeric / 8
 from ingredients p, ingredients r
@@ -824,11 +797,11 @@ where p.name = 'Tikka Marinated Mince' and r.name = 'Garlic'
 union all
 select p.id, r.id, 5::numeric / 400
 from ingredients p, ingredients r
-where p.name = 'Tikka Marinated Mince' and r.name = 'Fresh Ginger'
+where p.name = 'Tikka Marinated Mince' and r.name = 'Ginger'
 union all
 select p.id, r.id, 15::numeric / 400
 from ingredients p, ingredients r
-where p.name = 'Tikka Marinated Mince' and r.name = 'Fresh Lemon Juice'
+where p.name = 'Tikka Marinated Mince' and r.name = 'Lime Juice'
 union all
 select p.id, r.id, 2.5::numeric / 400
 from ingredients p, ingredients r
@@ -850,7 +823,7 @@ where p.name = 'Homemade Mayo' and r.name = 'Garlic'
 union all
 select p.id, r.id, 22.5::numeric / 250
 from ingredients p, ingredients r
-where p.name = 'Homemade Mayo' and r.name = 'Fresh Lemon Juice'
+where p.name = 'Homemade Mayo' and r.name = 'Lime Juice'
 union all
 select p.id, r.id, 160::numeric / 250
 from ingredients p, ingredients r
@@ -872,7 +845,7 @@ on conflict (primary_id, raw_ingredient_id) do nothing;
 insert into primary_ingredients (primary_id, raw_ingredient_id, qty_per_unit)
 select p.id, r.id, 300::numeric / 150
 from ingredients p, ingredients r
-where p.name = 'Fresh Salsa' and r.name = 'Tomatoes'
+where p.name = 'Fresh Salsa' and r.name = 'Tomato'
 union all
 select p.id, r.id, 60::numeric / 150
 from ingredients p, ingredients r
@@ -896,11 +869,11 @@ where p.name = 'Fresh Salsa' and r.name = 'Black Pepper'
 union all
 select p.id, r.id, 15::numeric / 150
 from ingredients p, ingredients r
-where p.name = 'Fresh Salsa' and r.name = 'Fresh Lime Juice'
+where p.name = 'Fresh Salsa' and r.name = 'Lime Juice'
 union all
 select p.id, r.id, 30::numeric / 150
 from ingredients p, ingredients r
-where p.name = 'Fresh Salsa' and r.name = 'Fresh Coriander'
+where p.name = 'Fresh Salsa' and r.name = 'Coriander'
 on conflict (primary_id, raw_ingredient_id) do nothing;
 
 insert into primary_ingredients (primary_id, raw_ingredient_id, qty_per_unit)
@@ -930,9 +903,13 @@ select p.id, r.id, 59::numeric / 1160
 from ingredients p, ingredients r
 where p.name = 'Chicken Keema' and r.name = 'Spring Onion'
 union all
-select p.id, r.id, 10::numeric / 1160
+select p.id, r.id, 40::numeric / 1160
 from ingredients p, ingredients r
-where p.name = 'Chicken Keema' and r.name = 'Ginger-Garlic Paste'
+where p.name = 'Chicken Keema' and r.name = 'Ginger Paste'
+union all
+select p.id, r.id, 40::numeric / 1160
+from ingredients p, ingredients r
+where p.name = 'Chicken Keema' and r.name = 'Garlic Paste'
 union all
 select p.id, r.id, 3.6::numeric / 1160
 from ingredients p, ingredients r
@@ -952,7 +929,7 @@ where p.name = 'Chicken Keema' and r.name = 'Coriander Powder'
 union all
 select p.id, r.id, 59::numeric / 1160
 from ingredients p, ingredients r
-where p.name = 'Chicken Keema' and r.name = 'Fresh Coriander'
+where p.name = 'Chicken Keema' and r.name = 'Coriander'
 union all
 select p.id, r.id, 3.6::numeric / 1160
 from ingredients p, ingredients r
@@ -990,7 +967,7 @@ where p.name = 'Veg Keema' and r.name = 'Onion'
 union all
 select p.id, r.id, 50::numeric / 2145
 from ingredients p, ingredients r
-where p.name = 'Veg Keema' and r.name = 'Fresh Coriander'
+where p.name = 'Veg Keema' and r.name = 'Coriander'
 union all
 select p.id, r.id, 50::numeric / 2145
 from ingredients p, ingredients r
@@ -1020,9 +997,13 @@ select p.id, r.id, 5::numeric / 2145
 from ingredients p, ingredients r
 where p.name = 'Veg Keema' and r.name = 'Coriander Powder'
 union all
-select p.id, r.id, 10::numeric / 2145
+select p.id, r.id, 5::numeric / 2145
 from ingredients p, ingredients r
-where p.name = 'Veg Keema' and r.name = 'Ginger-Garlic Paste'
+where p.name = 'Veg Keema' and r.name = 'Ginger Paste'
+union all
+select p.id, r.id, 5::numeric / 2145
+from ingredients p, ingredients r
+where p.name = 'Veg Keema' and r.name = 'Garlic Paste'
 union all
 select p.id, r.id, 10::numeric / 2145
 from ingredients p, ingredients r
@@ -1036,11 +1017,11 @@ on conflict (primary_id, raw_ingredient_id) do nothing;
 insert into primary_ingredients (primary_id, raw_ingredient_id, qty_per_unit)
 select p.id, r.id, 400::numeric / 700
 from ingredients p, ingredients r
-where p.name = 'Tomato Sauce' and r.name = 'Tomatoes'
+where p.name = 'Tomato Sauce' and r.name = 'Tomato'
 union all
 select p.id, r.id, 40::numeric / 700
 from ingredients p, ingredients r
-where p.name = 'Tomato Sauce' and r.name = 'Fresh Ginger'
+where p.name = 'Tomato Sauce' and r.name = 'Ginger'
 union all
 select p.id, r.id, 8::numeric / 700
 from ingredients p, ingredients r
@@ -1066,15 +1047,15 @@ on conflict (primary_id, raw_ingredient_id) do nothing;
 insert into primary_ingredients (primary_id, raw_ingredient_id, qty_per_unit)
 select p.id, r.id, 700::numeric / 1000
 from ingredients p, ingredients r
-where p.name = 'Base Milk' and r.name = 'Meiji Milk'
+where p.name = 'Base Milk' and r.name = 'Milk'
 union all
 select p.id, r.id, 200::numeric / 1000
 from ingredients p, ingredients r
-where p.name = 'Base Milk' and r.name = 'Carnation Evaporated Milk'
+where p.name = 'Base Milk' and r.name = 'Evaporated Milk'
 union all
 select p.id, r.id, 100::numeric / 1000
 from ingredients p, ingredients r
-where p.name = 'Base Milk' and r.name = 'Mali Condensed Milk'
+where p.name = 'Base Milk' and r.name = 'Condensed Milk'
 on conflict (primary_id, raw_ingredient_id) do nothing;
 
 insert into primary_ingredients (primary_id, raw_ingredient_id, qty_per_unit)

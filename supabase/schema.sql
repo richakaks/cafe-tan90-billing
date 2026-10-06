@@ -1492,6 +1492,316 @@ update menu_item_ingredients set qty_per_order = 1.25 where menu_item_code in ('
 -- nothing insert -- nothing to delete or update here.
 
 -- ---------------------------------------------------------------------------
+-- Round 29 (9/24, final, consolidated) -- full ingredient-vs-menu-item
+-- audit, Milk consolidation, "Fresh X" naming cleanup, lemon/lime/cucumber/
+-- tomato/mushroom consolidation, Ginger-Garlic Paste split reversal, and
+-- cleanup of legacy duplicate ingredients discovered by a full production
+-- audit. This supersedes every earlier Round 29 draft -- nothing from an
+-- earlier draft needs to be run before this one; this is the only file to
+-- paste.
+--
+-- Every merge below uses MERGE semantics (move any links unique to the
+-- duplicate onto the survivor, carry its current_stock onto the survivor
+-- too so no physical stock quietly disappears, then delete the duplicate's
+-- links and zero its stock) instead of a naive rename, since production
+-- already had many of these ingredients under multiple names simultaneously
+-- linked to the same recipes -- a long-standing double-deduction bug,
+-- discovered by this audit, not caused by it. Every duplicate ingredient
+-- row itself is left in place, orphaned at zero stock, rather than
+-- hard-deleted -- except "Lime", which the owner asked to remove outright
+-- since nothing uses it (only "Lime Juice" is a real ingredient).
+-- ---------------------------------------------------------------------------
+
+-- --- Ginger: merge "Fresh Ginger" into "Ginger" ----------------------------
+insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order, unit_label)
+select menu_item_code, (select id from ingredients where name = 'Ginger'), qty_per_order, unit_label
+from menu_item_ingredients
+where ingredient_id = (select id from ingredients where name = 'Fresh Ginger')
+on conflict (menu_item_code, ingredient_id) do nothing;
+
+insert into primary_ingredients (primary_id, raw_ingredient_id, qty_per_unit)
+select primary_id, (select id from ingredients where name = 'Ginger'), qty_per_unit
+from primary_ingredients
+where raw_ingredient_id = (select id from ingredients where name = 'Fresh Ginger')
+on conflict (primary_id, raw_ingredient_id) do nothing;
+
+delete from menu_item_ingredients where ingredient_id = (select id from ingredients where name = 'Fresh Ginger');
+delete from primary_ingredients where raw_ingredient_id = (select id from ingredients where name = 'Fresh Ginger');
+
+update ingredients set current_stock = current_stock + coalesce((select current_stock from ingredients where name = 'Fresh Ginger'), 0) where name = 'Ginger';
+update ingredients set current_stock = 0 where name = 'Fresh Ginger';
+
+-- --- Coriander: plain rename is safe -- no pre-existing "Coriander" row ---
+update ingredients set name = 'Coriander' where name = 'Fresh Coriander';
+
+-- --- Lime Juice: merge "Fresh Lime Juice", "Lemon Juice", "Fresh Lemon
+--     Juice" all into "Lime Juice" ----------------------------------------
+insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order, unit_label)
+select menu_item_code, (select id from ingredients where name = 'Lime Juice'), qty_per_order, unit_label
+from menu_item_ingredients
+where ingredient_id in (select id from ingredients where name in ('Fresh Lime Juice', 'Lemon Juice', 'Fresh Lemon Juice'))
+on conflict (menu_item_code, ingredient_id) do nothing;
+
+insert into primary_ingredients (primary_id, raw_ingredient_id, qty_per_unit)
+select primary_id, (select id from ingredients where name = 'Lime Juice'), qty_per_unit
+from primary_ingredients
+where raw_ingredient_id in (select id from ingredients where name in ('Fresh Lime Juice', 'Lemon Juice', 'Fresh Lemon Juice'))
+on conflict (primary_id, raw_ingredient_id) do nothing;
+
+delete from menu_item_ingredients where ingredient_id in (select id from ingredients where name in ('Fresh Lime Juice', 'Lemon Juice', 'Fresh Lemon Juice'));
+delete from primary_ingredients where raw_ingredient_id in (select id from ingredients where name in ('Fresh Lime Juice', 'Lemon Juice', 'Fresh Lemon Juice'));
+
+update ingredients set current_stock = current_stock
+  + coalesce((select current_stock from ingredients where name = 'Fresh Lime Juice'), 0)
+  + coalesce((select current_stock from ingredients where name = 'Lemon Juice'), 0)
+  + coalesce((select current_stock from ingredients where name = 'Fresh Lemon Juice'), 0)
+where name = 'Lime Juice';
+update ingredients set current_stock = 0 where name in ('Fresh Lime Juice', 'Lemon Juice', 'Fresh Lemon Juice');
+
+-- --- Cucumber: merge "Fresh Cucumber Slices" into "Cucumber" (gram-tracked)
+insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order, unit_label)
+select menu_item_code, (select id from ingredients where name = 'Cucumber'), qty_per_order, unit_label
+from menu_item_ingredients
+where ingredient_id = (select id from ingredients where name = 'Fresh Cucumber Slices')
+on conflict (menu_item_code, ingredient_id) do nothing;
+
+delete from menu_item_ingredients where ingredient_id = (select id from ingredients where name = 'Fresh Cucumber Slices');
+
+update menu_item_ingredients set qty_per_order = 24
+where menu_item_code = 'B-GCB' and ingredient_id = (select id from ingredients where name = 'Cucumber');
+
+update ingredients set current_stock = current_stock + coalesce((select current_stock * 8 from ingredients where name = 'Fresh Cucumber Slices'), 0) where name = 'Cucumber';
+update ingredients set current_stock = 0 where name = 'Fresh Cucumber Slices';
+
+-- --- Milk: merge "Milk" into "Meiji Milk" -- SUPERSEDED by Round 30 below,
+--     which renames "Meiji Milk" itself to plain "Milk". Once that rename
+--     has run, this block's own use of the name "Milk" would refer to the
+--     wrong ingredient on a second full re-run of this file (a real bug
+--     caught by the fresh-install-twice test), so the statements are
+--     removed here rather than left to collide. Round 30's own carry-over
+--     (guarded by brand = 'Meiji', which only ever matched this duplicate)
+--     fully covers what this block used to do. ----------------------------
+
+-- --- Ginger-Garlic Paste: split back into separate Ginger Paste / Garlic
+--     Paste -- drop the stale combined link on both Keemas; seed.sql's
+--     on-conflict-do-nothing insert lays down the correct fresh link.
+delete from primary_ingredients where raw_ingredient_id = (select id from ingredients where name = 'Ginger-Garlic Paste');
+
+-- --- Lemon: merge "Lemon Slice" into "Lemon" (owner: same ingredient,
+--     tracked by weight -- deduct an assumed weight per slice, same
+--     convention as Cucumber). Survivor is "Lemon" (already gram-tracked;
+--     a legacy production duplicate with no valid current recipe use, since
+--     "Lemon Slice" already correctly covered the same garnish use).
+insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order, unit_label)
+select menu_item_code, (select id from ingredients where name = 'Lemon'), qty_per_order, unit_label
+from menu_item_ingredients
+where ingredient_id = (select id from ingredients where name = 'Lemon Slice')
+on conflict (menu_item_code, ingredient_id) do nothing;
+
+delete from menu_item_ingredients where ingredient_id = (select id from ingredients where name = 'Lemon Slice');
+
+-- Convert every garnish link from "1 slice" to an assumed 8g/slice (same
+-- estimate as Cucumber) -- overwrites whichever value ended up on "Lemon"
+-- (its own old, much-too-small 1g legacy figure, or a freshly-merged 1)
+-- with the correct converted weight.
+update menu_item_ingredients set qty_per_order = 8
+where menu_item_code in ('I-LIT', 'SO-SLS', 'SO-LLS', 'SO-BHS', 'SO-CRC')
+  and ingredient_id = (select id from ingredients where name = 'Lemon');
+
+update ingredients set current_stock = current_stock + coalesce((select current_stock * 8 from ingredients where name = 'Lemon Slice'), 0) where name = 'Lemon';
+update ingredients set current_stock = 0 where name = 'Lemon Slice';
+
+-- --- Tomato: merge "Tomatoes" (the real, actively-used raw ingredient) and
+--     "Tomato Slices" (unused) onto "Tomato" (the survivor name the owner
+--     wants; currently a legacy duplicate with only stale burger links,
+--     removed separately below). ------------------------------------------
+insert into primary_ingredients (primary_id, raw_ingredient_id, qty_per_unit)
+select primary_id, (select id from ingredients where name = 'Tomato'), qty_per_unit
+from primary_ingredients
+where raw_ingredient_id = (select id from ingredients where name = 'Tomatoes')
+on conflict (primary_id, raw_ingredient_id) do nothing;
+
+delete from primary_ingredients where raw_ingredient_id = (select id from ingredients where name = 'Tomatoes');
+
+update ingredients set current_stock = current_stock
+  + coalesce((select current_stock from ingredients where name = 'Tomatoes'), 0)
+  + coalesce((select current_stock from ingredients where name = 'Tomato Slices'), 0)
+where name = 'Tomato';
+update ingredients set current_stock = 0 where name in ('Tomatoes', 'Tomato Slices');
+
+-- --- Mushroom: retire "Sautéed Mushrooms" as its own tracked primary
+--     (owner: it's the same ingredient as plain mushroom, no need to track
+--     the sauté step separately) -- rename "Button Mushrooms (Raw)" to
+--     "Mushroom", repoint Sautéed Mushrooms' own recipe links onto it at
+--     the same gram figure, and merge the "Mushrooms" legacy duplicate
+--     (whose own links were already removed as stale duplicates above) in
+--     too. Sautéed Mushrooms' own raw-ingredient sub-recipe (mushroom +
+--     garlic + green chilli + butter + olive oil + salt + pepper) is
+--     dropped entirely -- the garlic/chilli/butter/oil/salt/pepper that
+--     went into sautéing are no longer tracked per-order, a real (if minor)
+--     loss of granularity the owner should be aware of.
+update ingredients set name = 'Mushroom' where name = 'Button Mushrooms (Raw)';
+
+insert into menu_item_ingredients (menu_item_code, ingredient_id, qty_per_order, unit_label)
+select menu_item_code, (select id from ingredients where name = 'Mushroom'), qty_per_order, unit_label
+from menu_item_ingredients
+where ingredient_id = (select id from ingredients where name = 'Sautéed Mushrooms')
+on conflict (menu_item_code, ingredient_id) do nothing;
+
+delete from menu_item_ingredients where ingredient_id = (select id from ingredients where name = 'Sautéed Mushrooms');
+delete from primary_ingredients where primary_id = (select id from ingredients where name = 'Sautéed Mushrooms');
+
+-- "Mushrooms" (plural, a separate legacy production duplicate) already
+-- independently duplicated Sautéed Mushrooms' own SD-MUS/SP-AWS0 links at
+-- the same quantities -- Mushroom already has the correct entries via the
+-- move above, so Mushrooms' copies are pure stale duplicates, just removed.
+delete from menu_item_ingredients where ingredient_id = (select id from ingredients where name = 'Mushrooms');
+
+update ingredients set current_stock = current_stock
+  + coalesce((select current_stock from ingredients where name = 'Sautéed Mushrooms'), 0)
+  + coalesce((select current_stock from ingredients where name = 'Mushrooms'), 0)
+where name = 'Mushroom';
+update ingredients set current_stock = 0 where name in ('Sautéed Mushrooms', 'Mushrooms');
+
+-- --- Lime: removed entirely -- owner's explicit instruction, nothing uses
+--     it (only "Lime Juice" is a real, used ingredient). Unlike every other
+--     duplicate above, this one is hard-deleted rather than left orphaned,
+--     per the owner's direct ask; it has zero recipe links (confirmed) so
+--     this is safe.
+delete from ingredients where name = 'Lime';
+
+-- --- Full ingredient-vs-menu-item audit: legacy duplicate ingredients with
+--     no merge target -- pure stale duplicates, simply removed. ----------
+
+-- "Tomato" ends up here too (its own bad burger links, unrelated to the
+-- Tomatoes/Tomato Slices merge above) -- a fresh SOP re-read confirms none
+-- of the 4 current burger recipes call for tomato at all.
+delete from menu_item_ingredients
+where menu_item_code in ('B-CCB', 'B-CVB', 'B-DTB', 'B-SCB')
+  and ingredient_id = (select id from ingredients where name = 'Tomato');
+
+-- "Tikka Masala Paste / Powder" (legacy raw ingredient) -- duplicates
+-- "Tikka Masala Paste", which already correctly covers this.
+delete from menu_item_ingredients
+where menu_item_code = 'SD-CHS'
+  and ingredient_id = (select id from ingredients where name = 'Tikka Masala Paste / Powder');
+
+-- "Frozen Mixed Veg" (legacy raw ingredient, never restocked -- this is
+-- the direct answer to "is this an error?": yes, a stale duplicate) --
+-- duplicates Frozen Corn + Frozen Peas, which already correctly cover
+-- these.
+delete from menu_item_ingredients
+where menu_item_code in ('SN-ECM', 'SN-MGN')
+  and ingredient_id = (select id from ingredients where name = 'Frozen Mixed Veg');
+
+-- "Paprika" (plain, distinct from "Smoked Paprika") -- a fresh SOP
+-- re-read confirms Peri-Peri Fries' current table is just Frozen Fries +
+-- Peri-Peri Seasoning; no plain paprika. (Tomato Sauce's own, separate,
+-- correct Paprika link is untouched.)
+delete from menu_item_ingredients
+where menu_item_code = 'SN-PPF'
+  and ingredient_id = (select id from ingredients where name = 'Paprika');
+
+-- Cosmetic categorization fixes so the admin panel's grouping matches
+-- gen_seed.py's model (no stock/link changes):
+update ingredients set kind = 'raw' where name = 'Chilli Oil';
+update ingredients set kind = 'batch_prep' where name in ('Ginger Paste', 'Garlic Paste');
+
+-- Note: "Lemon" (whole fruit, no longer separately tracked from the slice
+-- garnish use above) had no OTHER stray links beyond the 5 garnish ones
+-- already handled by the Lemon Slice merge -- nothing further to remove.
+
+-- ---------------------------------------------------------------------------
+-- Round 30 (9/30) -- full "Milk" consolidation redo (generic "Milk" pool,
+-- brand corrections for Evaporated/Condensed Milk after a fresh SOP
+-- re-read), orphaned-stock cleanup discovered by a follow-up production
+-- audit, and final hard-removal of every now-dead Round 29 duplicate row
+-- (confirmed zero recipe links directly against production before this was
+-- written -- Round 29 itself worked correctly, it just left these empty
+-- rows in place instead of deleting them).
+-- ---------------------------------------------------------------------------
+
+-- --- Milk: generic "Milk" pool -- owner doesn't want to distinguish brand
+--     for the fresh-milk pool at all. "Meiji Milk" becomes the survivor,
+--     renamed to plain "Milk" with no brand. Full-Fat Milk (already
+--     unlinked since Round 28, but its 1500ml stock was never carried
+--     anywhere) and the old empty "Milk" (Meiji-brand) duplicate from
+--     Round 29 both carry their stock in first. ---------------------------
+update ingredients set current_stock = current_stock
+  + coalesce((select current_stock from ingredients where name = 'Full-Fat Milk'), 0)
+  + coalesce((select current_stock from ingredients where name = 'Milk' and brand = 'Meiji'), 0)
+where name = 'Meiji Milk';
+delete from ingredients where name = 'Full-Fat Milk';
+delete from ingredients where name = 'Milk' and brand = 'Meiji';
+update ingredients set name = 'Milk', brand = null where name = 'Meiji Milk';
+
+-- --- Evaporated Milk: owner rechecked the SOP -- Carnation is the
+--     evaporated milk (not condensed, as first guessed); Mali is the
+--     condensed milk (see Condensed Milk below). "Carnation Evaporated
+--     Milk" becomes the survivor, renamed to "Evaporated Milk" with brand
+--     "Carnation"; the plain, unbranded "Evaporated Milk" duplicate
+--     (a legacy production row, never in gen_seed.py) carries its 1000ml
+--     stock in first. -------------------------------------------------
+-- Guarded by "unlinked" (not just "brand is null") because a fresh install
+-- seeds a real, linked "Evaporated Milk" (Base Milk's own input) with no
+-- brand set either -- gen_seed.py doesn't populate brand at all -- so
+-- "brand is null" alone would wrongly match that legitimate row too on a
+-- fresh-install re-run of this file (another bug the fresh-install-twice
+-- test caught).
+update ingredients set current_stock = current_stock
+  + coalesce((
+      select current_stock from ingredients e
+      where e.name = 'Evaporated Milk' and e.brand is null
+        and not exists (select 1 from primary_ingredients pi where pi.raw_ingredient_id = e.id)
+        and not exists (select 1 from menu_item_ingredients mii where mii.ingredient_id = e.id)
+    ), 0)
+where name = 'Carnation Evaporated Milk';
+delete from ingredients e
+where e.name = 'Evaporated Milk' and e.brand is null
+  and not exists (select 1 from primary_ingredients pi where pi.raw_ingredient_id = e.id)
+  and not exists (select 1 from menu_item_ingredients mii where mii.ingredient_id = e.id);
+update ingredients set name = 'Evaporated Milk', brand = 'Carnation' where name = 'Carnation Evaporated Milk';
+
+-- --- Condensed Milk: "Mali Condensed Milk" renamed to "Condensed Milk"
+--     with brand "Mali" -- no merge needed, nothing else uses this name.
+update ingredients set name = 'Condensed Milk', brand = 'Mali' where name = 'Mali Condensed Milk';
+
+-- Base Milk's own recipe and White Sauce's recipe reference these three
+-- ingredients by id, not name, so the renames above carry every existing
+-- link forward automatically -- Base Milk still draws 700ml from the
+-- fresh-milk row (now "Milk"), 200ml from "Evaporated Milk" (Carnation),
+-- and 100ml from "Condensed Milk" (Mali); White Sauce still draws 200ml
+-- from the fresh-milk row. Nothing further to update here.
+
+-- --- Orphaned stock discovered by this round's production audit -- both
+--     rows below are dead, zero-recipe-link duplicates left over from
+--     Round 29 that still had real, un-carried stock sitting on them. ----
+
+-- Ginger-Garlic Paste's 500g: owner confirmed this predates the Ginger
+-- Paste/Garlic Paste split and is stale -- discarded, not split between
+-- the two (rather than guess a ratio).
+delete from ingredients where name = 'Ginger-Garlic Paste';
+
+-- Tikka Masala Paste / Powder's 1150g: owner confirmed this is the same
+-- product as "Tikka Masala Paste", just tracked under the old combined-SKU
+-- name -- carried in before the row is removed.
+update ingredients set current_stock = current_stock
+  + coalesce((select current_stock from ingredients where name = 'Tikka Masala Paste / Powder'), 0)
+where name = 'Tikka Masala Paste';
+delete from ingredients where name = 'Tikka Masala Paste / Powder';
+
+-- --- Final cleanup: every other Round 29 duplicate is confirmed dead --
+--     zero recipe links (menu_item_ingredients and primary_ingredients
+--     both checked directly against production before this was written)
+--     and zero stock. Hard-deleted now instead of left as an empty row,
+--     so the ingredient list is actually clean, not just functionally
+--     correct. -------------------------------------------------------
+delete from ingredients where name in (
+  'Fresh Cucumber Slices', 'Fresh Ginger', 'Fresh Lemon Juice', 'Fresh Lime Juice',
+  'Frozen Mixed Veg', 'Lemon Juice', 'Lemon Slice', 'Mushrooms', 'Sautéed Mushrooms',
+  'Tomato Slices', 'Tomatoes'
+);
+-- ---------------------------------------------------------------------------
 -- Explicit grants for the service role. Newer Supabase projects no longer
 -- auto-grant service_role access to tables created by hand (the "Automatically
 -- expose new tables" project setting) — these grants make this schema work
