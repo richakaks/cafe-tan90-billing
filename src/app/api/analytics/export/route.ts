@@ -31,8 +31,12 @@ export async function GET(req: NextRequest) {
           o.discountAmount,
           net,
           o.amountPaid,
-          o.couponCode ?? "",
-          o.paymentMethod ?? "",
+          o.coupons.length > 0
+            ? o.coupons.map((c) => `${c.code ?? "code pending"} ${c.amount}`).join("; ")
+            : (o.couponCode ?? ""),
+          o.paymentMethod === "split" || (o.cashPaid > 0 && o.onlinePaid > 0)
+            ? `split (cash ${o.cashPaid} / online ${o.onlinePaid})`
+            : (o.paymentMethod ?? ""),
           new Date(o.createdAt).toISOString(),
         ];
       })

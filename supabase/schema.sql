@@ -624,40 +624,14 @@ returns jsonb
 language plpgsql
 as $$
 declare
-  v_value numeric;
-  v_redeemed boolean;
-  v_existing_coupon text;
+  v_used numeric;
 begin
-  select value, redeemed into v_value, v_redeemed
-  from coupons where code = p_coupon_code
-  for update;
-
-  if v_value is null then
-    raise exception 'unknown_coupon' using errcode = 'P0001';
-  end if;
-  if v_redeemed then
-    raise exception 'coupon_already_redeemed' using errcode = 'P0001';
-  end if;
-
-  select coupon_code into v_existing_coupon from orders where id = p_order_id for update;
-  if v_existing_coupon is not null then
-    raise exception 'order_already_has_coupon' using errcode = 'P0001';
-  end if;
-
-  update coupons
-  set redeemed = true, redeemed_at = now(), redeemed_order_id = p_order_id
-  where code = p_coupon_code;
-
-  -- Round 32: added to (not replacing) any discount already on the bill,
-  -- and recorded in order_coupons like every counter coupon.
-  update orders
-  set coupon_code = p_coupon_code, discount_amount = discount_amount + v_value
-  where id = p_order_id;
-  insert into order_coupons (order_id, coupon_code, amount, resolved_at)
-  values (p_order_id, p_coupon_code, v_value, now())
-  on conflict (coupon_code) do nothing;
-
-  return jsonb_build_object('order_id', p_order_id, 'coupon_code', p_coupon_code, 'discount_amount', v_value);
+  -- Round 35: same path as every other coupon use -- the coupon covers the
+  -- bill up to its remaining balance, and anything left stays on it.
+  v_used := attach_coupon_to_order(p_order_id, trim(p_coupon_code), null);
+  perform recompute_order_discount(p_order_id);
+  update orders set coupon_code = coalesce(coupon_code, trim(p_coupon_code)) where id = p_order_id;
+  return jsonb_build_object('order_id', p_order_id, 'coupon_code', trim(p_coupon_code), 'discount_amount', v_used);
 end;
 $$;
 
@@ -850,7 +824,7 @@ alter table orders
 
 alter table orders drop constraint if exists orders_payment_method_check;
 alter table orders add constraint orders_payment_method_check
-  check (payment_method is null or payment_method in ('cash', 'online'));
+  check (payment_method is null or payment_method in ('cash', 'online', 'split'));
 
 -- ---------------------------------------------------------------------------
 -- Round 18: optional brand/supplier name on an ingredient, editable from
@@ -1966,7 +1940,9 @@ alter table order_payments enable row level security;
 create table if not exists order_coupons (
   id bigserial primary key,
   order_id uuid not null references orders(id) on delete cascade,
-  coupon_code text unique references coupons(code) on delete set null,
+  -- Round 35: no longer unique -- a coupon with money left can be used on
+  -- several bills (see the Round 35 block for coupon balances).
+  coupon_code text references coupons(code) on delete set null,
   amount numeric not null check (amount > 0),
   attempted_code text,
   created_at timestamptz not null default now(),
@@ -2016,26 +1992,53 @@ $$;
 -- Validates one real coupon code and attaches it to an order (locks the
 -- coupon row so two tablets can't use the same code). Raises the same
 -- error codes as redeem_coupon.
-create or replace function attach_coupon_to_order(p_order_id uuid, p_code text)
+drop function if exists attach_coupon_to_order(uuid, text);
+create or replace function attach_coupon_to_order(p_order_id uuid, p_code text, p_amount numeric default null)
 returns numeric
 language plpgsql
 as $$
 declare
-  v_value numeric;
-  v_redeemed boolean;
+  v_coupon record;
+  v_order record;
+  v_use_day date;
+  v_balance numeric;
+  v_room numeric;
+  v_use numeric;
 begin
-  select value, redeemed into v_value, v_redeemed
-  from coupons where code = p_code
-  for update;
-  if v_value is null then
+  select c.code, c.value, b.expires_on into v_coupon
+  from coupons c join coupon_batches b on b.id = c.batch_id
+  where c.code = p_code
+  for update of c;
+  if not found then
     raise exception 'unknown_coupon: %', p_code using errcode = 'P0001';
   end if;
-  if v_redeemed then
+  select order_date, created_at into v_order from orders where id = p_order_id;
+  v_use_day := coalesce(v_order.order_date, (timezone('Asia/Bangkok', now()))::date);
+  if v_coupon.expires_on is not null and v_use_day >= v_coupon.expires_on then
+    raise exception 'coupon_expired: %|%', p_code, v_coupon.expires_on using errcode = 'P0001';
+  end if;
+  v_balance := coupon_balance(p_code);
+  if v_balance <= 0.005 then
     raise exception 'coupon_already_redeemed: %', p_code using errcode = 'P0001';
   end if;
-  update coupons set redeemed = true, redeemed_at = now(), redeemed_order_id = p_order_id where code = p_code;
-  insert into order_coupons (order_id, coupon_code, amount, resolved_at) values (p_order_id, p_code, v_value, now());
-  return v_value;
+  v_room := order_room(p_order_id);
+  if v_room <= 0.005 then
+    raise exception 'nothing_to_pay' using errcode = 'P0001';
+  end if;
+  if p_amount is not null then
+    if p_amount <= 0 then
+      raise exception 'invalid_amount' using errcode = 'P0001';
+    end if;
+    if p_amount > v_balance + 0.005 then
+      raise exception 'coupon_not_enough: %|%', p_code, v_balance using errcode = 'P0001';
+    end if;
+    v_use := least(p_amount, v_room);
+  else
+    v_use := least(v_balance, v_room);
+  end if;
+  insert into order_coupons (order_id, coupon_code, amount, resolved_at) values (p_order_id, p_code, v_use, now());
+  perform refresh_coupon_status(p_code, p_order_id);
+  return v_use;
 end;
 $$;
 
@@ -2051,6 +2054,8 @@ declare
   v_pct numeric;
   v_manual numeric;
   v_coupons numeric;
+  v_excess numeric;
+  r record;
 begin
   select coalesce(sum(qty * price_at_order), 0) into v_gross from order_items where order_id = p_order_id;
   select manual_discount_pct, manual_discount_amount into v_pct, v_manual from orders where id = p_order_id;
@@ -2059,6 +2064,31 @@ begin
     update orders set manual_discount_amount = v_manual where id = p_order_id;
   end if;
   select coalesce(sum(amount), 0) into v_coupons from order_coupons where order_id = p_order_id;
+
+  -- Round 35: coupons never take a bill below zero. If the bill shrank
+  -- (items removed, bigger discount), the newest coupon lines give the
+  -- difference back -- to the coupon's balance for a real code.
+  v_excess := v_coupons - greatest(v_gross - coalesce(v_manual, 0), 0);
+  if v_excess > 0.005 then
+    for r in select id, amount, coupon_code from order_coupons where order_id = p_order_id order by id desc
+    loop
+      exit when v_excess <= 0.005;
+      if r.amount <= v_excess + 0.005 then
+        delete from order_coupons where id = r.id;
+        v_excess := v_excess - r.amount;
+      else
+        update order_coupons set amount = r.amount - v_excess where id = r.id;
+        v_excess := 0;
+      end if;
+      if r.coupon_code is not null then
+        perform refresh_coupon_status(r.coupon_code, null);
+      end if;
+    end loop;
+    insert into order_audit_log (order_id, staff_id, action, detail)
+    values (p_order_id, null, 'coupon_trimmed', jsonb_build_object('note', 'bill went down, coupon amount reduced to match'));
+    select coalesce(sum(amount), 0) into v_coupons from order_coupons where order_id = p_order_id;
+  end if;
+
   update orders set discount_amount = coalesce(v_manual, 0) + v_coupons where id = p_order_id;
 end;
 $$;
@@ -2190,21 +2220,30 @@ begin
   loop
     if coalesce(trim(v_coupon ->> 'code'), '') <> '' then
       begin
-        perform attach_coupon_to_order(v_order_id, trim(v_coupon ->> 'code'));
+        perform attach_coupon_to_order(v_order_id, trim(v_coupon ->> 'code'), nullif(v_coupon ->> 'amount', '')::numeric);
       exception when others then
         if not v_soft then
           raise;
         end if;
         -- Offline sync: keep the sale, park the coupon on the to-fix list.
         select value into v_value from coupons where code = trim(v_coupon ->> 'code');
-        insert into order_coupons (order_id, coupon_code, amount, attempted_code)
-        values (v_order_id, null, coalesce(nullif(v_coupon ->> 'amount', '')::numeric, v_value, 1), trim(v_coupon ->> 'code'));
+        v_value := least(coalesce(nullif(v_coupon ->> 'amount', '')::numeric, v_value, 1), order_room(v_order_id));
+        if v_value > 0 then
+          insert into order_coupons (order_id, coupon_code, amount, attempted_code)
+          values (v_order_id, null, v_value, trim(v_coupon ->> 'code'));
+        end if;
         v_warnings := v_warnings || ('coupon ' || trim(v_coupon ->> 'code') || ' could not be used (' ||
-          case when sqlerrm like 'coupon_already_redeemed%' then 'already used' when sqlerrm like 'unknown_coupon%' then 'not in the system' else sqlerrm end ||
+          case when sqlerrm like 'coupon_already_redeemed%' then 'already used up'
+               when sqlerrm like 'unknown_coupon%' then 'not in the system'
+               when sqlerrm like 'coupon_expired%' then 'expired'
+               when sqlerrm like 'coupon_not_enough%' then 'not enough left on it'
+               when sqlerrm like 'nothing_to_pay%' then 'bill already fully covered'
+               else sqlerrm end ||
           ') and was saved as "code pending"');
       end;
-    elsif coalesce((v_coupon ->> 'pendingAmount')::numeric, 0) > 0 then
-      insert into order_coupons (order_id, coupon_code, amount) values (v_order_id, null, (v_coupon ->> 'pendingAmount')::numeric);
+    elsif coalesce((v_coupon ->> 'pendingAmount')::numeric, 0) > 0 and order_room(v_order_id) > 0.005 then
+      insert into order_coupons (order_id, coupon_code, amount)
+      values (v_order_id, null, least((v_coupon ->> 'pendingAmount')::numeric, order_room(v_order_id)));
     end if;
   end loop;
 
@@ -2315,6 +2354,8 @@ language plpgsql
 as $$
 declare
   v_order record;
+  v_codes text[];
+  v_code text;
 begin
   select * into v_order from orders where id = p_order_id for update;
   if not found then
@@ -2327,12 +2368,16 @@ begin
     raise exception 'day_locked: %', v_order.order_date using errcode = 'P0001';
   end if;
 
-  update coupons set redeemed = false, redeemed_at = null, redeemed_order_id = null
-  where redeemed_order_id = p_order_id;
   -- The order_coupons rows stay (history), but release the codes so the
-  -- physical coupons can be used again.
+  -- money goes back on each coupon's balance (Round 35).
+  select array_agg(distinct coupon_code) into v_codes from order_coupons where order_id = p_order_id and coupon_code is not null;
   update order_coupons set coupon_code = null, attempted_code = coalesce(attempted_code, coupon_code)
   where order_id = p_order_id and coupon_code is not null;
+  if v_codes is not null then
+    foreach v_code in array v_codes loop
+      perform refresh_coupon_status(v_code, null);
+    end loop;
+  end if;
 
   update orders set status = 'void', voided_at = now(), void_reason = nullif(trim(p_reason), ''), updated_at = now()
   where id = p_order_id;
@@ -2350,10 +2395,11 @@ language plpgsql
 as $$
 declare
   v_row record;
-  v_value numeric;
-  v_redeemed boolean;
+  v_coupon record;
+  v_balance numeric;
+  v_use_day date;
 begin
-  select oc.*, o.order_date, o.status as order_status into v_row
+  select oc.*, o.order_date, o.created_at as order_created_at, o.status as order_status, o.is_trial into v_row
   from order_coupons oc join orders o on o.id = oc.order_id
   where oc.id = p_order_coupon_id for update of oc;
   if not found then
@@ -2365,22 +2411,38 @@ begin
   if v_row.order_status = 'void' then
     raise exception 'order_voided' using errcode = 'P0001';
   end if;
+  if v_row.is_trial then
+    raise exception 'trial_no_coupons' using errcode = 'P0001';
+  end if;
 
-  select value, redeemed into v_value, v_redeemed from coupons where code = trim(p_code) for update;
-  if v_value is null then
+  select c.code, c.value, b.expires_on into v_coupon
+  from coupons c join coupon_batches b on b.id = c.batch_id
+  where c.code = trim(p_code) for update of c;
+  if not found then
     raise exception 'unknown_coupon: %', p_code using errcode = 'P0001';
   end if;
-  if v_redeemed then
-    raise exception 'coupon_already_redeemed: %', p_code using errcode = 'P0001';
+  -- Checked against the day the coupon was actually used, not today.
+  v_use_day := coalesce(v_row.order_date, (timezone('Asia/Bangkok', v_row.order_created_at))::date);
+  if v_coupon.expires_on is not null and v_use_day >= v_coupon.expires_on then
+    raise exception 'coupon_expired: %|%', trim(p_code), v_coupon.expires_on using errcode = 'P0001';
+  end if;
+  v_balance := coupon_balance(trim(p_code));
+  if v_balance <= 0.005 then
+    raise exception 'coupon_already_redeemed: %', trim(p_code) using errcode = 'P0001';
+  end if;
+  -- Round 35: the amount already taken off the bill comes off the coupon's
+  -- balance. Not enough left = stays on the to-fix list for the owner.
+  if v_balance + 0.005 < v_row.amount then
+    raise exception 'coupon_not_enough: %|%', trim(p_code), v_balance using errcode = 'P0001';
   end if;
 
-  update coupons set redeemed = true, redeemed_at = now(), redeemed_order_id = v_row.order_id where code = trim(p_code);
-  update order_coupons set coupon_code = trim(p_code), amount = v_value, resolved_at = now() where id = p_order_coupon_id;
+  update order_coupons set coupon_code = trim(p_code), resolved_at = now() where id = p_order_coupon_id;
+  perform refresh_coupon_status(trim(p_code), v_row.order_id);
   perform recompute_order_discount(v_row.order_id);
 
   insert into order_audit_log (order_id, staff_id, action, detail)
   values (v_row.order_id, case when exists (select 1 from staff where id = p_staff_id) then p_staff_id end,
-    'coupon_resolved', jsonb_build_object('code', trim(p_code), 'pending_amount', v_row.amount, 'coupon_value', v_value));
+    'coupon_resolved', jsonb_build_object('code', trim(p_code), 'amount', v_row.amount, 'balance_before', v_balance));
 end;
 $$;
 
@@ -2430,7 +2492,9 @@ begin
 
   -- A served counter order that is now fully paid closes itself.
   if v_order.status = 'served' and order_outstanding(p_order_id) <= 0 then
-    update orders set status = 'paid', payment_method = coalesce(payment_method, p_method) where id = p_order_id;
+    update orders set status = 'paid', payment_method = coalesce(order_payment_label(p_order_id), p_method) where id = p_order_id;
+  elsif v_order.status = 'paid' then
+    update orders set payment_method = coalesce(order_payment_label(p_order_id), payment_method) where id = p_order_id;
   end if;
 
   insert into order_audit_log (order_id, staff_id, action, detail)
@@ -2462,12 +2526,15 @@ end;
 $$;
 
 -- --- Add a coupon to an existing order (real code, or "code pending") ------
-create or replace function add_order_coupon(p_order_id uuid, p_code text, p_pending_amount numeric, p_staff_id uuid)
-returns void
+drop function if exists add_order_coupon(uuid, text, numeric, uuid);
+create or replace function add_order_coupon(p_order_id uuid, p_code text, p_pending_amount numeric, p_staff_id uuid, p_amount numeric default null)
+returns numeric
 language plpgsql
 as $$
 declare
   v_order record;
+  v_used numeric;
+  v_room numeric;
 begin
   select * into v_order from orders where id = p_order_id for update;
   if not found then
@@ -2482,16 +2549,22 @@ begin
   if coalesce(trim(p_code), '') <> '' and v_order.is_trial then
     raise exception 'trial_no_coupons' using errcode = 'P0001';
   elsif coalesce(trim(p_code), '') <> '' then
-    perform attach_coupon_to_order(p_order_id, trim(p_code));
+    v_used := attach_coupon_to_order(p_order_id, trim(p_code), p_amount);
   elsif coalesce(p_pending_amount, 0) > 0 then
-    insert into order_coupons (order_id, coupon_code, amount) values (p_order_id, null, p_pending_amount);
+    v_room := order_room(p_order_id);
+    if v_room <= 0.005 then
+      raise exception 'nothing_to_pay' using errcode = 'P0001';
+    end if;
+    v_used := least(p_pending_amount, v_room);
+    insert into order_coupons (order_id, coupon_code, amount) values (p_order_id, null, v_used);
   else
     raise exception 'invalid_coupon_input' using errcode = 'P0001';
   end if;
   perform recompute_order_discount(p_order_id);
   insert into order_audit_log (order_id, staff_id, action, detail)
   values (p_order_id, case when exists (select 1 from staff where id = p_staff_id) then p_staff_id end, 'coupon_added',
-    jsonb_build_object('code', nullif(trim(p_code), ''), 'pending_amount', p_pending_amount));
+    jsonb_build_object('code', nullif(trim(p_code), ''), 'amount', v_used, 'pending', coalesce(trim(p_code), '') = ''));
+  return v_used;
 end;
 $$;
 
@@ -2511,7 +2584,9 @@ begin
     return coalesce(v_order.status, 'unknown');
   end if;
   v_new := case when v_order.source = 'counter' and order_outstanding(p_order_id) <= 0 then 'paid' else 'served' end;
-  update orders set status = v_new where id = p_order_id;
+  update orders set status = v_new,
+    payment_method = case when v_new = 'paid' then coalesce(order_payment_label(p_order_id), payment_method) else payment_method end
+  where id = p_order_id;
   return v_new;
 end;
 $$;
@@ -2538,7 +2613,7 @@ begin
       insert into order_payments (order_id, method, amount, received_on, staff_id)
       values (v_id, p_method, v_owed, v_today, case when exists (select 1 from staff where id = p_staff_id) then p_staff_id end);
     end if;
-    update orders set status = 'paid', payment_method = p_method where id = v_id;
+    update orders set status = 'paid', payment_method = coalesce(order_payment_label(v_id), p_method) where id = v_id;
   end loop;
 end;
 $$;
@@ -2550,7 +2625,7 @@ select c.redeemed_order_id, c.code, c.value, coalesce(c.redeemed_at, now())
 from coupons c
 where c.redeemed and c.redeemed_order_id is not null
   and exists (select 1 from orders o where o.id = c.redeemed_order_id)
-on conflict (coupon_code) do nothing;
+  and not exists (select 1 from order_coupons x where x.order_id = c.redeemed_order_id and (x.coupon_code = c.code or x.attempted_code = c.code));
 
 
 -- ---------------------------------------------------------------------------
@@ -2925,6 +3000,213 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- Round 35 (10/7) -- coupon balances + expiry, split payments, Billing-side
+-- discount / coupon-later / void (owner design, 2026-10-07).
+--
+-- Coupons now work like a gift card: a ฿75 coupon used on a ฿55 bill takes
+-- ฿55 off and keeps ฿20 on the same code for a later visit. The balance is
+-- never stored -- it is always the coupon's value minus every use on a
+-- non-void bill (order_coupons), so a void or a trimmed bill gives the money
+-- back on its own. coupons.redeemed is kept in step (true = nothing left) for
+-- the older screens that read it.
+--
+-- Expiry is set per batch ("Expires on"): from that date the coupon no
+-- longer works. A "code pending" coupon is checked against the day it was
+-- used, not the day the code is typed in.
+-- ---------------------------------------------------------------------------
+alter table order_coupons drop constraint if exists order_coupons_coupon_code_key;
+create index if not exists order_coupons_coupon_code_idx on order_coupons(coupon_code);
+
+alter table coupon_batches add column if not exists expires_on date;
+
+-- Money left on a coupon.
+create or replace function coupon_balance(p_code text)
+returns numeric
+language sql
+stable
+as $$
+  select c.value - coalesce((
+    select sum(oc.amount)
+    from order_coupons oc join orders o on o.id = oc.order_id
+    where oc.coupon_code = c.code and o.status <> 'void'
+  ), 0)
+  from coupons c where c.code = p_code;
+$$;
+
+-- Keeps coupons.redeemed (= used up) in step with the balance.
+create or replace function refresh_coupon_status(p_code text, p_last_order uuid)
+returns void
+language plpgsql
+as $$
+declare
+  v_left numeric := coupon_balance(p_code);
+begin
+  update coupons set
+    redeemed = v_left <= 0.005,
+    redeemed_at = case when v_left <= 0.005 then coalesce(redeemed_at, now()) end,
+    redeemed_order_id = case when v_left <= 0.005 then coalesce(p_last_order, redeemed_order_id) end
+  where code = p_code;
+end;
+$$;
+
+-- What a coupon could still take off this bill: items - manual discount -
+-- coupons already on it.
+create or replace function order_room(p_order_id uuid)
+returns numeric
+language plpgsql
+stable
+as $$
+declare
+  v_gross numeric;
+  v_pct numeric;
+  v_manual numeric;
+  v_coupons numeric;
+begin
+  select coalesce(sum(qty * price_at_order), 0) into v_gross from order_items where order_id = p_order_id;
+  select manual_discount_pct, manual_discount_amount into v_pct, v_manual from orders where id = p_order_id;
+  if v_pct is not null and v_pct > 0 then
+    v_manual := round(v_gross * v_pct / 100, 2);
+  end if;
+  select coalesce(sum(amount), 0) into v_coupons from order_coupons where order_id = p_order_id;
+  return greatest(v_gross - coalesce(v_manual, 0) - v_coupons, 0);
+end;
+$$;
+
+-- 'cash' / 'online' / 'split' from what was actually paid on the order.
+create or replace function order_payment_label(p_order_id uuid)
+returns text
+language sql
+stable
+as $$
+  select case
+    when coalesce(sum(amount) filter (where method = 'cash'), 0) > 0
+     and coalesce(sum(amount) filter (where method = 'online'), 0) > 0 then 'split'
+    when coalesce(sum(amount) filter (where method = 'cash'), 0) > 0 then 'cash'
+    when coalesce(sum(amount) filter (where method = 'online'), 0) > 0 then 'online'
+  end
+  from order_payments where order_id = p_order_id;
+$$;
+
+-- Counter "Payment / refund" -> Split: one tap records both parts.
+create or replace function add_order_split_payment(p_order_id uuid, p_cash numeric, p_online numeric, p_received_on date, p_staff_id uuid, p_note text)
+returns void
+language plpgsql
+as $$
+begin
+  if coalesce(p_cash, 0) <= 0 or coalesce(p_online, 0) <= 0 then
+    raise exception 'invalid_amount' using errcode = 'P0001';
+  end if;
+  perform add_order_payment(p_order_id, 'cash', p_cash, p_received_on, p_staff_id, p_note);
+  perform add_order_payment(p_order_id, 'online', p_online, p_received_on, p_staff_id, p_note);
+end;
+$$;
+
+-- Billing -> Split: the cash amount is spread over the chosen orders in
+-- turn and the rest of each bill is recorded as online.
+create or replace function pay_orders_split(p_order_ids uuid[], p_cash numeric, p_staff_id uuid)
+returns void
+language plpgsql
+as $$
+declare
+  v_id uuid;
+  v_owed numeric;
+  v_total numeric := 0;
+  v_cash_left numeric := coalesce(p_cash, 0);
+  v_c numeric;
+  v_today date := (timezone('Asia/Bangkok', now()))::date;
+  v_staff uuid := case when exists (select 1 from staff where id = p_staff_id) then p_staff_id end;
+begin
+  if v_cash_left < 0 then
+    raise exception 'invalid_amount' using errcode = 'P0001';
+  end if;
+  for v_id in select id from orders where id = any(p_order_ids) and status = 'served' order by id for update
+  loop
+    v_total := v_total + greatest(order_outstanding(v_id), 0);
+  end loop;
+  if v_cash_left > v_total + 0.005 then
+    raise exception 'split_cash_too_much: %', v_total using errcode = 'P0001';
+  end if;
+  for v_id in select id from orders where id = any(p_order_ids) and status = 'served' order by id
+  loop
+    v_owed := order_outstanding(v_id);
+    if v_owed > 0 then
+      v_c := least(v_cash_left, v_owed);
+      v_cash_left := v_cash_left - v_c;
+      if v_c > 0 then
+        insert into order_payments (order_id, method, amount, received_on, staff_id) values (v_id, 'cash', v_c, v_today, v_staff);
+      end if;
+      if v_owed - v_c > 0 then
+        insert into order_payments (order_id, method, amount, received_on, staff_id) values (v_id, 'online', v_owed - v_c, v_today, v_staff);
+      end if;
+      insert into order_audit_log (order_id, staff_id, action, detail)
+      values (v_id, v_staff, 'payment', jsonb_build_object('method', 'split', 'cash', v_c, 'online', v_owed - v_c, 'received_on', v_today));
+    end if;
+    update orders set status = 'paid', payment_method = coalesce(order_payment_label(v_id), 'split') where id = v_id;
+  end loop;
+end;
+$$;
+
+-- Discount on any order (Billing's "Discount" for QR bills too). A % is
+-- worked out from the items; an amount is taken as is.
+create or replace function set_order_discount(p_order_id uuid, p_pct numeric, p_amount numeric, p_note text, p_staff_id uuid)
+returns void
+language plpgsql
+as $$
+declare
+  v_order record;
+begin
+  select * into v_order from orders where id = p_order_id for update;
+  if not found then
+    raise exception 'unknown_order' using errcode = 'P0001';
+  end if;
+  if v_order.status = 'void' then
+    raise exception 'order_voided' using errcode = 'P0001';
+  end if;
+  if counter_day_locked(v_order.order_date) then
+    raise exception 'day_locked: %', v_order.order_date using errcode = 'P0001';
+  end if;
+  if coalesce(p_pct, 0) < 0 or coalesce(p_pct, 0) > 100 or coalesce(p_amount, 0) < 0 then
+    raise exception 'invalid_amount' using errcode = 'P0001';
+  end if;
+  update orders set
+    manual_discount_pct = nullif(p_pct, 0),
+    manual_discount_amount = case when coalesce(p_pct, 0) > 0 then 0 else coalesce(p_amount, 0) end,
+    discount_note = nullif(trim(p_note), ''),
+    updated_at = now()
+  where id = p_order_id;
+  perform recompute_order_discount(p_order_id);
+  insert into order_audit_log (order_id, staff_id, action, detail)
+  values (p_order_id, case when exists (select 1 from staff where id = p_staff_id) then p_staff_id end, 'discount_changed',
+    jsonb_build_object('before_pct', v_order.manual_discount_pct, 'before_amount', v_order.manual_discount_amount,
+      'pct', p_pct, 'amount', p_amount, 'note', p_note));
+end;
+$$;
+
+-- Admin coupons page: per batch, how many are used up / partly used and
+-- how much money is still out on its coupons.
+create or replace function coupon_batch_stats()
+returns table (batch_id uuid, used_up int, partly_used int, value_left numeric)
+language sql
+stable
+as $$
+  with bal as (
+    select c.batch_id, c.value, c.value - coalesce((
+      select sum(oc.amount) from order_coupons oc join orders o on o.id = oc.order_id
+      where oc.coupon_code = c.code and o.status <> 'void'), 0) as left_amt
+    from coupons c
+  )
+  select batch_id,
+    count(*) filter (where left_amt <= 0.005)::int,
+    count(*) filter (where left_amt > 0.005 and left_amt < value - 0.005)::int,
+    coalesce(sum(greatest(left_amt, 0)), 0)
+  from bal group by batch_id;
+$$;
+
+-- Bring every coupon's used-up flag in line with its balance (cheap; safe
+-- to re-run on every paste).
+select refresh_coupon_status(code, null) from coupons;
+
+-- ---------------------------------------------------------------------------
 -- Explicit grants for the service role. Newer Supabase projects no longer
 -- auto-grant service_role access to tables created by hand (the "Automatically
 -- expose new tables" project setting) — these grants make this schema work
@@ -2946,7 +3228,7 @@ grant execute on function reset_orders_in_range(date, date) to service_role;
 grant execute on function rename_menu_item_code(text, text) to service_role;
 grant execute on function prep_batch(uuid, numeric) to service_role;
 grant execute on function counter_day_locked(date) to service_role;
-grant execute on function attach_coupon_to_order(uuid, text) to service_role;
+grant execute on function attach_coupon_to_order(uuid, text, numeric) to service_role;
 grant execute on function recompute_order_discount(uuid) to service_role;
 grant execute on function place_counter_order(jsonb) to service_role;
 grant execute on function update_counter_order(uuid, jsonb) to service_role;
@@ -2955,7 +3237,7 @@ grant execute on function resolve_pending_coupon(bigint, text, uuid) to service_
 grant execute on function order_outstanding(uuid) to service_role;
 grant execute on function add_order_payment(uuid, text, numeric, date, uuid, text) to service_role;
 grant execute on function delete_order_payment(bigint, uuid) to service_role;
-grant execute on function add_order_coupon(uuid, text, numeric, uuid) to service_role;
+grant execute on function add_order_coupon(uuid, text, numeric, uuid, numeric) to service_role;
 grant execute on function mark_order_served(uuid) to service_role;
 grant execute on function pay_orders(uuid[], text, uuid) to service_role;
 grant execute on function clear_trial_orders() to service_role;
@@ -2968,3 +3250,11 @@ grant execute on function after_purchase_saved(bigint) to service_role;
 grant execute on function delete_purchase(bigint) to service_role;
 grant execute on function preview_purchase_backfill(date, date) to service_role;
 grant execute on function apply_purchase_backfill(date, date) to service_role;
+grant execute on function coupon_balance(text) to service_role;
+grant execute on function refresh_coupon_status(text, uuid) to service_role;
+grant execute on function order_room(uuid) to service_role;
+grant execute on function order_payment_label(uuid) to service_role;
+grant execute on function add_order_split_payment(uuid, numeric, numeric, date, uuid, text) to service_role;
+grant execute on function pay_orders_split(uuid[], numeric, uuid) to service_role;
+grant execute on function set_order_discount(uuid, numeric, numeric, text, uuid) to service_role;
+grant execute on function coupon_batch_stats() to service_role;

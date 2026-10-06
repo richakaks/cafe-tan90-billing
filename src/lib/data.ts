@@ -284,7 +284,7 @@ export async function placePreOrder(items: CartItem[], requestedDate: string, re
 // ---------------------------------------------------------------------------
 
 const ORDER_ROW_SELECT =
-  "id, daily_order_number, order_date, seat_id, status, order_type, requested_date, requested_time, coupon_code, discount_amount, payment_method, created_at, source, customer_label, order_items(id, menu_item_code, item_name, qty, price_at_order, fulfillment_type, note), order_payments(amount), is_trial";
+  "id, daily_order_number, order_date, seat_id, status, order_type, requested_date, requested_time, coupon_code, discount_amount, payment_method, created_at, source, customer_label, manual_discount_pct, manual_discount_amount, discount_note, order_items(id, menu_item_code, item_name, qty, price_at_order, fulfillment_type, note), order_payments(method, amount), order_coupons(id, coupon_code, amount, attempted_code), is_trial";
 
 type RawOrderRow = {
   id: string;
@@ -304,7 +304,11 @@ type RawOrderRow = {
   order_items:
     | { id: number; menu_item_code: string; item_name: string; qty: number; price_at_order: number; fulfillment_type: string; note: string | null }[]
     | null;
-  order_payments: { amount: number }[] | null;
+  order_payments: { method: string; amount: number }[] | null;
+  order_coupons: { id: number; coupon_code: string | null; amount: number; attempted_code: string | null }[] | null;
+  manual_discount_pct: number | null;
+  manual_discount_amount: number | null;
+  discount_note: string | null;
   is_trial: boolean | null;
 };
 
@@ -337,6 +341,14 @@ function mapOrderRow(o: RawOrderRow): OrderRow {
     customerLabel: o.customer_label ?? null,
     amountPaid: (o.order_payments ?? []).reduce((sum, p) => sum + Number(p.amount), 0),
     isTrial: !!o.is_trial,
+    cashPaid: (o.order_payments ?? []).filter((p) => p.method === "cash").reduce((sum, p) => sum + Number(p.amount), 0),
+    onlinePaid: (o.order_payments ?? []).filter((p) => p.method === "online").reduce((sum, p) => sum + Number(p.amount), 0),
+    coupons: (o.order_coupons ?? [])
+      .sort((a, b) => a.id - b.id)
+      .map((c) => ({ id: c.id, code: c.coupon_code, amount: Number(c.amount), attemptedCode: c.attempted_code })),
+    manualDiscountPct: o.manual_discount_pct === null ? null : Number(o.manual_discount_pct),
+    manualDiscountAmount: Number(o.manual_discount_amount ?? 0),
+    discountNote: o.discount_note ?? null,
   };
 }
 
@@ -430,7 +442,9 @@ export async function createCouponBatch(
   // batch on the site doesn't mean it's been paid for or picked up yet.
   soldAt?: string,
   paid: boolean = false,
-  collected: boolean = false
+  collected: boolean = false,
+  // Round 35: optional -- from this date the batch's coupons stop working.
+  expiresOn: string | null = null
 ): Promise<void> {
   const uniqueCodes = Array.from(new Set(codes.map((c) => c.trim()).filter(Boolean)));
   if (uniqueCodes.length === 0) throw new Error("No coupon codes given.");
@@ -442,6 +456,7 @@ export async function createCouponBatch(
     total_collected: totalCollected,
     paid,
     collected,
+    expires_on: expiresOn,
   };
   if (soldAt) insertRow.sold_at = soldAt;
 
@@ -470,6 +485,8 @@ export async function updateCouponBatch(
     buyerName?: string;
     couponValue?: number;
     totalCollected?: number;
+    // Round 35: null clears the expiry.
+    expiresOn?: string | null;
   }
 ): Promise<void> {
   const row: Record<string, unknown> = {};
@@ -479,27 +496,33 @@ export async function updateCouponBatch(
   if (updates.buyerName !== undefined) row.buyer_name = updates.buyerName;
   if (updates.couponValue !== undefined) row.coupon_value = updates.couponValue;
   if (updates.totalCollected !== undefined) row.total_collected = updates.totalCollected;
+  if (updates.expiresOn !== undefined) row.expires_on = updates.expiresOn;
   if (Object.keys(row).length === 0) return;
 
   const { error } = await db().from("coupon_batches").update(row).eq("id", id);
   if (error) throw error;
+  // Round 35: the coupons themselves carry the value their balance is
+  // worked out from, so a corrected value has to reach them too.
+  if (updates.couponValue !== undefined) {
+    const { error: cErr } = await db().from("coupons").update({ value: updates.couponValue }).eq("batch_id", id);
+    if (cErr) throw cErr;
+  }
 }
 
 export async function getCouponBatches(): Promise<CouponBatch[]> {
-  const [{ data: batches, error: batchErr }, { data: coupons, error: couponErr }] = await Promise.all([
+  const [{ data: batches, error: batchErr }, { data: stats, error: statsErr }] = await Promise.all([
     db()
       .from("coupon_batches")
-      .select("id, buyer_name, coupon_value, quantity, total_collected, sold_at, paid, collected")
+      .select("id, buyer_name, coupon_value, quantity, total_collected, sold_at, paid, collected, expires_on")
       .order("sold_at", { ascending: false }),
-    db().from("coupons").select("batch_id, redeemed"),
+    db().rpc("coupon_batch_stats"),
   ]);
   if (batchErr) throw batchErr;
-  if (couponErr) throw couponErr;
+  if (statsErr) throw statsErr;
 
-  const redeemedCounts = new Map<string, number>();
-  for (const c of coupons ?? []) {
-    if (c.redeemed) redeemedCounts.set(c.batch_id, (redeemedCounts.get(c.batch_id) ?? 0) + 1);
-  }
+  const statsByBatch = new Map(
+    ((stats ?? []) as { batch_id: string; used_up: number; partly_used: number; value_left: number }[]).map((r) => [r.batch_id, r])
+  );
 
   return (batches ?? []).map((b) => ({
     id: b.id,
@@ -508,7 +531,10 @@ export async function getCouponBatches(): Promise<CouponBatch[]> {
     quantity: b.quantity,
     totalCollected: Number(b.total_collected),
     soldAt: b.sold_at,
-    redeemedCount: redeemedCounts.get(b.id) ?? 0,
+    redeemedCount: statsByBatch.get(b.id)?.used_up ?? 0,
+    partlyUsedCount: statsByBatch.get(b.id)?.partly_used ?? 0,
+    valueLeft: Number(statsByBatch.get(b.id)?.value_left ?? 0),
+    expiresOn: b.expires_on ?? null,
     paid: b.paid,
     collected: b.collected,
   }));
@@ -1149,12 +1175,11 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
     { data: orders, error: ordersErr },
     { data: menuItems, error: menuErr },
     { data: historical, error: histErr },
-    { data: redeemedCoupons, error: couponErr },
     previousPeriod,
   ] = await Promise.all([
     db()
       .from("orders")
-      .select("id, order_date, discount_amount, payment_method, created_at, source, order_items(menu_item_code, item_name, qty, price_at_order), order_payments(method, amount)")
+      .select("id, order_date, discount_amount, payment_method, created_at, source, order_items(menu_item_code, item_name, qty, price_at_order), order_payments(method, amount), order_coupons(amount)")
       .in("status", ["placed", "served", "paid"])
       .eq("is_trial", false)
       .gte("order_date", from)
@@ -1167,18 +1192,11 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
       .select("sale_date, item_name, menu_item_code, quantity, total_revenue, payment_note")
       .gte("sale_date", from)
       .lte("sale_date", to),
-    db()
-      .from("coupons")
-      .select("value, redeemed_at")
-      .eq("redeemed", true)
-      .gte("redeemed_at", `${from}T00:00:00`)
-      .lte("redeemed_at", `${to}T23:59:59.999`),
     getPeriodTotals(prevFrom, prevTo),
   ]);
   if (ordersErr) throw ordersErr;
   if (menuErr) throw menuErr;
   if (histErr) throw histErr;
-  if (couponErr) throw couponErr;
 
   const categoryByCode = new Map((menuItems ?? []).map((m) => [m.code, m.category]));
 
@@ -1453,8 +1471,13 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
     })),
     couponSummary: {
       discountGiven: totalDiscount,
-      redeemedCount: (redeemedCoupons ?? []).length,
-      redeemedValue: (redeemedCoupons ?? []).reduce((sum, c) => sum + Number((c as { value: number }).value), 0),
+      // Round 35: coupons can be partly used, so this counts each coupon
+      // use on a bill in the range (and the money it took off).
+      redeemedCount: (orders ?? []).reduce((n, o) => n + ((o as { order_coupons?: unknown[] }).order_coupons ?? []).length, 0),
+      redeemedValue: (orders ?? []).reduce(
+        (sum, o) => sum + ((o as { order_coupons?: { amount: number }[] }).order_coupons ?? []).reduce((s2, c) => s2 + Number(c.amount), 0),
+        0
+      ),
     },
     paymentSplit,
     sourceSplit,

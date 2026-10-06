@@ -54,6 +54,10 @@ export class CounterError extends Error {
       "unknown_order_coupon",
       "trial_no_coupons",
       "trial_walk_in_only",
+      "coupon_expired",
+      "coupon_not_enough",
+      "nothing_to_pay",
+      "split_cash_too_much",
     ].includes(this.code);
   }
 
@@ -72,7 +76,19 @@ export class CounterError extends Error {
       case "unknown_coupon":
         return `Coupon ${this.detail ?? ""} isn't in the system.`;
       case "coupon_already_redeemed":
-        return `Coupon ${this.detail ?? ""} has already been used.`;
+        return `Coupon ${this.detail ?? ""} is used up (nothing left on it).`;
+      case "coupon_expired": {
+        const [code, day] = (this.detail ?? "").split("|");
+        return `Coupon ${code} expired on ${day}.`;
+      }
+      case "coupon_not_enough": {
+        const [code, left] = (this.detail ?? "").split("|");
+        return `Coupon ${code} only has ฿${Number(left)} left on it. Check with the owner.`;
+      }
+      case "nothing_to_pay":
+        return "The bill is already fully covered — nothing left for a coupon to take off.";
+      case "split_cash_too_much":
+        return `The cash part is more than the bill (฿${Number(this.detail ?? 0)}).`;
       case "order_voided":
         return "This order was voided.";
       case "already_resolved":
@@ -148,7 +164,9 @@ export interface CounterOrderInput {
   discountPct?: number | null;
   discountAmount?: number | null;
   discountNote?: string;
-  coupons?: ({ code: string } | { pendingAmount: number })[];
+  // amount on a code = how much of the coupon to use (blank = as much of the
+  // bill as its balance covers).
+  coupons?: ({ code: string; amount?: number } | { pendingAmount: number })[];
   payments?: { method: PaymentMethod; amount: number }[];
   // Round 33: practice order -- never counted anywhere.
   trial?: boolean;
@@ -213,14 +231,125 @@ export async function deleteOrderPayment(paymentId: number, staffId: string | nu
   if (error) throw rpcError(error);
 }
 
-export async function addOrderCoupon(orderId: string, code: string | null, pendingAmount: number | null, staffId: string | null): Promise<void> {
-  const { error } = await db().rpc("add_order_coupon", {
+export async function addOrderCoupon(
+  orderId: string,
+  code: string | null,
+  pendingAmount: number | null,
+  staffId: string | null,
+  amount: number | null = null
+): Promise<number> {
+  const { data, error } = await db().rpc("add_order_coupon", {
     p_order_id: orderId,
     p_code: code,
     p_pending_amount: pendingAmount,
     p_staff_id: staffId,
+    p_amount: amount,
   });
   if (error) throw rpcError(error);
+  return Number(data ?? 0);
+}
+
+// Round 35: Split = one cash line + one online line, recorded together.
+export async function addOrderSplitPayment(
+  orderId: string,
+  cash: number,
+  online: number,
+  receivedOn: string,
+  staffId: string | null,
+  note: string | null
+): Promise<void> {
+  const { error } = await db().rpc("add_order_split_payment", {
+    p_order_id: orderId,
+    p_cash: cash,
+    p_online: online,
+    p_received_on: receivedOn,
+    p_staff_id: staffId,
+    p_note: note,
+  });
+  if (error) throw rpcError(error);
+}
+
+// Round 35: Billing's Split button (one bill or a whole table).
+export async function payOrdersSplit(orderIds: string[], cash: number, staffId: string | null): Promise<void> {
+  const { error } = await db().rpc("pay_orders_split", { p_order_ids: orderIds, p_cash: cash, p_staff_id: staffId });
+  if (error) throw rpcError(error);
+}
+
+// Round 35: discount on any order (% or a fixed amount, with a reason).
+export async function setOrderDiscount(orderId: string, pct: number | null, amount: number | null, note: string | null, staffId: string | null): Promise<void> {
+  const { error } = await db().rpc("set_order_discount", {
+    p_order_id: orderId,
+    p_pct: pct,
+    p_amount: amount,
+    p_note: note,
+    p_staff_id: staffId,
+  });
+  if (error) throw rpcError(error);
+}
+
+// Round 35: coupon lookup -- value, what's left, expiry, every bill it was used on.
+export type CouponDetail = {
+  code: string;
+  value: number;
+  left: number;
+  expiresOn: string | null;
+  expired: boolean;
+  buyerName: string;
+  uses: { orderId: string; orderLabel: string; orderDate: string | null; amount: number; voided: boolean; isTrial: boolean }[];
+  pendingTries: { orderId: string; orderLabel: string; amount: number }[];
+};
+
+export async function getCouponDetail(code: string): Promise<CouponDetail | null> {
+  const { data: c, error } = await db()
+    .from("coupons")
+    .select("code, value, batch:batch_id(buyer_name, expires_on)")
+    .eq("code", code.trim())
+    .maybeSingle();
+  if (error) throw error;
+  if (!c) return null;
+  const [{ data: uses, error: usesErr }, { data: tries, error: triesErr }] = await Promise.all([
+    db()
+      .from("order_coupons")
+      .select("amount, order:order_id(id, daily_order_number, order_date, status, is_trial, source, seat_id)")
+      .eq("coupon_code", c.code)
+      .order("id"),
+    db()
+      .from("order_coupons")
+      .select("amount, order:order_id(id, daily_order_number, order_date, status, is_trial, source, seat_id)")
+      .is("coupon_code", null)
+      .eq("attempted_code", c.code),
+  ]);
+  if (usesErr) throw usesErr;
+  if (triesErr) throw triesErr;
+  type O = { id: string; daily_order_number: number | null; order_date: string | null; status: string; is_trial: boolean; source: string; seat_id: string | null };
+  const one = <T,>(x: T | T[] | null): T | null => (Array.isArray(x) ? (x[0] ?? null) : x);
+  const label = (o: O) => `${o.is_trial ? "Trial " : ""}#${o.daily_order_number ?? "—"}${o.seat_id ? ` · ${o.seat_id}` : ""} (${o.source === "counter" ? "counter" : "QR"})`;
+  const batch = one(c.batch as unknown as { buyer_name: string; expires_on: string | null } | null);
+  const useRows = ((uses ?? []) as unknown as { amount: number; order: O | O[] | null }[])
+    .map((u) => ({ amount: Number(u.amount), order: one(u.order) }))
+    .filter((u): u is { amount: number; order: O } => u.order !== null);
+  const used = useRows.filter((u) => u.order.status !== "void").reduce((s, u) => s + u.amount, 0);
+  const expiresOn = batch?.expires_on ?? null;
+  return {
+    code: c.code,
+    value: Number(c.value),
+    left: Math.max(0, Number(c.value) - used),
+    expiresOn,
+    expired: !!expiresOn && bangkokToday() >= expiresOn,
+    buyerName: batch?.buyer_name ?? "",
+    uses: useRows.map((u) => ({
+      orderId: u.order.id,
+      orderLabel: label(u.order),
+      orderDate: u.order.order_date,
+      amount: u.amount,
+      voided: u.order.status === "void",
+      isTrial: u.order.is_trial,
+    })),
+    pendingTries: ((tries ?? []) as unknown as { amount: number; order: O | O[] | null }[])
+      .map((t) => ({ amount: Number(t.amount), order: one(t.order) }))
+      .filter((t): t is { amount: number; order: O } => t.order !== null && t.order.status !== "void")
+      .map((t) => ({ orderId: t.order.id, orderLabel: label(t.order), amount: t.amount })),
+  };
 }
 
 export async function resolvePendingCoupon(orderCouponId: number, code: string, staffId: string | null): Promise<void> {
@@ -316,9 +445,11 @@ function mapCounterOrder(o: RawCounterOrder): CounterOrder {
     requestedTime: o.requested_time,
     couponCode: o.coupon_code,
     discountAmount: Number(o.discount_amount),
-    paymentMethod: (o.payment_method as PaymentMethod | null) ?? null,
+    paymentMethod: (o.payment_method as CounterOrder["paymentMethod"]) ?? null,
     createdAt: o.created_at,
     items,
+    cashPaid: payments.filter((p) => p.method === "cash").reduce((sum, p) => sum + p.amount, 0),
+    onlinePaid: payments.filter((p) => p.method === "online").reduce((sum, p) => sum + p.amount, 0),
     source: o.source === "counter" ? "counter" : "qr",
     customerLabel: o.customer_label,
     amountPaid,

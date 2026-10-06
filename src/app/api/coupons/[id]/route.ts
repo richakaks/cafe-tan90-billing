@@ -7,20 +7,23 @@ import { updateCouponBatch } from "@/lib/data";
 // collected be corrected via the row's "Edit" button.
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  let body: { soldAt?: string; paid?: boolean; collected?: boolean; buyerName?: string; couponValue?: number; totalCollected?: number };
+  let body: { soldAt?: string; paid?: boolean; collected?: boolean; buyerName?: string; couponValue?: number; totalCollected?: number; expiresOn?: string | null };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const updates: { soldAt?: string; paid?: boolean; collected?: boolean; buyerName?: string; couponValue?: number; totalCollected?: number } = {};
+  const updates: { soldAt?: string; paid?: boolean; collected?: boolean; buyerName?: string; couponValue?: number; totalCollected?: number; expiresOn?: string | null } = {};
   if (typeof body.soldAt === "string" && body.soldAt.trim()) updates.soldAt = body.soldAt.trim();
   if (typeof body.paid === "boolean") updates.paid = body.paid;
   if (typeof body.collected === "boolean") updates.collected = body.collected;
   if (typeof body.buyerName === "string" && body.buyerName.trim()) updates.buyerName = body.buyerName.trim();
   if (typeof body.couponValue === "number" && body.couponValue > 0) updates.couponValue = body.couponValue;
   if (typeof body.totalCollected === "number" && body.totalCollected >= 0) updates.totalCollected = body.totalCollected;
+  // Round 35: "" or null clears the expiry date.
+  if (body.expiresOn === null || body.expiresOn === "") updates.expiresOn = null;
+  else if (typeof body.expiresOn === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.expiresOn)) updates.expiresOn = body.expiresOn;
 
   try {
     await updateCouponBatch(id, updates);

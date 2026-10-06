@@ -145,7 +145,8 @@ export interface OrderRow {
   // Set when staff mark an order paid (Round 17) — Cash or Online, chosen at
   // that moment. Null for any order still open, and for orders paid before
   // this feature existed (never guessed at retroactively).
-  paymentMethod: PaymentMethod | null;
+  // Round 35: 'split' when the bill was paid partly cash, partly online.
+  paymentMethod: PaymentMethod | "split" | null;
   createdAt: string;
   items: OrderItemRow[];
   // Round 32
@@ -155,6 +156,13 @@ export interface OrderRow {
   amountPaid: number;
   // Round 33: a practice order -- shown with a TRIAL badge, never counted.
   isTrial: boolean;
+  // Round 35: what's on the bill, so Billing can show and change it.
+  cashPaid: number;
+  onlinePaid: number;
+  coupons: OrderCouponRow[];
+  manualDiscountPct: number | null;
+  manualDiscountAmount: number;
+  discountNote: string | null;
 }
 
 export interface PlacedPreOrder {
@@ -176,7 +184,12 @@ export interface CouponBatch {
   quantity: number;
   totalCollected: number;
   soldAt: string;
+  // Round 35: redeemedCount = used up (nothing left); partlyUsedCount = some
+  // money used, some still on the coupon; valueLeft = money still out there.
   redeemedCount: number;
+  partlyUsedCount: number;
+  valueLeft: number;
+  expiresOn: string | null;
   // Round 26: independent of each other and of redemption -- a batch can be
   // sold-but-unpaid, paid-but-not-yet-picked-up, etc.
   paid: boolean;

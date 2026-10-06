@@ -12,7 +12,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  let body: { buyerName?: string; couponValue?: number; codes?: string[]; totalCollected?: number; soldAt?: string; paid?: boolean; collected?: boolean };
+  let body: { buyerName?: string; couponValue?: number; codes?: string[]; totalCollected?: number; soldAt?: string; paid?: boolean; collected?: boolean; expiresOn?: string };
   try {
     body = await req.json();
   } catch {
@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
   const soldAt = typeof body.soldAt === "string" && body.soldAt.trim() ? body.soldAt.trim() : undefined;
   const paid = body.paid === true;
   const collected = body.collected === true;
+  const expiresOn = typeof body.expiresOn === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.expiresOn) ? body.expiresOn : null;
 
   if (!buyerName) {
     return NextResponse.json({ error: "Enter who bought these coupons." }, { status: 400 });
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await createCouponBatch(buyerName, couponValue, codes, totalCollected, soldAt, paid, collected);
+    await createCouponBatch(buyerName, couponValue, codes, totalCollected, soldAt, paid, collected, expiresOn);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("createCouponBatch failed", err);

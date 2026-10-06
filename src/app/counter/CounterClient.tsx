@@ -28,7 +28,11 @@ interface CartLine {
   soldPrice?: number;
 }
 
-type CartCoupon = { kind: "code"; code: string; amount: number | null; checked: string | null } | { kind: "pending"; amount: number };
+// Round 35: a code coupon covers the bill up to its balance (what's left on
+// it); useAmount = staff chose to use less (or, offline, typed its value).
+type CartCoupon =
+  | { kind: "code"; code: string; balance: number | null; useAmount: number | null }
+  | { kind: "pending"; amount: number };
 
 const STAFF_KEY = "tan90_counter_staff_v1";
 const MENU_CACHE = "tan90_counter_menu_v1";
@@ -263,11 +267,20 @@ export default function CounterClient({
   const gross = cart.reduce((s, l) => s + l.qty * (l.soldPrice ?? l.price), 0);
   const discountNum = Number(discountValue) || 0;
   const manualDiscount = discountMode === "pct" ? round2((gross * Math.min(100, Math.max(0, discountNum))) / 100) : Math.max(0, discountNum);
-  const couponTotal = editing
-    ? editing.coupons.reduce((s, c) => s + c.amount, 0)
-    : coupons.reduce((s, c) => s + (c.kind === "pending" ? c.amount : c.amount ?? 0), 0);
+  // Each coupon takes what it can, in order, never more than the bill left.
+  const couponApplied: number[] = [];
+  {
+    let room = Math.max(0, gross - manualDiscount);
+    for (const c of coupons) {
+      const cap = c.kind === "pending" ? c.amount : (c.useAmount ?? c.balance ?? 0);
+      const take = round2(Math.max(0, Math.min(cap, room)));
+      couponApplied.push(take);
+      room = round2(room - take);
+    }
+  }
+  const couponTotal = editing ? editing.coupons.reduce((s, c) => s + c.amount, 0) : couponApplied.reduce((s, a) => s + a, 0);
   const toPay = Math.max(0, round2(gross - manualDiscount - couponTotal));
-  const unknownCoupon = !editing && coupons.some((c) => c.kind === "code" && c.amount === null);
+  const unknownCoupon = !editing && coupons.some((c) => c.kind === "code" && c.balance === null && c.useAmount === null);
 
   const payments: { method: PaymentMethod; amount: number }[] =
     payMode === "cash"
@@ -320,7 +333,7 @@ export default function CounterClient({
       setCouponInput("");
       return;
     }
-    let entry: CartCoupon = { kind: "code", code, amount: null, checked: null };
+    let entry: CartCoupon = { kind: "code", code, balance: null, useAmount: null };
     try {
       const res = await fetch(`/api/counter/coupon-check?code=${encodeURIComponent(code)}`, { cache: "no-store" });
       const data = await res.json();
@@ -329,11 +342,15 @@ export default function CounterClient({
           setFormError(`Coupon ${code} isn't in the system. Check the code, or add it as "code pending".`);
           return;
         }
-        if (data.redeemed) {
-          setFormError(`Coupon ${code} has already been used.`);
+        if (data.expired) {
+          setFormError(`Coupon ${code} expired on ${data.expiresOn}.`);
           return;
         }
-        entry = { kind: "code", code, amount: Number(data.value), checked: "ok" };
+        if (data.redeemed) {
+          setFormError(`Coupon ${code} is used up (nothing left on it).`);
+          return;
+        }
+        entry = { kind: "code", code, balance: Number(data.balance), useAmount: null };
       }
     } catch {
       // offline: value unknown until synced -- staff can type it below
@@ -486,7 +503,7 @@ export default function CounterClient({
         items: items.map(({ code, qty, fulfillmentType, note }) => ({ code, qty, fulfillmentType, note })),
         ...discount,
         discountNote: discountNote.trim() || undefined,
-        coupons: coupons.map((c) => (c.kind === "code" ? { code: c.code, ...(c.amount ? { amount: c.amount } : {}) } : { pendingAmount: c.amount })) as CounterOrderInput["coupons"],
+        coupons: coupons.map((c) => (c.kind === "code" ? { code: c.code, ...(c.useAmount ? { amount: c.useAmount } : {}) } : { pendingAmount: c.amount })) as CounterOrderInput["coupons"],
         payments,
       };
       const queued: QueuedOrder = {
@@ -802,7 +819,7 @@ export default function CounterClient({
                   inputMode="decimal"
                   value={pendingCouponInput}
                   onChange={(e) => setPendingCouponInput(e.target.value)}
-                  placeholder="No code? Value ฿"
+                  placeholder="No code? Amount off ฿"
                   className={`${input} min-w-0 flex-1`}
                 />
                 <button
@@ -822,9 +839,9 @@ export default function CounterClient({
                   {coupons.map((c, i) => (
                     <li key={i} className="flex items-center justify-between gap-2 rounded-md bg-navy-100/60 px-2 py-1 text-xs">
                       {c.kind === "code" ? (
-                        <span>
-                          {c.code}{" "}
-                          {c.amount === null ? (
+                        <span className="flex flex-wrap items-center gap-1">
+                          <span className="font-medium">{c.code}</span>
+                          {c.balance === null ? (
                             <span className="inline-flex items-center gap-1 text-status-low">
                               value?{" "}
                               <input
@@ -832,17 +849,40 @@ export default function CounterClient({
                                 placeholder="฿"
                                 onChange={(e) => {
                                   const v = Number(e.target.value);
-                                  setCoupons((prev) => prev.map((x, j) => (j === i && x.kind === "code" ? { ...x, amount: v > 0 ? v : null } : x)));
+                                  setCoupons((prev) => prev.map((x, j) => (j === i && x.kind === "code" ? { ...x, useAmount: v > 0 ? v : null } : x)));
                                 }}
                                 className="w-14 rounded border border-card-border px-1 py-0.5"
                               />
                             </span>
                           ) : (
-                            `−${formatBaht(c.amount)}`
+                            <>
+                              <span>−{formatBaht(couponApplied[i] ?? 0)}</span>
+                              <span className="text-navy-600">
+                                {(() => {
+                                  const left = round2(c.balance - (couponApplied[i] ?? 0));
+                                  return left > 0.005 ? `· ${formatBaht(left)} stays on it` : "· used up";
+                                })()}
+                              </span>
+                              <span className="inline-flex items-center gap-1 text-navy-600">
+                                · use only
+                                <input
+                                  inputMode="decimal"
+                                  placeholder="all"
+                                  value={c.useAmount ?? ""}
+                                  onChange={(e) => {
+                                    const v = Number(e.target.value);
+                                    setCoupons((prev) =>
+                                      prev.map((x, j) => (j === i && x.kind === "code" ? { ...x, useAmount: v > 0 ? Math.min(v, x.balance ?? v) : null } : x))
+                                    );
+                                  }}
+                                  className="w-12 rounded border border-card-border px-1 py-0.5"
+                                />
+                              </span>
+                            </>
                           )}
                         </span>
                       ) : (
-                        <span className="text-status-low">Code pending · −{formatBaht(c.amount)}</span>
+                        <span className="text-status-low">Code pending · −{formatBaht(couponApplied[i] ?? c.amount)}</span>
                       )}
                       <button type="button" onClick={() => setCoupons((prev) => prev.filter((_, j) => j !== i))} className="text-status-out">
                         remove
@@ -901,7 +941,17 @@ export default function CounterClient({
                 <div className="grid grid-cols-2 gap-2">
                   <label className="text-xs text-navy-700">
                     Cash ฿
-                    <input inputMode="decimal" value={splitCash} onChange={(e) => setSplitCash(e.target.value)} className={`${input} mt-0.5 w-full`} />
+                    <input
+                      inputMode="decimal"
+                      value={splitCash}
+                      onChange={(e) => {
+                        setSplitCash(e.target.value);
+                        // the rest of the bill fills in as online (still editable)
+                        const rest = round2(toPay - (Number(e.target.value) || 0));
+                        setSplitOnline(rest > 0 ? String(rest) : "");
+                      }}
+                      className={`${input} mt-0.5 w-full`}
+                    />
                   </label>
                   <label className="text-xs text-navy-700">
                     Online ฿
@@ -909,6 +959,7 @@ export default function CounterClient({
                   </label>
                 </div>
               )}
+              {payMode === "split" && <p className="text-[11px] text-navy-600">Type the cash part — the rest fills in as online.</p>}
               {payMode !== "cash" && payMode !== "online" && leftUnpaid > 0.005 && (
                 <p className="text-xs text-status-low">{formatBaht(leftUnpaid)} left to pay later — it&rsquo;ll show in &ldquo;Still owing&rdquo;.</p>
               )}

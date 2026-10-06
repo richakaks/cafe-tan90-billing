@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { CouponBatch } from "@/lib/types";
+import type { CouponDetail } from "@/lib/counter";
 
 function formatBaht(amount: number): string {
   return `฿${amount.toLocaleString("en-US", { minimumFractionDigits: 0 })}`;
@@ -38,7 +39,101 @@ function StatusPill({ on, onToggle, busy, labelOn, labelOff }: { on: boolean; on
 // rest of the admin screens (see UsedInRow on /admin/inventory), plus two
 // independent Paid/Collected pills that save immediately since they're
 // simple toggles rather than free text.
-type BatchUpdates = { soldAt?: string; paid?: boolean; collected?: boolean; buyerName?: string; couponValue?: number; totalCollected?: number };
+type BatchUpdates = {
+  soldAt?: string;
+  paid?: boolean;
+  collected?: boolean;
+  buyerName?: string;
+  couponValue?: number;
+  totalCollected?: number;
+  expiresOn?: string | null;
+};
+
+function todayIso(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+}
+
+// Round 35: type a code, see its value, what's left, expiry and every bill
+// it was used on.
+function CouponLookup() {
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<CouponDetail | null | "none">(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function look() {
+    if (!code.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/coupons/lookup?code=${encodeURIComponent(code.trim())}`, { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) setError(data.error ?? "Could not look up that coupon.");
+      else setResult(data.found ? (data.coupon as CouponDetail) : "none");
+    } catch {
+      setError("No connection.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card p-5">
+      <h2 className="text-sm font-semibold text-navy-950">Look up a coupon</h2>
+      <p className="mt-1 text-xs text-navy-600">See what&rsquo;s left on a coupon and which bills it was used on.</p>
+      <div className="mt-3 flex gap-2">
+        <input
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") look();
+          }}
+          placeholder="Coupon code"
+          className="w-40 rounded-md border border-card-border px-3 py-2 text-sm"
+        />
+        <button onClick={look} disabled={busy || !code.trim()} className="rounded-lg bg-navy-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+          {busy ? "…" : "Look up"}
+        </button>
+      </div>
+      {error && <p className="mt-2 text-sm text-status-out">{error}</p>}
+      {result === "none" && <p className="mt-3 text-sm text-navy-700">No coupon with that code.</p>}
+      {result && result !== "none" && (
+        <div className="mt-3 space-y-2 text-sm text-navy-800">
+          <p>
+            <span className="font-semibold text-navy-950">{result.code}</span> · {result.buyerName} · worth {formatBaht(result.value)} ·{" "}
+            <span className={`font-semibold ${result.left > 0.005 ? "text-status-good" : "text-navy-600"}`}>
+              {result.left > 0.005 ? `${formatBaht(result.left)} left` : "used up"}
+            </span>
+            {result.expiresOn && (
+              <span className={result.expired ? "font-semibold text-status-out" : "text-navy-600"}>
+                {" "}
+                · {result.expired ? `expired ${result.expiresOn}` : `expires ${result.expiresOn}`}
+              </span>
+            )}
+          </p>
+          {result.uses.length === 0 ? (
+            <p className="text-xs text-navy-600">Not used on any bill yet.</p>
+          ) : (
+            <ul className="space-y-0.5 text-xs">
+              {result.uses.map((u, i) => (
+                <li key={i} className={u.voided ? "text-navy-600 line-through" : ""}>
+                  {u.orderDate ?? "—"} · Order {u.orderLabel} · {formatBaht(u.amount)}
+                  {u.voided ? " (voided — given back)" : ""}
+                </li>
+              ))}
+            </ul>
+          )}
+          {result.pendingTries.length > 0 && (
+            <p className="text-xs text-status-low">
+              Also tried on {result.pendingTries.map((t) => `Order ${t.orderLabel} (${formatBaht(t.amount)})`).join(", ")} but couldn&rsquo;t be used there — that bill is
+              still on the &ldquo;code pending&rdquo; list.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function BatchRow({ batch, onUpdate }: { batch: CouponBatch; onUpdate: (id: string, updates: BatchUpdates) => Promise<void> }) {
   const [soldAtInput, setSoldAtInput] = useState(() => toDateInputValue(batch.soldAt));
@@ -55,6 +150,19 @@ function BatchRow({ batch, onUpdate }: { batch: CouponBatch; onUpdate: (id: stri
   const [couponValueInput, setCouponValueInput] = useState(String(batch.couponValue));
   const [totalCollectedInput, setTotalCollectedInput] = useState(String(batch.totalCollected));
   const [savingEdit, setSavingEdit] = useState(false);
+  const [expiryInput, setExpiryInput] = useState(batch.expiresOn ?? "");
+  const [savingExpiry, setSavingExpiry] = useState(false);
+  const expiryDirty = expiryInput !== (batch.expiresOn ?? "");
+  const expired = !!batch.expiresOn && todayIso() >= batch.expiresOn;
+
+  async function saveExpiry() {
+    setSavingExpiry(true);
+    try {
+      await onUpdate(batch.id, { expiresOn: expiryInput || null });
+    } finally {
+      setSavingExpiry(false);
+    }
+  }
 
   async function saveDate() {
     if (!soldAtInput) return;
@@ -133,8 +241,10 @@ function BatchRow({ batch, onUpdate }: { batch: CouponBatch; onUpdate: (id: stri
           formatBaht(batch.couponValue)
         )}
       </td>
-      <td className="py-3 pr-3 text-sm text-navy-800">
-        {batch.redeemedCount} of {batch.quantity}
+      <td className="whitespace-nowrap py-3 pr-3 text-sm text-navy-800">
+        {batch.redeemedCount}/{batch.quantity} used up
+        {batch.partlyUsedCount > 0 && <div className="text-xs text-navy-600">{batch.partlyUsedCount} part-used</div>}
+        <div className="text-xs text-navy-600">{formatBaht(batch.valueLeft)} still to spend</div>
       </td>
       <td className="py-3 pr-3 text-sm text-navy-800">
         {editing ? (
@@ -162,6 +272,23 @@ function BatchRow({ batch, onUpdate }: { batch: CouponBatch; onUpdate: (id: stri
             </button>
           )}
         </div>
+      </td>
+      <td className="py-3 pr-3 text-sm text-navy-600">
+        <div className="flex items-center gap-1.5">
+          <input
+            type="date"
+            value={expiryInput}
+            onChange={(e) => setExpiryInput(e.target.value)}
+            className={`w-[9.5rem] rounded-md border px-1.5 py-1 text-xs text-navy-950 ${expired ? "border-status-out" : "border-card-border"}`}
+          />
+          {expiryDirty && (
+            <button onClick={saveExpiry} disabled={savingExpiry} className="shrink-0 text-xs font-medium text-status-good hover:underline">
+              Save
+            </button>
+          )}
+        </div>
+        {expired && !expiryDirty && <div className="text-xs font-semibold text-status-out">Expired</div>}
+        {!batch.expiresOn && !expiryDirty && <div className="text-xs text-navy-600">No expiry</div>}
       </td>
       <td className="py-3 pr-3">
         <StatusPill on={batch.paid} onToggle={togglePaid} busy={busyPill} labelOn="Paid" labelOff="Unpaid" />
@@ -198,6 +325,7 @@ export default function CouponsClient({ initialBatches }: { initialBatches: Coup
   const [soldAt, setSoldAt] = useState(() => toDateInputValue(new Date()));
   const [paid, setPaid] = useState(false);
   const [collected, setCollected] = useState(false);
+  const [expiresOn, setExpiresOn] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -233,6 +361,7 @@ export default function CouponsClient({ initialBatches }: { initialBatches: Coup
           soldAt,
           paid,
           collected,
+          expiresOn: expiresOn || undefined,
         }),
       });
       const body = await res.json();
@@ -247,6 +376,7 @@ export default function CouponsClient({ initialBatches }: { initialBatches: Coup
       setSoldAt(toDateInputValue(new Date()));
       setPaid(false);
       setCollected(false);
+      setExpiresOn("");
       const refreshed = await fetch("/api/coupons").then((r) => r.json());
       setBatches(refreshed.batches as CouponBatch[]);
     } finally {
@@ -278,6 +408,7 @@ export default function CouponsClient({ initialBatches }: { initialBatches: Coup
 
   return (
     <div className="space-y-8">
+      <CouponLookup />
       <div className="card p-5">
         <h2 className="text-sm font-semibold text-navy-950">Record a coupon batch sale</h2>
         <p className="mt-1 text-xs text-navy-600">
@@ -312,6 +443,16 @@ export default function CouponsClient({ initialBatches }: { initialBatches: Coup
               type="date"
               className="rounded-md border border-card-border px-3 py-2 text-sm text-navy-950"
             />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-navy-600">
+            Expires on (optional)
+            <input
+              value={expiresOn}
+              onChange={(e) => setExpiresOn(e.target.value)}
+              type="date"
+              className="rounded-md border border-card-border px-3 py-2 text-sm text-navy-950"
+            />
+            <span>From this date the coupons stop working. Leave blank for no expiry.</span>
           </label>
           <textarea
             value={codes}
@@ -353,9 +494,10 @@ export default function CouponsClient({ initialBatches }: { initialBatches: Coup
               <tr className="text-xs font-semibold uppercase tracking-wide text-navy-600">
                 <th className="pb-2">Buyer</th>
                 <th className="pb-2">Value each</th>
-                <th className="pb-2">Redeemed</th>
+                <th className="pb-2">Used</th>
                 <th className="pb-2">Total collected</th>
                 <th className="pb-2">Sold</th>
+                <th className="pb-2">Expires on</th>
                 <th className="pb-2">Paid</th>
                 <th className="pb-2">Collected</th>
                 <th className="pb-2"></th>

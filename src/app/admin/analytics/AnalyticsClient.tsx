@@ -468,7 +468,7 @@ export default function AnalyticsClient() {
                   <span className="text-navy-600">{formatBaht(data.couponSummary.discountGiven)}</span>
                 </li>
                 <li className="flex justify-between">
-                  <span>Coupons redeemed</span>
+                  <span>Coupon uses on bills</span>
                   <span className="text-navy-600">
                     {data.couponSummary.redeemedCount} &middot; {formatBaht(data.couponSummary.redeemedValue)}
                   </span>

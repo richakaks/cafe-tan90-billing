@@ -13,7 +13,7 @@ export default async function BillingPage() {
       <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-8">
         <h1 className="text-lg font-semibold text-navy-950">Billing</h1>
         <p className="mt-1 text-sm text-navy-600">
-          Orders land here once they&rsquo;re marked served. Apply a coupon and mark paid one order at a time, or bill a whole table together.
+          Orders land here once they&rsquo;re marked served. Add a coupon or discount, void a bill, and mark paid by cash, online or split — one order at a time, or a whole table together.
         </p>
         <div className="mt-6">
           <BillingClient initialOrders={orders} />
