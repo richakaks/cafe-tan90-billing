@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "qrcodes": "node scripts/generate-qrcodes.mjs"
+    "qrcodes": "node scripts/generate-qrcodes.mjs",
+    "deploy": "bash scripts/deploy.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",
