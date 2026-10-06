@@ -50,3 +50,22 @@ body {
 html {
   scrollbar-gutter: stable;
 }
+
+/* Round 36: one consistent dropdown arrow on every select, with room to
+   breathe on the right (the browser's own arrow sat jammed against the
+   edge). Unlayered on purpose so it wins over px-* utilities. */
+select:not([multiple]) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23235c38' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem 1rem;
+  padding-right: 2.5rem;
+}
+
+/* The reserved scrollbar gutter takes the root background -- keep it dark
+   on the landing / staff-login screens instead of a cream strip. */
+html:has(.bg-emblem-bg) {
+  background: var(--color-emblem-bg);
+}

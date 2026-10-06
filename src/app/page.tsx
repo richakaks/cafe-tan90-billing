@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export default function Home() {
   return (
-    <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-emblem-bg px-6 py-16">
+    <div className="relative flex flex-1 flex-col items-center overflow-hidden bg-emblem-bg px-6 py-16 sm:py-20">
       <Image
         src="/logo.png"
         alt=""
@@ -14,7 +14,7 @@ export default function Home() {
         unoptimized
         className="pointer-events-none absolute left-1/2 top-1/2 h-[480px] w-[480px] -translate-x-1/2 -translate-y-1/2 select-none [mask-image:radial-gradient(circle,black_55%,transparent_78%)] sm:h-[620px] sm:w-[620px] [-webkit-mask-image:radial-gradient(circle,black_55%,transparent_78%)]"
       />
-      <div className="card relative z-10 w-full max-w-md p-8 text-center">
+      <div className="card relative z-10 my-auto w-full max-w-md p-8 text-center">
         <Image
           src="/logo.png"
           alt="Cafe Tan90"

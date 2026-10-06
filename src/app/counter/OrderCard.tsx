@@ -187,7 +187,13 @@ export default function OrderCard({
             {order.coupons.map((c) => (
               <div key={c.id} className="flex justify-between">
                 <span>
-                  Coupon {c.code ?? <span className="font-semibold text-status-low">code pending{c.attemptedCode ? ` (tried ${c.attemptedCode})` : ""}</span>}
+                  Coupon{" "}
+                  {c.code ??
+                    (isVoid ? (
+                      `${c.attemptedCode ?? ""} (given back)`
+                    ) : (
+                      <span className="font-semibold text-status-low">code pending{c.attemptedCode ? ` (tried ${c.attemptedCode})` : ""}</span>
+                    ))}
                 </span>
                 <span>−{formatBaht(c.amount)}</span>
               </div>
@@ -247,9 +253,23 @@ export default function OrderCard({
             </div>
           )}
           {isVoid && (
-            <button type="button" disabled={!online} onClick={() => openPanel("history")} className={btn}>
-              History
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" disabled={!online} onClick={() => openPanel("history")} className={btn}>
+                History
+              </button>
+              <button
+                type="button"
+                disabled={!online || locked || busy}
+                onClick={() => {
+                  if (window.confirm(`Delete this voided order for good? It disappears completely, including its history. This can't be undone.`)) {
+                    run(() => post(`/api/counter/orders/${order.id}`, undefined, "DELETE"));
+                  }
+                }}
+                className={`${btn} text-status-out`}
+              >
+                Delete for good
+              </button>
+            </div>
           )}
           {locked && !isVoid && <p className="text-xs text-navy-600">This day is locked — unlock it on the summary to change orders.</p>}
 

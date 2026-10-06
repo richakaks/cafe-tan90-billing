@@ -58,6 +58,7 @@ export class CounterError extends Error {
       "coupon_not_enough",
       "nothing_to_pay",
       "split_cash_too_much",
+      "not_voided",
     ].includes(this.code);
   }
 
@@ -85,6 +86,8 @@ export class CounterError extends Error {
         const [code, left] = (this.detail ?? "").split("|");
         return `Coupon ${code} only has ฿${Number(left)} left on it. Check with the owner.`;
       }
+      case "not_voided":
+        return "Only voided orders can be deleted. Void it first.";
       case "nothing_to_pay":
         return "The bill is already fully covered — nothing left for a coupon to take off.";
       case "split_cash_too_much":
@@ -204,6 +207,12 @@ export async function updateCounterOrder(
 
 export async function voidCounterOrder(orderId: string, reason: string, staffId: string | null): Promise<void> {
   const { error } = await db().rpc("void_order", { p_order_id: orderId, p_reason: reason, p_staff_id: staffId });
+  if (error) throw rpcError(error);
+}
+
+// Round 36: remove a voided order completely (e.g. the owner's test orders).
+export async function deleteVoidOrder(orderId: string): Promise<void> {
+  const { error } = await db().rpc("delete_void_order", { p_order_id: orderId });
   if (error) throw rpcError(error);
 }
 

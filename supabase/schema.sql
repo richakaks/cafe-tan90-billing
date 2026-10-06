@@ -3207,6 +3207,33 @@ $$;
 select refresh_coupon_status(code, null) from coupons;
 
 -- ---------------------------------------------------------------------------
+-- Round 36 (10/7) -- delete a voided order for good (owner: some voided
+-- orders were his own tests). Only voided orders, never on a locked day.
+-- Its items, payments, coupon lines and history go with it (cascade); its
+-- coupons were already given back when it was voided.
+-- ---------------------------------------------------------------------------
+create or replace function delete_void_order(p_order_id uuid)
+returns void
+language plpgsql
+as $$
+declare
+  v_order record;
+begin
+  select * into v_order from orders where id = p_order_id for update;
+  if not found then
+    return;
+  end if;
+  if v_order.status <> 'void' then
+    raise exception 'not_voided' using errcode = 'P0001';
+  end if;
+  if counter_day_locked(v_order.order_date) then
+    raise exception 'day_locked: %', v_order.order_date using errcode = 'P0001';
+  end if;
+  delete from orders where id = p_order_id;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- Explicit grants for the service role. Newer Supabase projects no longer
 -- auto-grant service_role access to tables created by hand (the "Automatically
 -- expose new tables" project setting) — these grants make this schema work
@@ -3258,3 +3285,4 @@ grant execute on function add_order_split_payment(uuid, numeric, numeric, date, 
 grant execute on function pay_orders_split(uuid[], numeric, uuid) to service_role;
 grant execute on function set_order_discount(uuid, numeric, numeric, text, uuid) to service_role;
 grant execute on function coupon_batch_stats() to service_role;
+grant execute on function delete_void_order(uuid) to service_role;
