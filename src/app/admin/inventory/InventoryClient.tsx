@@ -552,9 +552,9 @@ function Row({
   return (
     <tr
       id={`ingredient-row-${ingredient.id}`}
-      className={`border-t border-card-border transition-colors ${highlighted ? "bg-amber-100" : ""}`}
+      className={`grid grid-cols-2 gap-x-3 gap-y-3 border-t border-card-border py-4 transition-colors md:table-row md:py-0 ${highlighted ? "bg-amber-100" : ""}`}
     >
-      <td className="py-3 pr-3 align-top">
+      <td className="order-1 col-span-2 block align-top md:table-cell md:py-3 md:pr-3">
         {editing ? (
           <EditIngredientForm ingredient={ingredient} onCancel={() => setEditing(false)} onSaved={onChanged} />
         ) : confirmingDelete ? (
@@ -633,11 +633,13 @@ function Row({
           </>
         )}
       </td>
-      <td className="py-3 pr-3 text-sm text-navy-800">
+      <td className="order-2 block text-sm text-navy-800 md:table-cell md:py-3 md:pr-3">
+        <span className="block text-[11px] font-semibold uppercase tracking-wide text-navy-600 md:hidden">In stock</span>
         {ingredient.currentStock} {ingredient.unit}
       </td>
-      <td className="py-3 pr-3">
-        <div className="flex max-w-[240px] flex-col gap-1.5">
+      <td className="order-4 col-span-2 block md:table-cell md:py-3 md:pr-3">
+        <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-navy-600 md:hidden">Restock / use</span>
+        <div className="flex flex-col gap-1.5 md:max-w-[240px]">
           <input
             type="number"
             min={0}
@@ -679,7 +681,8 @@ function Row({
           </p>
         )}
       </td>
-      <td className="py-3">
+      <td className="order-3 block md:table-cell md:py-3">
+        <span className="block text-[11px] font-semibold uppercase tracking-wide text-navy-600 md:hidden">Low-stock alert at</span>
         <div className="flex flex-wrap items-center gap-1">
           <input
             type="number"
@@ -830,8 +833,8 @@ export default function InventoryClient({
             single cell's content; the overflow-x-auto wrapper above is a
             safety net for very narrow viewports now that the page itself is
             wide enough that the table normally fits without scrolling. */}
-        <table className="w-full table-fixed text-left">
-          <thead>
+        <table className="block w-full text-left md:table md:table-fixed">
+          <thead className="hidden md:table-header-group">
             <tr className="text-xs font-semibold uppercase tracking-wide text-navy-600">
               <th className="w-[34%] pb-2">Ingredient</th>
               <th className="w-[12%] pb-2">Current stock</th>
@@ -839,7 +842,7 @@ export default function InventoryClient({
               <th className="w-[22%] pb-2">Low-stock threshold</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="block md:table-row-group">
             {items.map((ing) => (
               <Row
                 key={ing.id}
@@ -1247,8 +1250,8 @@ function StockCountCard() {
         </p>
         {msg && <p className="mt-1 text-xs text-status-good">{msg}</p>}
       </div>
-      <div className="flex gap-2">
-        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" className="rounded-md border border-card-border px-2 py-1.5 text-sm" />
+      <div className="flex flex-wrap gap-2">
+        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" className="w-full rounded-md border border-card-border px-2 py-1.5 text-sm sm:w-48" />
         <button
           disabled={busy}
           onClick={async () => {
@@ -1273,7 +1276,7 @@ function StockCountCard() {
               setMsg("Stock count recorded.");
             } else setMsg("Could not record — check the connection.");
           }}
-          className="rounded-md bg-navy-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+          className="w-full whitespace-nowrap rounded-md bg-navy-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50 sm:w-auto sm:py-1.5"
         >
           Record a full stock count
         </button>

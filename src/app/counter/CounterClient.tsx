@@ -659,9 +659,9 @@ export default function CounterClient({
 
       {toast && <div className="rounded-lg bg-navy-900 px-4 py-3 text-sm text-white">{toast}</div>}
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_400px]">
+      <div className="grid gap-6 md:grid-cols-[1fr_340px] lg:grid-cols-[1fr_400px]">
         {/* Menu */}
-        <section className="space-y-3">
+        <section className="min-w-0 space-y-3">
           <div className="flex flex-wrap gap-2">
             {categories.map((c) => (
               <button key={c} type="button" onClick={() => setCategory(c)} className={chip(category === c)}>
@@ -669,7 +669,7 @@ export default function CounterClient({
               </button>
             ))}
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {visibleMenu.map((m) => {
               const inCart = cart.filter((l) => l.code === m.code).reduce((s2, l) => s2 + l.qty, 0);
               return (
@@ -691,7 +691,7 @@ export default function CounterClient({
         </section>
 
         {/* Cart / checkout */}
-        <section id="counter-cart" className="card h-fit scroll-mt-4 space-y-4 p-4 lg:sticky lg:top-4">
+        <section id="counter-cart" className="card h-fit scroll-mt-4 space-y-4 p-4 md:sticky md:top-4 md:max-h-[calc(100dvh-2rem)] md:overflow-y-auto">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold text-navy-950">
               {editing ? `Editing ${editing.dailyOrderNumber ? `#${editing.dailyOrderNumber}` : "pre-order"}` : "New order"}
@@ -1131,7 +1131,7 @@ export default function CounterClient({
         <button
           type="button"
           onClick={() => document.getElementById("counter-cart")?.scrollIntoView({ behavior: "smooth" })}
-          className="fixed inset-x-3 bottom-3 z-30 flex items-center justify-between rounded-xl bg-navy-900 px-4 py-3 text-sm font-semibold text-white shadow-lg lg:hidden"
+          className="fixed inset-x-3 bottom-3 z-30 flex items-center justify-between rounded-xl bg-navy-900 px-4 py-3 text-sm font-semibold text-white shadow-lg md:hidden"
         >
           <span>
             {cart.reduce((n, l) => n + l.qty, 0)} item{cart.reduce((n, l) => n + l.qty, 0) === 1 ? "" : "s"} · {formatBaht(toPay)}

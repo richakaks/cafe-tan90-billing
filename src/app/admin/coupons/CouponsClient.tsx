@@ -489,7 +489,7 @@ export default function CouponsClient({ initialBatches }: { initialBatches: Coup
         {batches.length === 0 ? (
           <p className="text-sm text-navy-600">No coupon batches recorded yet.</p>
         ) : (
-          <table className="w-full text-left">
+          <table className="w-full min-w-[900px] text-left">
             <thead>
               <tr className="text-xs font-semibold uppercase tracking-wide text-navy-600">
                 <th className="pb-2">Buyer</th>

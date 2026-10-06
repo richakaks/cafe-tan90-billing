@@ -137,7 +137,7 @@ export default function OrderCard({
   const btn = "rounded-md border border-card-border px-2.5 py-1.5 text-xs font-medium text-navy-900 hover:bg-navy-100 disabled:opacity-40";
 
   return (
-    <div className={`rounded-xl border p-3 ${isVoid ? "border-card-border bg-gray-50 opacity-70" : "border-card-border bg-white"}`}>
+    <div className={`min-w-0 rounded-xl border p-3 ${isVoid ? "border-card-border bg-gray-50 opacity-70" : "border-card-border bg-white"}`}>
       <button type="button" onClick={() => setOpen(!open)} className="flex w-full items-start justify-between gap-2 text-left">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-1.5">

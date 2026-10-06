@@ -1,6 +1,29 @@
 import Image from "next/image";
 import Link from "next/link";
 
+// Round 37: owner's order -- the day's flow first, then the manage pages.
+const GROUPS = [
+  {
+    title: "Every day",
+    links: [
+      { href: "/counter", label: "Counter" },
+      { href: "/serve", label: "Serving Screen" },
+      { href: "/billing", label: "Billing" },
+      { href: "/purchases", label: "Purchases" },
+      { href: "/cash", label: "Cash Balance" },
+    ],
+  },
+  {
+    title: "Manage",
+    links: [
+      { href: "/admin/menu", label: "Menu" },
+      { href: "/admin/inventory", label: "Inventory" },
+      { href: "/admin/coupons", label: "Coupons" },
+      { href: "/admin/analytics", label: "Sales & Analytics" },
+    ],
+  },
+];
+
 export default function Home() {
   return (
     <div className="relative flex flex-1 flex-col items-center overflow-hidden bg-emblem-bg px-6 py-16 sm:py-20">
@@ -29,61 +52,23 @@ export default function Home() {
           public link to browse the menu from here.
         </p>
 
-        <div className="mt-8 flex flex-col gap-3">
-          <Link
-            href="/counter"
-            className="rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm font-medium text-navy-900 transition hover:border-navy-900 hover:bg-navy-100"
-          >
-            Counter
-          </Link>
-          <Link
-            href="/cash"
-            className="rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm font-medium text-navy-900 transition hover:border-navy-900 hover:bg-navy-100"
-          >
-            Cash Balance
-          </Link>
-          <Link
-            href="/purchases"
-            className="rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm font-medium text-navy-900 transition hover:border-navy-900 hover:bg-navy-100"
-          >
-            Purchases
-          </Link>
-          <Link
-            href="/serve"
-            className="rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm font-medium text-navy-900 transition hover:border-navy-900 hover:bg-navy-100"
-          >
-            Serving Screen
-          </Link>
-          <Link
-            href="/billing"
-            className="rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm font-medium text-navy-900 transition hover:border-navy-900 hover:bg-navy-100"
-          >
-            Billing
-          </Link>
-          <Link
-            href="/admin/inventory"
-            className="rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm font-medium text-navy-900 transition hover:border-navy-900 hover:bg-navy-100"
-          >
-            Inventory Admin
-          </Link>
-          <Link
-            href="/admin/menu"
-            className="rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm font-medium text-navy-900 transition hover:border-navy-900 hover:bg-navy-100"
-          >
-            Menu Admin
-          </Link>
-          <Link
-            href="/admin/coupons"
-            className="rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm font-medium text-navy-900 transition hover:border-navy-900 hover:bg-navy-100"
-          >
-            Coupons
-          </Link>
-          <Link
-            href="/admin/analytics"
-            className="rounded-lg border border-card-border bg-white px-4 py-2.5 text-sm font-medium text-navy-900 transition hover:border-navy-900 hover:bg-navy-100"
-          >
-            Sales &amp; Analytics
-          </Link>
+        <div className="mt-8 space-y-6 text-left">
+          {GROUPS.map((group) => (
+            <div key={group.title}>
+              <p className="mb-2 text-center text-xs font-semibold uppercase tracking-wide text-navy-600">{group.title}</p>
+              <div className="flex flex-col gap-2.5">
+                {group.links.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="rounded-lg border border-card-border bg-white px-4 py-2.5 text-center text-sm font-medium text-navy-900 transition hover:border-navy-900 hover:bg-navy-100"
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
