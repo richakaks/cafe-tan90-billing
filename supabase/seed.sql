@@ -31,9 +31,10 @@ insert into seats (id, label, kind) values
   ('S4', 'Counter 4', 'counter')
 on conflict (id) do nothing;
 
--- Ingredients (17 batch-prep primaries + 98 raw/purchased ingredients + 5 packaging consumables)
+-- Ingredients (18 batch-prep primaries + 98 raw/purchased ingredients + 5 packaging consumables)
 insert into ingredients (name, unit, current_stock, low_stock_threshold, kind) values
   ('White Sauce', 'ml', 1000, 200, 'batch_prep'),
+  ('Sautéed Mushrooms', 'g', 800, 150, 'batch_prep'),
   ('Potato Patty', 'pcs', 24, 6, 'batch_prep'),
   ('Tikka Marinated Mince', 'g', 800, 150, 'batch_prep'),
   ('Homemade Mayo', 'ml', 750, 150, 'batch_prep'),
@@ -306,7 +307,7 @@ select 'SD-MUS', id, 2, null from ingredients where name = 'Sandwich Bread'
 union all
 select 'SD-MUS', id, 10, null from ingredients where name = 'Butter'
 union all
-select 'SD-MUS', id, 70, null from ingredients where name = 'Mushroom'
+select 'SD-MUS', id, 70, null from ingredients where name = 'Sautéed Mushrooms'
 union all
 select 'SD-MUS', id, 50, null from ingredients where name = 'White Sauce'
 union all
@@ -440,7 +441,7 @@ select 'SP-AWS0', id, 90, null from ingredients where name = 'Spaghetti (Dry)'
 union all
 select 'SP-AWS0', id, 120, null from ingredients where name = 'White Sauce'
 union all
-select 'SP-AWS0', id, 75, null from ingredients where name = 'Mushroom'
+select 'SP-AWS0', id, 75, null from ingredients where name = 'Sautéed Mushrooms'
 union all
 select 'SP-AWS0', id, 5, null from ingredients where name = 'Butter'
 union all
@@ -734,6 +735,36 @@ union all
 select p.id, r.id, 0.3::numeric / 250
 from ingredients p, ingredients r
 where p.name = 'White Sauce' and r.name = 'Nutmeg'
+on conflict (primary_id, raw_ingredient_id) do nothing;
+
+insert into primary_ingredients (primary_id, raw_ingredient_id, qty_per_unit)
+select p.id, r.id, 300::numeric / 200
+from ingredients p, ingredients r
+where p.name = 'Sautéed Mushrooms' and r.name = 'Mushroom'
+union all
+select p.id, r.id, 3::numeric / 200
+from ingredients p, ingredients r
+where p.name = 'Sautéed Mushrooms' and r.name = 'Garlic'
+union all
+select p.id, r.id, 2::numeric / 200
+from ingredients p, ingredients r
+where p.name = 'Sautéed Mushrooms' and r.name = 'Green Chilli'
+union all
+select p.id, r.id, 15::numeric / 200
+from ingredients p, ingredients r
+where p.name = 'Sautéed Mushrooms' and r.name = 'Butter'
+union all
+select p.id, r.id, 10::numeric / 200
+from ingredients p, ingredients r
+where p.name = 'Sautéed Mushrooms' and r.name = 'Olive Oil'
+union all
+select p.id, r.id, 2.5::numeric / 200
+from ingredients p, ingredients r
+where p.name = 'Sautéed Mushrooms' and r.name = 'Salt'
+union all
+select p.id, r.id, 1.25::numeric / 200
+from ingredients p, ingredients r
+where p.name = 'Sautéed Mushrooms' and r.name = 'Black Pepper'
 on conflict (primary_id, raw_ingredient_id) do nothing;
 
 insert into primary_ingredients (primary_id, raw_ingredient_id, qty_per_unit)

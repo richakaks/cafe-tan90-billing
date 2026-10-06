@@ -32,6 +32,12 @@ PRIMARIES = {
     # Salt/Black Pepper that went into the sauté step is no longer tracked
     # per-order -- flagged to the owner as a real (if minor) loss of
     # granularity, not silently dropped.
+    # Round 31 (10/6): RESTORED as a tracked batch-prep primary at the
+    # owner's request ("keep sauteed mushroom as batch prep item"),
+    # reversing the Round 29 retirement described above. SD-MUS/SP-AWS0
+    # deduct it again (70g/75g) and its own sub-recipe is back, now drawing
+    # from the renamed raw "Mushroom".
+    "Sautéed Mushrooms": ("g", 800, 150),
     "Potato Patty": ("pcs", 24, 6),
     "Tikka Marinated Mince": ("g", 800, 150),
     "Homemade Mayo": ("ml", 750, 150),
@@ -323,9 +329,12 @@ PRIMARY_RECIPES = {
         ("Butter", 15), ("All-Purpose Flour", 15), ("Milk", 200),
         ("Cream Cheese", 25), ("Salt", 2.5), ("White Pepper", 0.3), ("Nutmeg", 0.3),
     ]),
-    # "Sautéed Mushrooms" removed here as of Round 29 (9/24 fourth follow-up)
-    # -- retired as its own primary; see PRIMARIES' comment and MAPPINGS'
-    # SD-MUS/SP-AWS0 entries, which now deduct "Mushroom" directly.
+    # Round 31: restored (was removed in Round 29). Same recipe as before
+    # Round 29, with "Button Mushrooms (Raw)" now named "Mushroom".
+    "Sautéed Mushrooms": (200, [
+        ("Mushroom", 300), ("Garlic", 3), ("Green Chilli", 2),
+        ("Butter", 15), ("Olive Oil", 10), ("Salt", 2.5), ("Black Pepper", 1.25),
+    ]),
     # Round 28: revised Food SOP's Potato Patty table/method no longer
     # includes Fresh Lemon Juice at all -- removed rather than guessed as
     # still-current (owner confirmed: trust the revised SOP).
@@ -582,7 +591,7 @@ MAPPINGS = {
 
     # Round 28: each sandwich's "served with Ketchup 30ml" line was never
     # auto-deducted before -- owner confirmed deduct every listed condiment.
-    "SD-MUS": [("Sandwich Bread", 2), ("Butter", 10), ("Mushroom", 70), ("White Sauce", 50), ("Cheese Slice", 1), ("Ketchup", 30)],
+    "SD-MUS": [("Sandwich Bread", 2), ("Butter", 10), ("Sautéed Mushrooms", 70), ("White Sauce", 50), ("Cheese Slice", 1), ("Ketchup", 30)],
     "SD-GCS": [("Sandwich Bread", 2), ("Butter", 10), ("Cheese Slice", 2), ("Mozzarella Cheese Shredded", 20), ("Ketchup", 30)],
     "SD-CHS": [("Sandwich Bread", 2), ("Butter", 5), ("Tikka Marinated Mince", 70), ("Homemade Mayo", 45), ("Tikka Masala Paste", 5), ("Lime Juice", 2.5), ("Iceberg Lettuce", 30), ("Ketchup", 30)],
 
@@ -614,7 +623,7 @@ MAPPINGS = {
     # Powder row reads "1/4 tsp" in the SOP, tsp-only with no gram figure --
     # corrected 0.75g -> 1.25g (1/4 tsp x 5g/tsp, the standing conversion
     # rule; the old 0.75g predates this table row).
-    "SP-AWS0": [("Spaghetti (Dry)", 90), ("White Sauce", 120), ("Mushroom", 75), ("Butter", 5), ("Garlic", 1), ("Garlic Powder", 1.25), ("Grated Parmesan Cheese", 10), ("Olive Oil", 5)],
+    "SP-AWS0": [("Spaghetti (Dry)", 90), ("White Sauce", 120), ("Sautéed Mushrooms", 75), ("Butter", 5), ("Garlic", 1), ("Garlic Powder", 1.25), ("Grated Parmesan Cheese", 10), ("Olive Oil", 5)],
     "SP-AWS1": [("Spaghetti (Dry)", 90), ("White Sauce", 120), ("Tikka Marinated Mince", 70), ("Butter", 5), ("Garlic", 1), ("Garlic Powder", 1.25), ("Green Chilli", 1), ("Grated Parmesan Cheese", 10), ("Olive Oil", 5)],
 
     # Round 28: revised Drinks SOP raised Black Tea Leaves 3g -> 5g on both,
