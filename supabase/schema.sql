@@ -927,7 +927,7 @@ alter table ingredients
 -- against rows a later seed.sql run already gave the wider kind to.
 alter table ingredients drop constraint if exists ingredients_kind_check;
 alter table ingredients add constraint ingredients_kind_check
-  check (kind in ('batch_prep', 'raw', 'consumable'));
+  check (kind in ('batch_prep', 'raw', 'consumable', 'supply')); -- Round 34: 'supply' (Supplies) added in place
 
 -- Backfill: every ingredient gen_seed.py's PRIMARIES dict already lists is a
 -- batch-prep item; safe to re-run (a name not present here is a no-op, and
@@ -2610,6 +2610,320 @@ create index if not exists purchases_date_idx on purchases(purchase_date);
 create index if not exists purchases_reimbursed_on_idx on purchases(reimbursed_on);
 alter table purchases enable row level security;
 
+
+-- ---------------------------------------------------------------------------
+-- Round 34 (10/7) -- purchases -> inventory (owner design, 2026-10-07).
+--
+-- * A purchase line can be linked to an inventory item (or marked "not for
+--   inventory"); its amount is converted to the item's unit (stock_qty).
+-- * Separate owner switch "purchases add to inventory" (app_settings key
+--   'purchases_to_inventory', OFF by default; independent of the planned
+--   sales-deduction switch). When ON, saving a linked purchase adds stock
+--   and logs a priced restock in stock_adjustments.
+-- * "Add earlier purchases": since the last full stock count, or a date
+--   range; either way a purchase is skipped if it is covered by the latest
+--   stock count (bought before it) or already added -- never twice.
+-- * Editing a purchase that already added stock moves stock by the
+--   difference only; deleting it takes the stock back out.
+-- * Brand change: a linked purchase with a new brand updates the item's
+--   brand and keeps the old one in previous_brand / brand_changed_on.
+-- * New ingredient category 'supply' (Supplies: hand wash, dish soap,
+--   measuring spoons...), receipt photos per batch, shopping list.
+-- ---------------------------------------------------------------------------
+alter table ingredients
+  add column if not exists previous_brand text,
+  add column if not exists brand_changed_on date;
+
+create table if not exists app_settings (
+  key text primary key,
+  value jsonb not null,
+  updated_at timestamptz not null default now()
+);
+alter table app_settings enable row level security;
+
+create table if not exists stock_counts (
+  id bigserial primary key,
+  counted_at timestamptz not null default now(),
+  note text,
+  staff_id uuid references staff(id) on delete set null
+);
+alter table stock_counts enable row level security;
+
+create table if not exists purchase_batches (
+  id uuid primary key default gen_random_uuid(),
+  receipt_path text,
+  created_at timestamptz not null default now()
+);
+alter table purchase_batches enable row level security;
+
+alter table purchases
+  add column if not exists batch_id uuid references purchase_batches(id) on delete set null,
+  add column if not exists ingredient_id uuid references ingredients(id) on delete set null,
+  add column if not exists not_inventory boolean not null default false,
+  add column if not exists stock_qty numeric,
+  add column if not exists stock_applied boolean not null default false,
+  add column if not exists stock_applied_qty numeric,
+  add column if not exists stock_applied_ingredient_id uuid references ingredients(id) on delete set null,
+  add column if not exists stock_applied_at timestamptz;
+alter table purchases drop constraint if exists purchases_stock_qty_check;
+alter table purchases add constraint purchases_stock_qty_check check (stock_qty is null or stock_qty >= 0);
+create index if not exists purchases_ingredient_idx on purchases(ingredient_id);
+
+-- What each typed item name was linked to last time (lower-cased name).
+create table if not exists purchase_item_links (
+  item_key text primary key,
+  ingredient_id uuid references ingredients(id) on delete cascade,
+  not_inventory boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+alter table purchase_item_links enable row level security;
+
+-- "1 <unit> of this purchase = factor <ingredient unit>" (e.g. pack -> 100 pcs).
+create table if not exists purchase_unit_conversions (
+  ingredient_id uuid not null references ingredients(id) on delete cascade,
+  unit_key text not null,
+  factor numeric not null check (factor > 0),
+  updated_at timestamptz not null default now(),
+  primary key (ingredient_id, unit_key)
+);
+alter table purchase_unit_conversions enable row level security;
+
+create table if not exists shopping_list (
+  id bigserial primary key,
+  ingredient_id uuid references ingredients(id) on delete cascade,
+  label text not null,
+  note text,
+  done boolean not null default false,
+  done_at timestamptz,
+  purchase_id bigint references purchases(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+alter table shopping_list enable row level security;
+
+-- Private bucket for receipt photos (read through short-lived signed URLs).
+do $$
+begin
+  if exists (select 1 from information_schema.tables where table_schema = 'storage' and table_name = 'buckets') then
+    insert into storage.buckets (id, name, public)
+    values ('receipts', 'receipts', false)
+    on conflict (id) do nothing;
+  end if;
+end $$;
+
+create or replace function purchases_to_inventory_on()
+returns boolean
+language sql
+stable
+as $$
+  select coalesce((select (value ->> 'on')::boolean from app_settings where key = 'purchases_to_inventory'), false);
+$$;
+
+create or replace function latest_stock_count()
+returns timestamptz
+language sql
+stable
+as $$
+  select max(counted_at) from stock_counts;
+$$;
+
+-- True when a purchase is already reflected in the latest full stock count
+-- (it was bought before the count), so it must never be added to stock.
+create or replace function purchase_covered_by_count(p_date date, p_created timestamptz)
+returns boolean
+language sql
+stable
+as $$
+  select case
+    when latest_stock_count() is null then false
+    else p_date < (timezone('Asia/Bangkok', latest_stock_count()))::date
+      or (p_date = (timezone('Asia/Bangkok', latest_stock_count()))::date and p_created <= latest_stock_count())
+  end;
+$$;
+
+-- Moves one ingredient's stock and logs it like a manual +Restock / -Use.
+create or replace function purchase_stock_move(p_ingredient_id uuid, p_delta numeric, p_price numeric)
+returns void
+language plpgsql
+as $$
+declare
+  v_new numeric;
+begin
+  if p_delta = 0 then
+    return;
+  end if;
+  update ingredients set current_stock = current_stock + p_delta where id = p_ingredient_id returning current_stock into v_new;
+  if v_new is null then
+    return;
+  end if;
+  insert into stock_adjustments (ingredient_id, delta, resulting_stock, price_paid)
+  values (p_ingredient_id, p_delta, v_new, case when p_delta > 0 then p_price end);
+end;
+$$;
+
+-- Brings one purchase's stock effect in line with its current fields.
+-- p_allow_new: may a purchase that never added stock add it now?
+-- Already-added purchases are always kept in sync (difference only).
+create or replace function sync_purchase_stock(p_purchase_id bigint, p_allow_new boolean)
+returns text
+language plpgsql
+as $$
+declare
+  p record;
+  v_target uuid;
+  v_qty numeric;
+begin
+  select * into p from purchases where id = p_purchase_id for update;
+  if not found then
+    return 'missing';
+  end if;
+  v_target := case when not p.not_inventory and p.ingredient_id is not null and coalesce(p.stock_qty, 0) > 0 then p.ingredient_id end;
+  v_qty := case when v_target is not null then p.stock_qty end;
+
+  if p.stock_applied then
+    if v_target is null or v_target is distinct from p.stock_applied_ingredient_id then
+      if p.stock_applied_ingredient_id is not null then
+        perform purchase_stock_move(p.stock_applied_ingredient_id, -coalesce(p.stock_applied_qty, 0), null);
+      end if;
+      if v_target is not null then
+        perform purchase_stock_move(v_target, v_qty, p.price);
+        update purchases set stock_applied_ingredient_id = v_target, stock_applied_qty = v_qty, stock_applied_at = now() where id = p.id;
+        return 'moved';
+      end if;
+      update purchases set stock_applied = false, stock_applied_qty = null, stock_applied_ingredient_id = null, stock_applied_at = null where id = p.id;
+      return 'removed';
+    elsif v_qty <> coalesce(p.stock_applied_qty, 0) then
+      perform purchase_stock_move(v_target, v_qty - coalesce(p.stock_applied_qty, 0), null);
+      update purchases set stock_applied_qty = v_qty where id = p.id;
+      return 'adjusted';
+    end if;
+    return 'unchanged';
+  end if;
+
+  if v_target is null then
+    return 'not_linked';
+  end if;
+  if not p_allow_new then
+    return 'switch_off';
+  end if;
+  if purchase_covered_by_count(p.purchase_date, p.created_at) then
+    return 'covered_by_count';
+  end if;
+  perform purchase_stock_move(v_target, v_qty, p.price);
+  update purchases set stock_applied = true, stock_applied_qty = v_qty, stock_applied_ingredient_id = v_target, stock_applied_at = now() where id = p.id;
+  return 'added';
+end;
+$$;
+
+-- Called after a purchase is created or edited: remembers the link and unit
+-- conversion, updates the item's brand if this is its newest purchase, and
+-- (if the switch is on) adds / adjusts stock.
+create or replace function after_purchase_saved(p_purchase_id bigint)
+returns text
+language plpgsql
+as $$
+declare
+  p record;
+  v_ing record;
+begin
+  select * into p from purchases where id = p_purchase_id;
+  if not found then
+    return 'missing';
+  end if;
+
+  if p.not_inventory or p.ingredient_id is not null then
+    insert into purchase_item_links (item_key, ingredient_id, not_inventory, updated_at)
+    values (lower(trim(p.item)), case when p.not_inventory then null else p.ingredient_id end, p.not_inventory, now())
+    on conflict (item_key) do update set ingredient_id = excluded.ingredient_id, not_inventory = excluded.not_inventory, updated_at = now();
+  end if;
+
+  if p.ingredient_id is not null and not p.not_inventory then
+    if coalesce(p.quantity, 0) > 0 and coalesce(p.stock_qty, 0) > 0 and coalesce(trim(p.unit), '') <> '' then
+      insert into purchase_unit_conversions (ingredient_id, unit_key, factor, updated_at)
+      values (p.ingredient_id, lower(trim(p.unit)), p.stock_qty / p.quantity, now())
+      on conflict (ingredient_id, unit_key) do update set factor = excluded.factor, updated_at = now();
+    end if;
+
+    select * into v_ing from ingredients where id = p.ingredient_id for update;
+    if found and coalesce(trim(p.brand), '') <> '' and lower(trim(p.brand)) is distinct from lower(trim(coalesce(v_ing.brand, '')))
+       and not exists (
+         select 1 from purchases o
+         where o.ingredient_id = p.ingredient_id and o.id <> p.id and not o.not_inventory
+           and coalesce(trim(o.brand), '') <> ''
+           and (o.purchase_date > p.purchase_date or (o.purchase_date = p.purchase_date and o.id > p.id))
+       ) then
+      update ingredients
+      set previous_brand = case when coalesce(trim(brand), '') <> '' then brand else previous_brand end,
+          brand_changed_on = p.purchase_date,
+          brand = trim(p.brand)
+      where id = p.ingredient_id;
+    end if;
+  end if;
+
+  return sync_purchase_stock(p_purchase_id, purchases_to_inventory_on());
+end;
+$$;
+
+create or replace function delete_purchase(p_purchase_id bigint)
+returns void
+language plpgsql
+as $$
+declare
+  p record;
+begin
+  select * into p from purchases where id = p_purchase_id for update;
+  if not found then
+    return;
+  end if;
+  if p.stock_applied and p.stock_applied_ingredient_id is not null then
+    perform purchase_stock_move(p.stock_applied_ingredient_id, -coalesce(p.stock_applied_qty, 0), null);
+  end if;
+  delete from purchases where id = p_purchase_id;
+end;
+$$;
+
+-- Earlier purchases that could be added. p_from null = since the last full
+-- stock count (or everything if no count was ever recorded).
+create or replace function preview_purchase_backfill(p_from date, p_to date)
+returns table (
+  purchase_id bigint, purchase_date date, item text, ingredient_id uuid, ingredient_name text,
+  stock_qty numeric, unit text, status text
+)
+language sql
+stable
+as $$
+  select p.id, p.purchase_date, p.item, i.id, i.name, p.stock_qty, i.unit,
+    case
+      when p.stock_applied then 'already_added'
+      when p.not_inventory then 'not_inventory'
+      when p.ingredient_id is null or coalesce(p.stock_qty, 0) <= 0 then 'not_linked'
+      when purchase_covered_by_count(p.purchase_date, p.created_at) then 'covered_by_count'
+      else 'will_add'
+    end
+  from purchases p
+  left join ingredients i on i.id = p.ingredient_id
+  where p.purchase_date >= coalesce(p_from, (timezone('Asia/Bangkok', latest_stock_count()))::date, '1900-01-01'::date)
+    and p.purchase_date <= coalesce(p_to, '2999-12-31'::date)
+  order by p.purchase_date, p.id;
+$$;
+
+create or replace function apply_purchase_backfill(p_from date, p_to date)
+returns int
+language plpgsql
+as $$
+declare
+  r record;
+  v_count int := 0;
+begin
+  for r in select purchase_id from preview_purchase_backfill(p_from, p_to) where status = 'will_add'
+  loop
+    if sync_purchase_stock(r.purchase_id, true) = 'added' then
+      v_count := v_count + 1;
+    end if;
+  end loop;
+  return v_count;
+end;
+$$;
+
 -- ---------------------------------------------------------------------------
 -- Explicit grants for the service role. Newer Supabase projects no longer
 -- auto-grant service_role access to tables created by hand (the "Automatically
@@ -2645,3 +2959,12 @@ grant execute on function add_order_coupon(uuid, text, numeric, uuid) to service
 grant execute on function mark_order_served(uuid) to service_role;
 grant execute on function pay_orders(uuid[], text, uuid) to service_role;
 grant execute on function clear_trial_orders() to service_role;
+grant execute on function purchases_to_inventory_on() to service_role;
+grant execute on function latest_stock_count() to service_role;
+grant execute on function purchase_covered_by_count(date, timestamptz) to service_role;
+grant execute on function purchase_stock_move(uuid, numeric, numeric) to service_role;
+grant execute on function sync_purchase_stock(bigint, boolean) to service_role;
+grant execute on function after_purchase_saved(bigint) to service_role;
+grant execute on function delete_purchase(bigint) to service_role;
+grant execute on function preview_purchase_backfill(date, date) to service_role;
+grant execute on function apply_purchase_backfill(date, date) to service_role;

@@ -13,7 +13,9 @@ export interface Seat {
 // Round 22: consumable = packaging (straws, takeaway boxes/cups/glasses) --
 // tracked as stock like anything else, but never part of a menu item's
 // recipe; deducted automatically based on order-item fulfillment type.
-export type IngredientKind = "batch_prep" | "raw" | "consumable";
+// Round 34: supply = cafe supplies that are not food (hand wash, dish soap,
+// measuring spoons...) -- tracked like any item, never part of a recipe.
+export type IngredientKind = "batch_prep" | "raw" | "consumable" | "supply";
 
 export interface Ingredient {
   id: string;
@@ -25,6 +27,9 @@ export interface Ingredient {
   currentStock: number;
   lowStockThreshold: number;
   kind: IngredientKind;
+  // Round 34: set when a purchase came in under a different brand.
+  previousBrand?: string | null;
+  brandChangedOn?: string | null;
 }
 
 // Round 22: what kind of packaging a dine-in-vs-takeaway order of this item
@@ -506,4 +511,44 @@ export interface Purchase {
   note: string | null;
   staffName: string | null;
   createdAt: string;
+  // Round 34: inventory link
+  ingredientId: string | null;
+  ingredientName: string | null;
+  ingredientUnit: string | null;
+  notInventory: boolean;
+  stockQty: number | null;
+  stockApplied: boolean;
+  batchId: string | null;
+  hasReceipt: boolean;
+  // Price per unit of the previous purchase of the same item in the same
+  // unit (for the price-change flag), or null.
+  prevUnitPrice: number | null;
+  prevDate: string | null;
+}
+
+export interface ShoppingItem {
+  id: number;
+  ingredientId: string | null;
+  label: string;
+  note: string | null;
+  done: boolean;
+  createdAt: string;
+}
+
+export interface PurchaseInventoryMeta {
+  switchOn: boolean;
+  lastStockCount: string | null;
+  ingredients: { id: string; name: string; unit: string; kind: IngredientKind; brand: string | null }[];
+  links: Record<string, { ingredientId: string | null; notInventory: boolean }>;
+  conversions: Record<string, number>; // `${ingredientId}|${unit lower}` -> factor
+}
+
+export interface BackfillRow {
+  purchaseId: number;
+  purchaseDate: string;
+  item: string;
+  ingredientName: string | null;
+  stockQty: number | null;
+  unit: string | null;
+  status: "will_add" | "already_added" | "not_inventory" | "not_linked" | "covered_by_count";
 }

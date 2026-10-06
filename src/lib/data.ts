@@ -521,7 +521,7 @@ export async function getCouponBatches(): Promise<CouponBatch[]> {
 export async function getIngredients(): Promise<Ingredient[]> {
   const { data, error } = await db()
     .from("ingredients")
-    .select("id, name, brand, unit, current_stock, low_stock_threshold, kind")
+    .select("id, name, brand, unit, current_stock, low_stock_threshold, kind, previous_brand, brand_changed_on")
     .order("name");
   if (error) throw error;
   return (data ?? []).map((i) => ({
@@ -532,6 +532,8 @@ export async function getIngredients(): Promise<Ingredient[]> {
     currentStock: Number(i.current_stock),
     lowStockThreshold: Number(i.low_stock_threshold),
     kind: (i.kind ?? "raw") as Ingredient["kind"],
+    previousBrand: i.previous_brand ?? null,
+    brandChangedOn: i.brand_changed_on ?? null,
   }));
 }
 

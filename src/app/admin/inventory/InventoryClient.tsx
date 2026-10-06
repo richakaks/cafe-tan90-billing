@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Ingredient, IngredientKind, LastRestockPrice, PrimaryRecipeLink, RestockSignal, StockAdjustmentRow } from "@/lib/types";
 import { ingredientAlertStatus } from "@/lib/stock";
 import { RangeResetOrdersButton, ResetButton } from "@/components/OrdersDangerZone";
@@ -142,6 +142,10 @@ function EditIngredientForm({
         <label className="flex items-center gap-1">
           <input type="radio" checked={kind === "consumable"} onChange={() => setKind("consumable")} />
           Consumable
+        </label>
+        <label className="flex items-center gap-1">
+          <input type="radio" checked={kind === "supply"} onChange={() => setKind("supply")} />
+          Supplies
         </label>
       </div>
       {error && <p className="text-xs text-status-out">{error}</p>}
@@ -583,6 +587,12 @@ function Row({
           <>
             <p className="font-medium text-navy-950">{ingredient.name}</p>
             {ingredient.brand && <p className="text-xs text-navy-500">{ingredient.brand}</p>}
+            {ingredient.previousBrand && (
+              <p className="text-[11px] text-navy-500">
+                Previously: {ingredient.previousBrand}
+                {ingredient.brandChangedOn ? ` (until ${ingredient.brandChangedOn})` : ""}
+              </p>
+            )}
             {usedIn.length > 0 && <p className="text-xs text-navy-500">Used in: {usedIn.join(", ")}</p>}
             <div className="mt-1 flex flex-wrap items-center gap-3">
               <span className={`inline-block rounded-full px-2 py-0.5 text-xs ${status.className}`}>{status.label}</span>
@@ -797,6 +807,8 @@ export default function InventoryClient({
   const batchPrepIngredients = visibleIngredients.filter((ing) => ing.kind === "batch_prep");
   const rawIngredients = visibleIngredients.filter((ing) => ing.kind === "raw");
   const consumableIngredients = visibleIngredients.filter((ing) => ing.kind === "consumable");
+  // Round 34: cafe supplies (hand wash, dish soap, measuring spoons...).
+  const supplyIngredients = visibleIngredients.filter((ing) => ing.kind === "supply");
 
   function refresh() {
     window.location.reload();
@@ -995,6 +1007,8 @@ export default function InventoryClient({
         </div>
       )}
 
+      <StockCountCard />
+
       <div className="card p-5">
         <input
           value={query}
@@ -1020,6 +1034,12 @@ export default function InventoryClient({
       <div className="card p-5">
         <h2 className="mb-2 text-sm font-semibold text-navy-950">Consumables</h2>
         {renderTable(consumableIngredients, query ? `No consumable matches “${query}”.` : "No consumables yet.")}
+      </div>
+
+      <div className="card p-5">
+        <h2 className="mb-1 text-sm font-semibold text-navy-950">Supplies</h2>
+        <p className="mb-2 text-xs text-navy-600">Cleaning and kitchen supplies that aren&rsquo;t food (hand wash, dish soap, measuring spoons&hellip;). They only show in low-stock alerts if you set a low-stock level.</p>
+        {renderTable(supplyIngredients, query ? `No supply matches “${query}”.` : "No supplies yet — add them here or from a purchase.")}
       </div>
 
       <div className="card p-5">
@@ -1088,6 +1108,10 @@ export default function InventoryClient({
               <label className="flex items-center gap-1.5">
                 <input type="radio" checked={newKind === "consumable"} onChange={() => setNewKind("consumable")} />
                 Consumable
+              </label>
+              <label className="flex items-center gap-1.5">
+                <input type="radio" checked={newKind === "supply"} onChange={() => setNewKind("supply")} />
+                Supplies
               </label>
             </div>
           </label>
@@ -1191,6 +1215,69 @@ export default function InventoryClient({
       </div>
 
       <DangerZone />
+    </div>
+  );
+}
+
+// Round 34: "Record a full stock count" -- the baseline that stops a
+// purchase made before the count from ever being added to stock again.
+function StockCountCard() {
+  const [last, setLast] = useState<{ countedAt: string; note: string | null } | null | undefined>(undefined);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => {
+    fetch("/api/stock-count", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setLast(d.last ?? null))
+      .catch(() => setLast(null));
+  }, []);
+  return (
+    <div className="card flex flex-wrap items-center justify-between gap-3 p-5">
+      <div className="text-sm">
+        <p className="font-semibold text-navy-950">Full stock count</p>
+        <p className="text-xs text-navy-600">
+          Last recorded:{" "}
+          {last === undefined
+            ? "…"
+            : last
+              ? `${new Date(last.countedAt).toLocaleString("en-GB", { timeZone: "Asia/Bangkok", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}${last.note ? ` — ${last.note}` : ""}`
+              : "never"}
+          . After counting every item and updating the numbers here, record it — purchases bought before then will never be added to stock again.
+        </p>
+        {msg && <p className="mt-1 text-xs text-status-good">{msg}</p>}
+      </div>
+      <div className="flex gap-2">
+        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" className="rounded-md border border-card-border px-2 py-1.5 text-sm" />
+        <button
+          disabled={busy}
+          onClick={async () => {
+            if (!window.confirm("Record that every stock number on this page was just counted and is correct?")) return;
+            setBusy(true);
+            let staffId: string | null = null;
+            try {
+              staffId = window.localStorage.getItem("tan90_counter_staff_v1");
+            } catch {
+              // ignore
+            }
+            const res = await fetch("/api/stock-count", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ note, staffId }),
+            }).catch(() => null);
+            setBusy(false);
+            if (res?.ok) {
+              const d = await res.json();
+              setLast(d.last);
+              setNote("");
+              setMsg("Stock count recorded.");
+            } else setMsg("Could not record — check the connection.");
+          }}
+          className="rounded-md bg-navy-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+        >
+          Record a full stock count
+        </button>
+      </div>
     </div>
   );
 }

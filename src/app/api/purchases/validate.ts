@@ -42,6 +42,14 @@ export function parsePurchase(raw: Record<string, unknown>, partial: boolean): {
   if (out.paidVia === "own_pocket" && !partial && !(out.paidBy ?? "").trim()) {
     return { error: "Who paid from their own pocket?" };
   }
+  // Round 34: inventory link
+  if (raw.ingredientId !== undefined) out.ingredientId = typeof raw.ingredientId === "string" && raw.ingredientId ? raw.ingredientId : null;
+  if (raw.notInventory !== undefined) out.notInventory = raw.notInventory === true;
+  if (raw.stockQty !== undefined) {
+    const sq = num(raw.stockQty);
+    if (sq !== null && (Number.isNaN(sq) || sq < 0)) return { error: "Stock amount must be a number." };
+    out.stockQty = sq;
+  }
   if (raw.reimbursedOn !== undefined) {
     if (raw.reimbursedOn === null) {
       out.reimbursedOn = null;

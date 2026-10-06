@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
   }
 
   const trimmedBrand = typeof brand === "string" && brand.trim() ? brand.trim() : null;
-  const ingredientKind = kind === "batch_prep" || kind === "consumable" ? kind : "raw";
+  const ingredientKind = kind === "batch_prep" || kind === "consumable" || kind === "supply" ? kind : "raw";
 
   try {
     const created = await createIngredient(

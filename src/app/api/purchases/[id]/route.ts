@@ -12,8 +12,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { value, error } = parsePurchase(body, true);
   if (error) return NextResponse.json({ error }, { status: 400 });
   try {
-    await updatePurchase(id, value!);
-    return NextResponse.json({ ok: true });
+    const result = await updatePurchase(id, value!);
+    return NextResponse.json({ ok: true, result });
   } catch (err) {
     console.error("updatePurchase failed", err);
     return NextResponse.json({ error: "Could not save." }, { status: 500 });

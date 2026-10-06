@@ -16,6 +16,8 @@ export async function GET() {
   try {
     const [ingredients, restockSignals] = await Promise.all([getIngredients(), getRestockSignals()]);
     const alerts = ingredients
+      // Round 34: Supplies only alert when someone set a low-stock level for them.
+      .filter((ing) => !(ing.kind === "supply" && ing.lowStockThreshold <= 0))
       .map((ing) => ({ ingredient: ing, status: ingredientAlertStatus(ing) }))
       .filter((a): a is { ingredient: typeof ingredients[number]; status: "out_of_stock" | "low_stock" } => a.status !== null)
       .map((a) => ({

@@ -12,8 +12,11 @@ import type {
   OrderCouponRow,
   OrderPaymentRow,
   PaymentMethod,
+  BackfillRow,
   Purchase,
+  PurchaseInventoryMeta,
   PurchasePaidVia,
+  ShoppingItem,
   StaffMember,
 } from "./types";
 
@@ -509,11 +512,11 @@ export async function clearTrialOrders(): Promise<number> {
 }
 
 // ---------------------------------------------------------------------------
-// Purchase tracker (Round 33)
+// Purchase tracker (Round 33) + inventory link (Round 34)
 // ---------------------------------------------------------------------------
 
 const PURCHASE_SELECT =
-  "id, purchase_date, item, brand, quantity, unit, price, paid_via, paid_by, reimbursed_on, reimbursed_via, note, created_at, staff:staff_id(name)";
+  "id, purchase_date, item, brand, quantity, unit, price, paid_via, paid_by, reimbursed_on, reimbursed_via, note, created_at, ingredient_id, not_inventory, stock_qty, stock_applied, batch_id, staff:staff_id(name), ingredient:ingredient_id(name, unit), batch:batch_id(receipt_path)";
 
 type RawPurchase = {
   id: number;
@@ -529,10 +532,17 @@ type RawPurchase = {
   reimbursed_via: string | null;
   note: string | null;
   created_at: string;
+  ingredient_id: string | null;
+  not_inventory: boolean;
+  stock_qty: number | null;
+  stock_applied: boolean;
+  batch_id: string | null;
   staff: { name: string } | null;
+  ingredient: { name: string; unit: string } | null;
+  batch: { receipt_path: string | null } | null;
 };
 
-function mapPurchase(r: RawPurchase): Purchase {
+function mapPurchase(r: RawPurchase, prev?: { unitPrice: number; date: string } | null): Purchase {
   return {
     id: r.id,
     purchaseDate: r.purchase_date,
@@ -548,6 +558,16 @@ function mapPurchase(r: RawPurchase): Purchase {
     note: r.note,
     staffName: r.staff?.name ?? null,
     createdAt: r.created_at,
+    ingredientId: r.ingredient_id,
+    ingredientName: r.ingredient?.name ?? null,
+    ingredientUnit: r.ingredient?.unit ?? null,
+    notInventory: !!r.not_inventory,
+    stockQty: r.stock_qty === null ? null : Number(r.stock_qty),
+    stockApplied: !!r.stock_applied,
+    batchId: r.batch_id,
+    hasReceipt: !!r.batch?.receipt_path,
+    prevUnitPrice: prev?.unitPrice ?? null,
+    prevDate: prev?.date ?? null,
   };
 }
 
@@ -563,6 +583,9 @@ export interface PurchaseInput {
   note: string | null;
   reimbursedOn?: string | null;
   reimbursedVia?: "drawer" | "online" | null;
+  ingredientId?: string | null;
+  notInventory?: boolean;
+  stockQty?: number | null;
 }
 
 function purchaseRow(input: Partial<PurchaseInput>): Record<string, unknown> {
@@ -578,7 +601,14 @@ function purchaseRow(input: Partial<PurchaseInput>): Record<string, unknown> {
   if (input.note !== undefined) row.note = input.note?.trim() || null;
   if (input.reimbursedOn !== undefined) row.reimbursed_on = input.reimbursedOn;
   if (input.reimbursedVia !== undefined) row.reimbursed_via = input.reimbursedVia;
+  if (input.ingredientId !== undefined) row.ingredient_id = input.ingredientId || null;
+  if (input.notInventory !== undefined) row.not_inventory = input.notInventory;
+  if (input.stockQty !== undefined) row.stock_qty = input.stockQty;
   return row;
+}
+
+function unitPrice(price: number, quantity: number | null): number | null {
+  return quantity && quantity > 0 ? price / quantity : null;
 }
 
 export async function getPurchases(from: string, to: string): Promise<Purchase[]> {
@@ -590,7 +620,36 @@ export async function getPurchases(from: string, to: string): Promise<Purchase[]
     .order("purchase_date")
     .order("id");
   if (error) throw error;
-  return (data ?? []).map((r) => mapPurchase(r as unknown as RawPurchase));
+  const rows = (data ?? []) as unknown as RawPurchase[];
+
+  // Previous purchase of the same item name in the same unit (any earlier
+  // date), for the price-change flag.
+  const names = Array.from(new Set(rows.map((r) => r.item)));
+  const prevByRow = new Map<number, { unitPrice: number; date: string }>();
+  if (names.length > 0) {
+    const { data: hist, error: histErr } = await db()
+      .from("purchases")
+      .select("id, item, unit, quantity, price, purchase_date")
+      .in("item", names)
+      .lte("purchase_date", to)
+      .order("purchase_date")
+      .order("id");
+    if (histErr) throw histErr;
+    const history = (hist ?? []) as { id: number; item: string; unit: string | null; quantity: number | null; price: number; purchase_date: string }[];
+    for (const r of rows) {
+      const key = `${r.item.toLowerCase()}|${(r.unit ?? "").toLowerCase()}`;
+      let prev: { unitPrice: number; date: string } | null = null;
+      for (const h of history) {
+        if (h.id === r.id) break;
+        if (`${h.item.toLowerCase()}|${(h.unit ?? "").toLowerCase()}` !== key) continue;
+        if (h.purchase_date > r.purchase_date) continue;
+        const up = unitPrice(Number(h.price), h.quantity === null ? null : Number(h.quantity));
+        if (up !== null) prev = { unitPrice: up, date: h.purchase_date };
+      }
+      if (prev) prevByRow.set(r.id, prev);
+    }
+  }
+  return rows.map((r) => mapPurchase(r, prevByRow.get(r.id)));
 }
 
 // Own-pocket purchases nobody has been paid back for yet (any date).
@@ -606,21 +665,47 @@ export async function getOwedBack(): Promise<Purchase[]> {
   return (data ?? []).map((r) => mapPurchase(r as unknown as RawPurchase));
 }
 
-export async function addPurchases(rows: PurchaseInput[], staffId: string | null): Promise<void> {
-  if (rows.length === 0) return;
-  const { error } = await db()
+// Saves several lines as one batch (one receipt photo can belong to it),
+// then lets the database link them to inventory / add stock if the switch
+// is on. Ticks off shopping-list entries that these lines came from.
+export async function addPurchases(
+  rows: PurchaseInput[],
+  staffId: string | null,
+  shoppingIds: number[] = []
+): Promise<{ batchId: string; results: string[] }> {
+  if (rows.length === 0) return { batchId: "", results: [] };
+  const { data: batch, error: batchErr } = await db().from("purchase_batches").insert({}).select("id").single();
+  if (batchErr) throw batchErr;
+  const { data, error } = await db()
     .from("purchases")
-    .insert(rows.map((r) => ({ ...purchaseRow(r), staff_id: staffId })));
+    .insert(rows.map((r) => ({ ...purchaseRow(r), staff_id: staffId, batch_id: batch.id })))
+    .select("id");
   if (error) throw error;
+  const results: string[] = [];
+  for (const row of (data ?? []) as { id: number }[]) {
+    const { data: res, error: rpcErr } = await db().rpc("after_purchase_saved", { p_purchase_id: row.id });
+    if (rpcErr) throw rpcErr;
+    results.push(String(res));
+  }
+  if (shoppingIds.length > 0) {
+    await db()
+      .from("shopping_list")
+      .update({ done: true, done_at: new Date().toISOString(), purchase_id: (data ?? [])[0]?.id ?? null })
+      .in("id", shoppingIds);
+  }
+  return { batchId: batch.id, results };
 }
 
-export async function updatePurchase(id: number, updates: Partial<PurchaseInput>): Promise<void> {
+export async function updatePurchase(id: number, updates: Partial<PurchaseInput>): Promise<string> {
   const { error } = await db().from("purchases").update(purchaseRow(updates)).eq("id", id);
   if (error) throw error;
+  const { data, error: rpcErr } = await db().rpc("after_purchase_saved", { p_purchase_id: id });
+  if (rpcErr) throw rpcErr;
+  return String(data);
 }
 
 export async function deletePurchase(id: number): Promise<void> {
-  const { error } = await db().from("purchases").delete().eq("id", id);
+  const { error } = await db().rpc("delete_purchase", { p_purchase_id: id });
   if (error) throw error;
 }
 
@@ -640,6 +725,163 @@ export async function getPurchaseSuggestions(): Promise<{ items: string[]; brand
     units: uniq(["g", "kg", "ml", "L", "pcs", "pack", "box", "bottle", "bag", ...rows.map((r) => r.unit)]),
     payers: uniq(rows.map((r) => r.paid_by)),
   };
+}
+
+// Everything the purchase form needs to link lines to inventory.
+export async function getPurchaseInventoryMeta(): Promise<PurchaseInventoryMeta> {
+  const [{ data: setting }, { data: count }, { data: ings, error: ingErr }, { data: links, error: linkErr }, { data: convs, error: convErr }] =
+    await Promise.all([
+      db().from("app_settings").select("value").eq("key", "purchases_to_inventory").maybeSingle(),
+      db().from("stock_counts").select("counted_at").order("counted_at", { ascending: false }).limit(1),
+      db().from("ingredients").select("id, name, unit, kind, brand").order("name"),
+      db().from("purchase_item_links").select("item_key, ingredient_id, not_inventory"),
+      db().from("purchase_unit_conversions").select("ingredient_id, unit_key, factor"),
+    ]);
+  if (ingErr) throw ingErr;
+  if (linkErr) throw linkErr;
+  if (convErr) throw convErr;
+  const linkMap: PurchaseInventoryMeta["links"] = {};
+  for (const l of (links ?? []) as { item_key: string; ingredient_id: string | null; not_inventory: boolean }[]) {
+    linkMap[l.item_key] = { ingredientId: l.ingredient_id, notInventory: l.not_inventory };
+  }
+  const convMap: Record<string, number> = {};
+  for (const c of (convs ?? []) as { ingredient_id: string; unit_key: string; factor: number }[]) {
+    convMap[`${c.ingredient_id}|${c.unit_key}`] = Number(c.factor);
+  }
+  return {
+    switchOn: !!(setting?.value as { on?: boolean } | undefined)?.on,
+    lastStockCount: (count ?? [])[0]?.counted_at ?? null,
+    ingredients: ((ings ?? []) as { id: string; name: string; unit: string; kind: string; brand: string | null }[]).map((i) => ({
+      id: i.id,
+      name: i.name,
+      unit: i.unit,
+      kind: (i.kind ?? "raw") as PurchaseInventoryMeta["ingredients"][number]["kind"],
+      brand: i.brand,
+    })),
+    links: linkMap,
+    conversions: convMap,
+  };
+}
+
+export async function setPurchasesToInventory(on: boolean): Promise<void> {
+  const { error } = await db()
+    .from("app_settings")
+    .upsert({ key: "purchases_to_inventory", value: { on, changed_at: new Date().toISOString() }, updated_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
+export async function previewPurchaseBackfill(from: string | null, to: string | null): Promise<BackfillRow[]> {
+  const { data, error } = await db().rpc("preview_purchase_backfill", { p_from: from, p_to: to });
+  if (error) throw error;
+  return ((data ?? []) as { purchase_id: number; purchase_date: string; item: string; ingredient_name: string | null; stock_qty: number | null; unit: string | null; status: string }[]).map((r) => ({
+    purchaseId: r.purchase_id,
+    purchaseDate: r.purchase_date,
+    item: r.item,
+    ingredientName: r.ingredient_name,
+    stockQty: r.stock_qty === null ? null : Number(r.stock_qty),
+    unit: r.unit,
+    status: r.status as BackfillRow["status"],
+  }));
+}
+
+export async function applyPurchaseBackfill(from: string | null, to: string | null): Promise<number> {
+  const { data, error } = await db().rpc("apply_purchase_backfill", { p_from: from, p_to: to });
+  if (error) throw error;
+  return Number(data ?? 0);
+}
+
+export async function recordStockCount(note: string | null, staffId: string | null): Promise<void> {
+  const { error } = await db().from("stock_counts").insert({ note, staff_id: staffId });
+  if (error) throw error;
+}
+
+export async function getLastStockCount(): Promise<{ countedAt: string; note: string | null } | null> {
+  const { data, error } = await db().from("stock_counts").select("counted_at, note").order("counted_at", { ascending: false }).limit(1);
+  if (error) throw error;
+  const r = (data ?? [])[0];
+  return r ? { countedAt: r.counted_at, note: r.note } : null;
+}
+
+// --- Receipt photos (private 'receipts' bucket) ------------------------------
+
+export async function saveReceipt(batchId: string, bytes: ArrayBuffer, contentType: string): Promise<void> {
+  const path = `${batchId}.jpg`;
+  const { error } = await db().storage.from("receipts").upload(path, bytes, { contentType, upsert: true });
+  if (error) throw error;
+  const { error: updErr } = await db().from("purchase_batches").update({ receipt_path: path }).eq("id", batchId);
+  if (updErr) throw updErr;
+}
+
+export async function receiptUrl(batchId: string): Promise<string | null> {
+  const { data, error } = await db().from("purchase_batches").select("receipt_path").eq("id", batchId).maybeSingle();
+  if (error) throw error;
+  if (!data?.receipt_path) return null;
+  const { data: signed, error: signErr } = await db().storage.from("receipts").createSignedUrl(data.receipt_path, 600);
+  if (signErr) throw signErr;
+  return signed.signedUrl;
+}
+
+// A purchase saved before batches existed has none -- make one so a photo
+// can still be attached to it.
+export async function ensureBatchForPurchase(purchaseId: number): Promise<string> {
+  const { data, error } = await db().from("purchases").select("batch_id").eq("id", purchaseId).single();
+  if (error) throw error;
+  if (data.batch_id) return data.batch_id;
+  const { data: batch, error: bErr } = await db().from("purchase_batches").insert({}).select("id").single();
+  if (bErr) throw bErr;
+  const { error: uErr } = await db().from("purchases").update({ batch_id: batch.id }).eq("id", purchaseId);
+  if (uErr) throw uErr;
+  return batch.id;
+}
+
+// --- Shopping list -----------------------------------------------------------
+
+export async function getShoppingList(): Promise<ShoppingItem[]> {
+  const { data, error } = await db()
+    .from("shopping_list")
+    .select("id, ingredient_id, label, note, done, created_at")
+    .or(`done.eq.false,done_at.gte.${new Date(Date.now() - 24 * 3600 * 1000).toISOString()}`)
+    .order("done")
+    .order("id");
+  if (error) throw error;
+  return ((data ?? []) as { id: number; ingredient_id: string | null; label: string; note: string | null; done: boolean; created_at: string }[]).map((r) => ({
+    id: r.id,
+    ingredientId: r.ingredient_id,
+    label: r.label,
+    note: r.note,
+    done: r.done,
+    createdAt: r.created_at,
+  }));
+}
+
+export async function addShoppingItems(items: { ingredientId: string | null; label: string; note?: string | null }[]): Promise<void> {
+  if (items.length === 0) return;
+  // Skip anything already on the open list.
+  const { data: open } = await db().from("shopping_list").select("ingredient_id, label").eq("done", false);
+  const openIng = new Set(((open ?? []) as { ingredient_id: string | null }[]).map((o) => o.ingredient_id).filter(Boolean));
+  const openLabels = new Set(((open ?? []) as { label: string }[]).map((o) => o.label.toLowerCase()));
+  const fresh = items.filter((i) => (i.ingredientId ? !openIng.has(i.ingredientId) : !openLabels.has(i.label.toLowerCase())));
+  if (fresh.length === 0) return;
+  const { error } = await db()
+    .from("shopping_list")
+    .insert(fresh.map((i) => ({ ingredient_id: i.ingredientId, label: i.label.trim(), note: i.note ?? null })));
+  if (error) throw error;
+}
+
+export async function updateShoppingItem(id: number, updates: { done?: boolean; note?: string | null }): Promise<void> {
+  const row: Record<string, unknown> = {};
+  if (updates.done !== undefined) {
+    row.done = updates.done;
+    row.done_at = updates.done ? new Date().toISOString() : null;
+  }
+  if (updates.note !== undefined) row.note = updates.note;
+  const { error } = await db().from("shopping_list").update(row).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteShoppingItem(id: number): Promise<void> {
+  const { error } = await db().from("shopping_list").delete().eq("id", id);
+  if (error) throw error;
 }
 
 // Money that left the cash drawer on a day because of purchases: drawer-paid

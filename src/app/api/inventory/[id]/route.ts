@@ -17,14 +17,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // Round 18's "Edit ingredient" fields -- name/unit/brand and, per the
     // owner's explicit choice, a direct current-stock correction (routed
     // through updateIngredient -> adjustIngredientStock so it still logs).
-    const edits: { name?: string; unit?: string; brand?: string | null; currentStock?: number; kind?: "batch_prep" | "raw" | "consumable" } = {};
+    const edits: { name?: string; unit?: string; brand?: string | null; currentStock?: number; kind?: "batch_prep" | "raw" | "consumable" | "supply" } = {};
     if (typeof body.name === "string" && body.name.trim()) edits.name = body.name.trim();
     if (typeof body.unit === "string" && body.unit.trim()) edits.unit = body.unit.trim();
     if (body.brand !== undefined) {
       edits.brand = typeof body.brand === "string" && body.brand.trim() ? body.brand.trim() : null;
     }
     if (typeof body.currentStock === "number" && body.currentStock >= 0) edits.currentStock = body.currentStock;
-    if (body.kind === "batch_prep" || body.kind === "raw" || body.kind === "consumable") edits.kind = body.kind;
+    if (body.kind === "batch_prep" || body.kind === "raw" || body.kind === "consumable" || body.kind === "supply") edits.kind = body.kind;
     if (Object.keys(edits).length > 0) await updateIngredient(id, edits);
 
     return NextResponse.json({ ok: true });
