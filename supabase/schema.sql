@@ -29,7 +29,9 @@ create table if not exists ingredients (
   -- under the ingredient name on /admin/inventory.
   brand text,
   unit text not null,
-  current_stock numeric not null default 0 check (current_stock >= 0),
+  -- Round 38: may go below zero (a counter sale is never refused for stock;
+  -- a negative number means the count needs checking).
+  current_stock numeric not null default 0,
   low_stock_threshold numeric not null default 0 check (low_stock_threshold >= 0),
   created_at timestamptz not null default now()
 );
@@ -206,6 +208,8 @@ declare
   v_total numeric := 0;
   v_out_of_stock text[];
   v_result_items jsonb := '[]'::jsonb;
+  -- Round 38: owner switch "QR orders take stock off" (on unless turned off).
+  v_deduct boolean := sales_deduct_on('qr');
 begin
   if p_items is null or jsonb_array_length(p_items) = 0 then
     raise exception 'empty_order' using errcode = 'P0001';
@@ -288,25 +292,28 @@ begin
 
   -- Lock the involved ingredient rows (stable order avoids deadlocks against
   -- concurrent checkouts), then check every one has enough stock.
-  perform 1 from ingredients i
-  join _required r on r.ingredient_id = i.id
-  order by i.id
-  for update;
+  -- Round 38: only while the QR stock switch is on.
+  if v_deduct then
+    perform 1 from ingredients i
+    join _required r on r.ingredient_id = i.id
+    order by i.id
+    for update;
 
-  select array_agg(i.name order by i.name)
-  into v_out_of_stock
-  from ingredients i
-  join _required r on r.ingredient_id = i.id
-  where i.current_stock < r.needed;
+    select array_agg(i.name order by i.name)
+    into v_out_of_stock
+    from ingredients i
+    join _required r on r.ingredient_id = i.id
+    where i.current_stock < r.needed;
 
-  if v_out_of_stock is not null and array_length(v_out_of_stock, 1) > 0 then
-    raise exception 'out_of_stock: %', array_to_string(v_out_of_stock, ', ') using errcode = 'P0001';
+    if v_out_of_stock is not null and array_length(v_out_of_stock, 1) > 0 then
+      raise exception 'out_of_stock: %', array_to_string(v_out_of_stock, ', ') using errcode = 'P0001';
+    end if;
+
+    update ingredients i
+    set current_stock = i.current_stock - r.needed
+    from _required r
+    where r.ingredient_id = i.id;
   end if;
-
-  update ingredients i
-  set current_stock = i.current_stock - r.needed
-  from _required r
-  where r.ingredient_id = i.id;
 
   -- Serialize daily-number allocation per calendar day so concurrent
   -- checkouts on the same day never get the same number.
@@ -317,8 +324,8 @@ begin
   from orders
   where order_date = v_order_date;
 
-  insert into orders (id, daily_order_number, order_date, seat_id, status)
-  values (gen_random_uuid(), v_daily_number, v_order_date, p_seat_id, 'placed')
+  insert into orders (id, daily_order_number, order_date, seat_id, status, inventory_applied)
+  values (gen_random_uuid(), v_daily_number, v_order_date, p_seat_id, 'placed', v_deduct)
   returning id into v_order_id;
 
   insert into order_items (order_id, menu_item_code, item_name, qty, price_at_order, fulfillment_type)
@@ -510,11 +517,19 @@ begin
   -- Round 32: a pre-order booked at the counter never touches stock (the
   -- counter is never blocked by inventory until the inventory switch exists)
   -- -- it just gets today's date and the next daily number.
-  if v_source = 'counter' then
+  -- Round 38: QR pre-orders skip stock too while the QR switch is off;
+  -- counter pre-orders take stock off (softly, never blocked) while the
+  -- counter switch is on.
+  if v_source = 'counter' or not sales_deduct_on('qr') then
     perform pg_advisory_xact_lock(hashtext(v_order_date::text));
     select coalesce(max(daily_order_number), 0) + 1 into v_daily_number from orders where order_date = v_order_date;
-    update orders set order_date = v_order_date, daily_order_number = v_daily_number, status = 'placed', updated_at = now()
+    update orders set order_date = v_order_date, daily_order_number = v_daily_number, status = 'placed', updated_at = now(),
+      inventory_applied = false
     where id = p_order_id;
+    if v_source = 'counter' and sales_deduct_on('counter') and not coalesce((select is_trial from orders where id = p_order_id), false) then
+      perform apply_order_stock(p_order_id, 1);
+      update orders set inventory_applied = true where id = p_order_id;
+    end if;
     -- Money taken when booking was recorded against the booking day; nothing
     -- to move here.
     return jsonb_build_object('order_id', p_order_id, 'order_date', v_order_date, 'daily_order_number', v_daily_number);
@@ -603,7 +618,8 @@ begin
   update orders
   set order_date = v_order_date,
       daily_order_number = v_daily_number,
-      status = 'placed'
+      status = 'placed',
+      inventory_applied = true
   where id = p_order_id;
 
   return jsonb_build_object(
@@ -2130,6 +2146,7 @@ declare
   v_value numeric;
   v_warnings text[] := '{}';
   v_trial boolean := coalesce((p ->> 'trial')::boolean, false);
+  v_short text[];
 begin
   -- Round 33: trial orders older than a day clean themselves up.
   delete from orders where is_trial and created_at < now() - interval '1 day';
@@ -2249,14 +2266,29 @@ begin
 
   perform recompute_order_discount(v_order_id);
 
+  -- Round 38: counter stock switch. Never blocks the sale; short items go
+  -- negative and are listed as a warning.
+  if v_kind = 'walk_in' and not v_trial and sales_deduct_on('counter') then
+    v_short := apply_order_stock(v_order_id, 1);
+    update orders set inventory_applied = true where id = v_order_id;
+    if v_short is not null and array_length(v_short, 1) > 0 then
+      v_warnings := v_warnings || ('stock ran short: ' || array_to_string(v_short, ', '));
+    end if;
+  end if;
+
   for v_pay in select * from jsonb_array_elements(coalesce(p -> 'payments', '[]'::jsonb))
   loop
     if coalesce((v_pay ->> 'amount')::numeric, 0) <> 0 then
       if (v_pay ->> 'method') not in ('cash', 'online') then
         raise exception 'invalid_payment_method' using errcode = 'P0001';
       end if;
-      insert into order_payments (order_id, method, amount, received_on, staff_id)
-      values (v_order_id, v_pay ->> 'method', (v_pay ->> 'amount')::numeric, v_day, v_staff);
+      -- Round 39: tendered = cash the customer handed over (change worked out).
+      insert into order_payments (order_id, method, amount, received_on, staff_id, tendered, change_given)
+      values (v_order_id, v_pay ->> 'method', (v_pay ->> 'amount')::numeric, v_day, v_staff,
+        case when v_pay ->> 'method' = 'cash' and nullif(v_pay ->> 'tendered', '')::numeric > (v_pay ->> 'amount')::numeric
+             then (v_pay ->> 'tendered')::numeric end,
+        case when v_pay ->> 'method' = 'cash' and nullif(v_pay ->> 'tendered', '')::numeric > (v_pay ->> 'amount')::numeric
+             then (v_pay ->> 'tendered')::numeric - (v_pay ->> 'amount')::numeric else 0 end);
     end if;
   end loop;
 
@@ -2310,6 +2342,12 @@ begin
     'requestedDate', v_order.requested_date, 'requestedTime', v_order.requested_time
   ) into v_before;
 
+  -- Round 38: stock already taken off for this order? Give it back for the
+  -- old items and take it off again for the new ones = only the difference.
+  if v_order.inventory_applied and v_order.status <> 'pending_pickup' then
+    perform apply_order_stock(p_order_id, -1);
+  end if;
+
   delete from order_items where order_id = p_order_id;
   for v_item in select * from jsonb_array_elements(p -> 'items')
   loop
@@ -2339,6 +2377,10 @@ begin
                           then nullif(p ->> 'requestedTime', '')::time else requested_time end,
     updated_at = now()
   where id = p_order_id;
+
+  if v_order.inventory_applied and v_order.status <> 'pending_pickup' then
+    perform apply_order_stock(p_order_id, 1);
+  end if;
 
   perform recompute_order_discount(p_order_id);
 
@@ -2379,7 +2421,13 @@ begin
     end loop;
   end if;
 
-  update orders set status = 'void', voided_at = now(), void_reason = nullif(trim(p_reason), ''), updated_at = now()
+  -- Round 38: a voided order gives back the stock it took.
+  if v_order.inventory_applied and v_order.status <> 'pending_pickup' then
+    perform apply_order_stock(p_order_id, -1);
+  end if;
+
+  update orders set status = 'void', voided_at = now(), void_reason = nullif(trim(p_reason), ''), updated_at = now(),
+    inventory_applied = false
   where id = p_order_id;
 
   insert into order_audit_log (order_id, staff_id, action, detail)
@@ -3088,26 +3136,32 @@ as $$
 $$;
 
 -- Counter "Payment / refund" -> Split: one tap records both parts.
-create or replace function add_order_split_payment(p_order_id uuid, p_cash numeric, p_online numeric, p_received_on date, p_staff_id uuid, p_note text)
+drop function if exists add_order_split_payment(uuid, numeric, numeric, date, uuid, text);
+create or replace function add_order_split_payment(p_order_id uuid, p_cash numeric, p_online numeric, p_received_on date, p_staff_id uuid, p_note text, p_tendered numeric default null)
 returns void
 language plpgsql
 as $$
+declare
+  v_id bigint;
 begin
   if coalesce(p_cash, 0) <= 0 or coalesce(p_online, 0) <= 0 then
     raise exception 'invalid_amount' using errcode = 'P0001';
   end if;
-  perform add_order_payment(p_order_id, 'cash', p_cash, p_received_on, p_staff_id, p_note);
+  v_id := add_order_payment(p_order_id, 'cash', p_cash, p_received_on, p_staff_id, p_note);
+  perform set_payment_tendered(v_id, p_tendered);
   perform add_order_payment(p_order_id, 'online', p_online, p_received_on, p_staff_id, p_note);
 end;
 $$;
 
 -- Billing -> Split: the cash amount is spread over the chosen orders in
 -- turn and the rest of each bill is recorded as online.
-create or replace function pay_orders_split(p_order_ids uuid[], p_cash numeric, p_staff_id uuid)
+drop function if exists pay_orders_split(uuid[], numeric, uuid);
+create or replace function pay_orders_split(p_order_ids uuid[], p_cash numeric, p_staff_id uuid, p_tendered numeric default null)
 returns void
 language plpgsql
 as $$
 declare
+  v_before bigint := coalesce((select max(id) from order_payments), 0);
   v_id uuid;
   v_owed numeric;
   v_total numeric := 0;
@@ -3143,6 +3197,7 @@ begin
     end if;
     update orders set status = 'paid', payment_method = coalesce(order_payment_label(v_id), 'split') where id = v_id;
   end loop;
+  perform set_batch_tendered(p_order_ids, v_before, p_tendered);
 end;
 $$;
 
@@ -3234,6 +3289,237 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- Round 38 (10/7) -- two owner switches: "QR orders take stock off" and
+-- "Counter orders take stock off" (owner chose two separate switches).
+--
+-- * QR switch: on unless turned off (QR orders always took stock off before
+--   this round, so nothing changes until the owner turns it off). While on,
+--   a QR order is still refused when an item is out of stock, as before.
+-- * Counter switch: off until turned on (agreed design). While on, a counter
+--   sale takes stock off but is never refused -- stock may go negative and
+--   the order shows a "stock ran short" warning.
+-- * Orders taken while a switch was off are NOT deducted when it's turned
+--   on; "Take stock off for earlier orders" does that, with a preview, only
+--   for orders after the latest full stock count and never twice
+--   (orders.inventory_applied).
+-- * Void gives the stock back; editing a counter order moves only the
+--   difference.
+-- ---------------------------------------------------------------------------
+alter table ingredients drop constraint if exists ingredients_current_stock_check;
+alter table orders alter column inventory_applied set default false;
+-- A pre-order hasn't taken anything yet (it does when it's picked up).
+update orders set inventory_applied = false where status = 'pending_pickup' and inventory_applied;
+
+create or replace function sales_deduct_on(p_source text)
+returns boolean
+language sql
+stable
+as $$
+  select case when p_source = 'counter'
+    then coalesce((select (value ->> 'on')::boolean from app_settings where key = 'sales_deduct_counter'), false)
+    else coalesce((select (value ->> 'on')::boolean from app_settings where key = 'sales_deduct_qr'), true)
+  end;
+$$;
+
+-- What one order uses: recipe lines x qty, plus packaging (same rules as
+-- place_order / fulfill_pre_order).
+create or replace function order_requirements(p_order_id uuid)
+returns table (ingredient_id uuid, needed numeric)
+language sql
+stable
+as $$
+  select x.ingredient_id, sum(x.needed) from (
+    select mii.ingredient_id, mii.qty_per_order * oi.qty as needed
+    from order_items oi
+    join menu_item_ingredients mii on mii.menu_item_code = oi.menu_item_code
+    where oi.order_id = p_order_id
+    union all
+    select ing.id, pkg.qty_needed
+    from (
+      select oi.qty as qty_needed,
+        case
+          when oi.fulfillment_type = 'takeaway' and mi.packaging_type = 'food' then 'Takeaway Food Box'
+          when oi.fulfillment_type = 'takeaway' and mi.packaging_type = 'hot_drink' then 'Hot Takeaway Glass'
+          when oi.fulfillment_type = 'takeaway' and mi.packaging_type = 'cold_drink' then 'Cold Takeaway Glass'
+        end as ingredient_name
+      from order_items oi join menu_items mi on mi.code = oi.menu_item_code where oi.order_id = p_order_id
+      union all
+      select oi.qty, case when mi.packaging_type in ('cold_drink', 'straw_only') then 'Straw' end
+      from order_items oi join menu_items mi on mi.code = oi.menu_item_code where oi.order_id = p_order_id
+      union all
+      select oi.qty, case when oi.fulfillment_type = 'takeaway' and mi.packaging_type = 'food' then 'Plastic Cutlery Set' end
+      from order_items oi join menu_items mi on mi.code = oi.menu_item_code where oi.order_id = p_order_id
+    ) pkg
+    join ingredients ing on ing.name = pkg.ingredient_name
+    where pkg.ingredient_name is not null
+  ) x
+  group by x.ingredient_id;
+$$;
+
+-- Takes one order's stock off (p_sign = 1) or gives it back (-1). Never
+-- refuses; returns the names of anything that went below zero.
+create or replace function apply_order_stock(p_order_id uuid, p_sign int)
+returns text[]
+language plpgsql
+as $$
+declare
+  v_short text[];
+begin
+  perform 1 from ingredients i join order_requirements(p_order_id) r on r.ingredient_id = i.id order by i.id for update of i;
+  update ingredients i
+  set current_stock = i.current_stock - p_sign * r.needed
+  from order_requirements(p_order_id) r
+  where r.ingredient_id = i.id;
+  if p_sign > 0 then
+    select array_agg(i.name order by i.name) into v_short
+    from ingredients i join order_requirements(p_order_id) r on r.ingredient_id = i.id
+    where i.current_stock < 0;
+  end if;
+  return v_short;
+end;
+$$;
+
+-- "Take stock off for earlier orders": which orders would be included.
+-- p_from / p_to null = since the latest full stock count.
+create or replace function preview_sales_backfill(p_source text, p_from date, p_to date)
+returns table (order_id uuid, order_date date, daily_order_number int, items text, status text)
+language sql
+stable
+as $$
+  select o.id, o.order_date, o.daily_order_number,
+    (select string_agg(oi.qty || '× ' || oi.item_name, ', ' order by oi.id) from order_items oi where oi.order_id = o.id),
+    case
+      when o.inventory_applied then 'already'
+      when latest_stock_count() is null or o.created_at <= latest_stock_count() then 'before_count'
+      else 'will_add'
+    end
+  from orders o
+  where o.source = case when p_source = 'counter' then 'counter' else 'qr' end
+    and not o.is_trial
+    and o.status in ('placed', 'served', 'paid')
+    and o.order_date is not null
+    and (case when p_from is null and p_to is null
+              then latest_stock_count() is not null and o.created_at > latest_stock_count()
+              else o.order_date between coalesce(p_from, o.order_date) and coalesce(p_to, o.order_date) end)
+  order by o.order_date, o.daily_order_number;
+$$;
+
+create or replace function apply_sales_backfill(p_source text, p_from date, p_to date)
+returns int
+language plpgsql
+as $$
+declare
+  r record;
+  v_count int := 0;
+begin
+  if latest_stock_count() is null then
+    raise exception 'no_stock_count' using errcode = 'P0001';
+  end if;
+  for r in select b.order_id from preview_sales_backfill(p_source, p_from, p_to) b where b.status = 'will_add'
+  loop
+    -- re-check under lock so two taps can never apply the same order twice
+    if exists (select 1 from orders where id = r.order_id and not inventory_applied for update) then
+      perform apply_order_stock(r.order_id, 1);
+      update orders set inventory_applied = true where id = r.order_id;
+      v_count := v_count + 1;
+    end if;
+  end loop;
+  return v_count;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Round 39 (10/7) -- change + cash drawer check (owner design, 2026-10-07).
+--
+-- * Change: staff type / tap what the customer handed over; only the bill
+--   amount is recorded as cash (order_payments.amount), and the cash handed
+--   over (tendered) and change given back are kept on the same row so the
+--   Cash page can show "+ handed over / − change given". Refunds stay
+--   separate (negative payments).
+-- * Cash page: suggested closing = opening + cash handed over − change −
+--   cash refunds − purchases / pay-backs from the drawer. Staff still enter
+--   the counted closing themselves. A difference is flagged and stays
+--   flagged until someone marks it resolved with a reason.
+-- ---------------------------------------------------------------------------
+alter table order_payments add column if not exists tendered numeric;
+alter table order_payments add column if not exists change_given numeric not null default 0;
+
+-- Puts the cash handed over on one payment row (change = handed over − amount).
+create or replace function set_payment_tendered(p_payment_id bigint, p_tendered numeric)
+returns void
+language plpgsql
+as $$
+begin
+  if p_payment_id is null or p_tendered is null then
+    return;
+  end if;
+  update order_payments
+  set tendered = p_tendered, change_given = greatest(p_tendered - amount, 0)
+  where id = p_payment_id and method = 'cash' and amount > 0 and p_tendered > amount;
+end;
+$$;
+
+-- Billing pays several bills with one handful of cash: the change goes on
+-- the last cash row recorded for them.
+create or replace function set_batch_tendered(p_order_ids uuid[], p_after_id bigint, p_tendered numeric)
+returns void
+language plpgsql
+as $$
+declare
+  v_total numeric;
+  v_last bigint;
+  v_last_amount numeric;
+begin
+  if p_tendered is null then
+    return;
+  end if;
+  select coalesce(sum(amount), 0), max(id) into v_total, v_last
+  from order_payments where order_id = any(p_order_ids) and id > p_after_id and method = 'cash';
+  if v_last is null or p_tendered <= v_total then
+    return;
+  end if;
+  select amount into v_last_amount from order_payments where id = v_last;
+  update order_payments set tendered = v_last_amount + (p_tendered - v_total), change_given = p_tendered - v_total where id = v_last;
+end;
+$$;
+
+-- Counter "Payment" panel, cash with change.
+create or replace function add_order_cash_payment(p_order_id uuid, p_amount numeric, p_tendered numeric, p_received_on date, p_staff_id uuid, p_note text)
+returns bigint
+language plpgsql
+as $$
+declare
+  v_id bigint;
+begin
+  v_id := add_order_payment(p_order_id, 'cash', p_amount, p_received_on, p_staff_id, p_note);
+  perform set_payment_tendered(v_id, p_tendered);
+  return v_id;
+end;
+$$;
+
+-- Billing "Cash" with a handed-over amount.
+create or replace function pay_orders_cash(p_order_ids uuid[], p_tendered numeric, p_staff_id uuid)
+returns void
+language plpgsql
+as $$
+declare
+  v_before bigint := coalesce((select max(id) from order_payments), 0);
+begin
+  perform pay_orders(p_order_ids, 'cash', p_staff_id);
+  perform set_batch_tendered(p_order_ids, v_before, p_tendered);
+end;
+$$;
+
+alter table cash_days add column if not exists expected_closing numeric;
+alter table cash_days add column if not exists difference numeric;
+alter table cash_days add column if not exists flag_status text;
+alter table cash_days drop constraint if exists cash_days_flag_status_check;
+alter table cash_days add constraint cash_days_flag_status_check check (flag_status is null or flag_status in ('ok', 'flagged', 'resolved'));
+alter table cash_days add column if not exists resolved_reason text;
+alter table cash_days add column if not exists resolved_at timestamptz;
+alter table cash_days add column if not exists resolved_by uuid references staff(id) on delete set null;
+
+-- ---------------------------------------------------------------------------
 -- Explicit grants for the service role. Newer Supabase projects no longer
 -- auto-grant service_role access to tables created by hand (the "Automatically
 -- expose new tables" project setting) — these grants make this schema work
@@ -3281,8 +3567,17 @@ grant execute on function coupon_balance(text) to service_role;
 grant execute on function refresh_coupon_status(text, uuid) to service_role;
 grant execute on function order_room(uuid) to service_role;
 grant execute on function order_payment_label(uuid) to service_role;
-grant execute on function add_order_split_payment(uuid, numeric, numeric, date, uuid, text) to service_role;
-grant execute on function pay_orders_split(uuid[], numeric, uuid) to service_role;
+grant execute on function add_order_split_payment(uuid, numeric, numeric, date, uuid, text, numeric) to service_role;
+grant execute on function pay_orders_split(uuid[], numeric, uuid, numeric) to service_role;
 grant execute on function set_order_discount(uuid, numeric, numeric, text, uuid) to service_role;
 grant execute on function coupon_batch_stats() to service_role;
 grant execute on function delete_void_order(uuid) to service_role;
+grant execute on function sales_deduct_on(text) to service_role;
+grant execute on function order_requirements(uuid) to service_role;
+grant execute on function apply_order_stock(uuid, int) to service_role;
+grant execute on function preview_sales_backfill(text, date, date) to service_role;
+grant execute on function apply_sales_backfill(text, date, date) to service_role;
+grant execute on function set_payment_tendered(bigint, numeric) to service_role;
+grant execute on function set_batch_tendered(uuid[], bigint, numeric) to service_role;
+grant execute on function add_order_cash_payment(uuid, numeric, numeric, date, uuid, text) to service_role;
+grant execute on function pay_orders_cash(uuid[], numeric, uuid) to service_role;

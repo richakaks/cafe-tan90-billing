@@ -1,5 +1,7 @@
 "use client";
 
+import CashTender, { ChangeBanner, changeFor } from "@/components/bill/CashTender";
+import { SalesStockToggle } from "@/components/SalesStockSwitch";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CounterOrderInput } from "@/lib/counter";
 import type { CounterDay, CounterOrder, FulfillmentType, PaymentMethod, StaffMember } from "@/lib/types";
@@ -89,6 +91,11 @@ export default function CounterClient({
   const [payMode, setPayMode] = useState<"cash" | "online" | "split" | "later">("cash");
   const [splitCash, setSplitCash] = useState("");
   const [splitOnline, setSplitOnline] = useState("");
+  // Round 39: cash the customer handed over (for change), and the change
+  // banner that stays up after the order is saved until staff tap Done.
+  const [cashGiven, setCashGiven] = useState("");
+  const [splitGiven, setSplitGiven] = useState("");
+  const [changeBanner, setChangeBanner] = useState<{ amount: number; label: string } | null>(null);
   const [editing, setEditing] = useState<CounterOrder | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -282,17 +289,25 @@ export default function CounterClient({
   const toPay = Math.max(0, round2(gross - manualDiscount - couponTotal));
   const unknownCoupon = !editing && coupons.some((c) => c.kind === "code" && c.balance === null && c.useAmount === null);
 
-  const payments: { method: PaymentMethod; amount: number }[] =
+  const cashGivenNum = Number(cashGiven) || 0;
+  const splitCashNum = Number(splitCash) || 0;
+  const splitGivenNum = Number(splitGiven) || 0;
+  const payments: { method: PaymentMethod; amount: number; tendered?: number }[] =
     payMode === "cash"
-      ? [{ method: "cash", amount: toPay }]
+      ? [
+          cashGivenNum > 0
+            ? { method: "cash" as const, amount: Math.min(cashGivenNum, toPay), ...(cashGivenNum > toPay ? { tendered: cashGivenNum } : {}) }
+            : { method: "cash" as const, amount: toPay },
+        ].filter((p) => p.amount > 0)
       : payMode === "online"
         ? [{ method: "online", amount: toPay }]
         : payMode === "split"
           ? [
-              { method: "cash" as const, amount: Number(splitCash) || 0 },
+              { method: "cash" as const, amount: splitCashNum, ...(splitGivenNum > splitCashNum ? { tendered: splitGivenNum } : {}) },
               { method: "online" as const, amount: Number(splitOnline) || 0 },
             ].filter((p) => p.amount > 0)
           : [];
+  const changeNow = payMode === "cash" ? changeFor(toPay, cashGivenNum) : payMode === "split" ? changeFor(splitCashNum, splitGivenNum) : 0;
   const paidNow = payments.reduce((s, p) => s + p.amount, 0);
   const leftUnpaid = round2(toPay - paidNow);
 
@@ -322,6 +337,8 @@ export default function CounterClient({
     setPayMode("cash");
     setSplitCash("");
     setSplitOnline("");
+    setCashGiven("");
+    setSplitGiven("");
     setEditing(null);
     setFormError(null);
   }
@@ -407,7 +424,7 @@ export default function CounterClient({
       return;
     }
     if (payMode === "split" && leftUnpaid < -0.005) {
-      setFormError(`That's ${formatBaht(-leftUnpaid)} more than the bill. Use a refund on the order if change was given back.`);
+      setFormError(`That's ${formatBaht(-leftUnpaid)} more than the bill. For change, put the bill's cash part in "Cash ฿" and what the customer handed over in "Customer gave".`);
       return;
     }
 
@@ -482,6 +499,7 @@ export default function CounterClient({
         const out = await sendOrders([trialInput], false);
         if (out.kind === "results" && out.results[0]?.ok) {
           setToast(`TRIAL order #${out.results[0].dailyOrderNumber} placed — it shows on Serve and Billing as TRIAL and is never counted.`);
+          if (changeNow > 0) setChangeBanner({ amount: changeNow, label: `TRIAL #${out.results[0].dailyOrderNumber}` });
           resetForm();
           loadTrials();
         } else if (out.kind === "results" && out.results[0] && !out.results[0].ok) {
@@ -534,6 +552,7 @@ export default function CounterClient({
             ? `Pre-order saved for ${pickupDate}${pickupTime ? ` ${pickupTime}` : ""}.`
             : `Order #${r.dailyOrderNumber} saved.${r.warnings.length ? ` Note: ${r.warnings.join("; ")}` : ""}`
         );
+        if (changeNow > 0) setChangeBanner({ amount: changeNow, label: kind === "pre_order" ? "Pre-order" : `Order #${r.dailyOrderNumber}` });
         resetForm();
         loadDay(viewDate);
         return;
@@ -554,6 +573,7 @@ export default function CounterClient({
       if (outcome.kind === "unauthorized") setNeedLogin(true);
       else setOnline(false);
       setToast("Saved on this tablet. It will be sent automatically when the connection is back.");
+      if (changeNow > 0) setChangeBanner({ amount: changeNow, label: "Saved on this tablet" });
       resetForm();
     } finally {
       setSubmitting(false);
@@ -626,6 +646,9 @@ export default function CounterClient({
           </span>
           {queue.length > 0 && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-status-low">{queue.length} waiting to send</span>}
         </div>
+        <div className="w-full border-t border-card-border pt-3">
+          <SalesStockToggle source="counter" />
+        </div>
         {needLogin && (
           <p className="w-full text-sm text-status-out">
             Your staff login has expired. Orders are kept on this tablet —{" "}
@@ -658,6 +681,7 @@ export default function CounterClient({
       </div>
 
       {toast && <div className="rounded-lg bg-navy-900 px-4 py-3 text-sm text-white">{toast}</div>}
+      {changeBanner && <ChangeBanner amount={changeBanner.amount} label={changeBanner.label} onDone={() => setChangeBanner(null)} />}
 
       <div className="grid gap-6 md:grid-cols-[1fr_340px] lg:grid-cols-[1fr_400px]">
         {/* Menu */}
@@ -960,6 +984,10 @@ export default function CounterClient({
                 </div>
               )}
               {payMode === "split" && <p className="text-[11px] text-navy-600">Type the cash part — the rest fills in as online.</p>}
+              {payMode === "cash" && toPay > 0 && <CashTender due={toPay} given={cashGiven} onChange={setCashGiven} />}
+              {payMode === "split" && splitCashNum > 0 && (
+                <CashTender due={splitCashNum} given={splitGiven} onChange={setSplitGiven} label="Customer gave for the cash part" />
+              )}
               {payMode !== "cash" && payMode !== "online" && leftUnpaid > 0.005 && (
                 <p className="text-xs text-status-low">{formatBaht(leftUnpaid)} left to pay later — it&rsquo;ll show in &ldquo;Still owing&rdquo;.</p>
               )}
@@ -1030,7 +1058,7 @@ export default function CounterClient({
           </div>
           <div className="grid gap-2 md:grid-cols-2">
             {trialOrders.map((o) => (
-              <OrderCard key={o.id} order={o} staffId={staffId} today={today} online={online} locked={false} onChanged={() => loadTrials()} onEdit={startEdit} />
+              <OrderCard onChangeDue={(amount, label) => setChangeBanner({ amount, label })} key={o.id} order={o} staffId={staffId} today={today} online={online} locked={false} onChanged={() => loadTrials()} onEdit={startEdit} />
             ))}
           </div>
         </section>
@@ -1043,7 +1071,7 @@ export default function CounterClient({
           <div className="grid gap-2 md:grid-cols-2">
             {openItems.pickups.map((o) => (
               <div key={o.id} className="space-y-1">
-                <OrderCard order={o} staffId={staffId} today={today} online={online} locked={false} onChanged={() => loadDay(viewDate)} onEdit={startEdit} />
+                <OrderCard onChangeDue={(amount, label) => setChangeBanner({ amount, label })} order={o} staffId={staffId} today={today} online={online} locked={false} onChanged={() => loadDay(viewDate)} onEdit={startEdit} />
                 <button type="button" disabled={!online} onClick={() => pickedUp(o)} className="w-full rounded-lg bg-navy-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50">
                   Picked up — move to today
                 </button>
@@ -1059,7 +1087,7 @@ export default function CounterClient({
           <h2 className="text-sm font-semibold uppercase tracking-wide text-navy-600">Still owing or coupon code missing ({openItems.outstanding.length})</h2>
           <div className="grid gap-2 md:grid-cols-2">
             {openItems.outstanding.map((o) => (
-              <OrderCard key={o.id} order={o} staffId={staffId} today={today} online={online} locked={false} onChanged={() => loadDay(viewDate)} onEdit={startEdit} compact />
+              <OrderCard onChangeDue={(amount, label) => setChangeBanner({ amount, label })} key={o.id} order={o} staffId={staffId} today={today} online={online} locked={false} onChanged={() => loadDay(viewDate)} onEdit={startEdit} compact />
             ))}
           </div>
         </section>
@@ -1114,7 +1142,7 @@ export default function CounterClient({
         ) : (
           <div className="grid gap-2 md:grid-cols-2">
             {dayOrders.map((o) => (
-              <OrderCard key={o.id} order={o} staffId={staffId} today={today} online={online} locked={s.locked} onChanged={() => loadDay(viewDate)} onEdit={startEdit} />
+              <OrderCard onChangeDue={(amount, label) => setChangeBanner({ amount, label })} key={o.id} order={o} staffId={staffId} today={today} online={online} locked={s.locked} onChanged={() => loadDay(viewDate)} onEdit={startEdit} />
             ))}
           </div>
         )}

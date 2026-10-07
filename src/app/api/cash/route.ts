@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { bangkokToday, getCashDay, getRecentCashDays, saveCashDay } from "@/lib/counter";
+import { bangkokToday, getCashDay, getFlaggedCashDays, getRecentCashDays, saveCashDay } from "@/lib/counter";
 import { isIsoDate, readJson, requireStaff } from "@/lib/requireStaff";
 
 export async function GET(req: NextRequest) {
@@ -8,8 +8,8 @@ export async function GET(req: NextRequest) {
   const d = new URL(req.url).searchParams.get("date");
   const date = isIsoDate(d) ? d : bangkokToday();
   try {
-    const [day, recent] = await Promise.all([getCashDay(date), getRecentCashDays()]);
-    return NextResponse.json({ day, recent });
+    const [day, recent, flagged] = await Promise.all([getCashDay(date), getRecentCashDays(), getFlaggedCashDays()]);
+    return NextResponse.json({ day, recent, flagged });
   } catch (err) {
     console.error("getCashDay failed", err);
     return NextResponse.json({ error: "Could not load the cash balance." }, { status: 500 });
@@ -29,7 +29,8 @@ export async function POST(req: NextRequest) {
   if (!body || !isIsoDate(body.date)) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   try {
     await saveCashDay(body.date, numOrNull(body.opening), numOrNull(body.closingCounted), body.note?.trim() || null, body.staffId ?? null);
-    return NextResponse.json({ ok: true, day: await getCashDay(body.date) });
+    const [day, flagged] = await Promise.all([getCashDay(body.date), getFlaggedCashDays()]);
+    return NextResponse.json({ ok: true, day, flagged });
   } catch (err) {
     console.error("saveCashDay failed", err);
     return NextResponse.json({ error: "Could not save." }, { status: 500 });

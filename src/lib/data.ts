@@ -183,7 +183,7 @@ export async function getMenuItemsForDropdown(): Promise<{ code: string; name: s
 }
 
 export async function getMenuForCustomer(): Promise<MenuItemWithAvailability[]> {
-  const [{ data: items, error: itemsErr }, { data: ingredients, error: ingErr }, { data: links, error: linkErr }] =
+  const [{ data: items, error: itemsErr }, { data: ingredients, error: ingErr }, { data: links, error: linkErr }, { data: qrSwitch }] =
     await Promise.all([
       db()
         .from("menu_items")
@@ -192,7 +192,11 @@ export async function getMenuForCustomer(): Promise<MenuItemWithAvailability[]> 
         .order("sort_order"),
       db().from("ingredients").select("id, name, unit, current_stock, low_stock_threshold"),
       db().from("menu_item_ingredients").select("menu_item_code, ingredient_id, qty_per_order"),
+      // Round 38: with "QR orders take stock off" turned off, stock isn't
+      // checked, so nothing is shown as sold out.
+      db().from("app_settings").select("value").eq("key", "sales_deduct_qr").maybeSingle(),
     ]);
+  const qrStockOn = (qrSwitch?.value as { on?: boolean } | null)?.on ?? true;
 
   if (itemsErr) throw itemsErr;
   if (ingErr) throw ingErr;
@@ -235,7 +239,7 @@ export async function getMenuForCustomer(): Promise<MenuItemWithAvailability[]> 
     description: item.description ?? null,
     imageUrl: item.image_url ?? null,
     packagingType: item.packaging_type as MenuItem["packagingType"],
-    status: computeAvailability(item.code, linkList, ingredientsById),
+    status: qrStockOn ? computeAvailability(item.code, linkList, ingredientsById) : "in_stock",
   }));
 }
 

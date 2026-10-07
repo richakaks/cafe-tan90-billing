@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { CashDay, StaffMember } from "@/lib/types";
+import type { CashDay, FlaggedCashDay, StaffMember } from "@/lib/types";
 
 function baht(n: number | null): string {
   if (n === null) return "—";
@@ -18,10 +18,24 @@ function openingText(d: CashDay): string {
   return d.opening !== null ? String(d.opening) : d.suggestedOpening !== null ? String(d.suggestedOpening) : "";
 }
 
-type Recent = { day: string; opening: number | null; closingCounted: number | null }[];
+type Recent = { day: string; opening: number | null; closingCounted: number | null; flagStatus: string | null; difference: number | null }[];
 
-export default function CashClient({ initialDay, initialRecent, today, staff }: { initialDay: CashDay; initialRecent: Recent; today: string; staff: StaffMember[] }) {
+export default function CashClient({
+  initialDay,
+  initialRecent,
+  initialFlagged,
+  today,
+  staff,
+}: {
+  initialDay: CashDay;
+  initialRecent: Recent;
+  initialFlagged: FlaggedCashDay[];
+  today: string;
+  staff: StaffMember[];
+}) {
   const [day, setDay] = useState(initialDay);
+  const [flagged, setFlagged] = useState(initialFlagged);
+  const [reason, setReason] = useState("");
   const [recent, setRecent] = useState(initialRecent);
   const [opening, setOpening] = useState(openingText(initialDay));
   const [closing, setClosing] = useState(initialDay.closingCounted !== null ? String(initialDay.closingCounted) : "");
@@ -54,6 +68,7 @@ export default function CashClient({ initialDay, initialRecent, today, staff }: 
       if (!res.ok) throw new Error(data.error);
       showDay(data.day);
       setRecent(data.recent);
+      if (data.flagged) setFlagged(data.flagged);
     } catch (e) {
       setMsg(e instanceof Error && e.message ? e.message : "No connection.");
     }
@@ -71,7 +86,8 @@ export default function CashClient({ initialDay, initialRecent, today, staff }: 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       showDay(data.day);
-      setMsg("Saved.");
+      if (data.flagged) setFlagged(data.flagged);
+      setMsg(data.day?.flagStatus === "flagged" ? "Saved — the difference is flagged until someone resolves it." : "Saved.");
       load(day.day);
     } catch (e) {
       setMsg(e instanceof Error && e.message ? e.message : "Could not save — check the connection.");
@@ -83,13 +99,52 @@ export default function CashClient({ initialDay, initialRecent, today, staff }: 
   // Live preview while typing, before saving.
   const openNum = opening === "" ? null : Number(opening);
   const closeNum = closing === "" ? null : Number(closing);
-  const expected = openNum === null ? null : openNum + day.cashReceived - day.cashRefunded - day.cashPurchases;
+  const expected = openNum === null ? null : Math.round((openNum + day.cashHandedOver - day.changeGiven - day.cashRefunded - day.cashPurchases) * 100) / 100;
+
+  async function resolve() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/cash/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: day.day, reason, staffId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      showDay(data.day);
+      setFlagged(data.flagged);
+      setReason("");
+      setMsg("Marked resolved.");
+    } catch (e) {
+      setMsg(e instanceof Error && e.message ? e.message : "Could not save — check the connection.");
+    } finally {
+      setBusy(false);
+    }
+  }
   const diff = expected === null || closeNum === null ? null : Math.round((closeNum - expected) * 100) / 100;
   const input = "w-full rounded-md border border-card-border px-3 py-2 text-base";
   const staffName = staff.find((s) => s.id === staffId)?.name;
 
   return (
     <div className="space-y-6">
+      {flagged.length > 0 && (
+        <div className="card space-y-2 border-2 border-status-out p-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-status-out">⚑ Drawer differences to resolve ({flagged.length})</h2>
+          <ul className="space-y-1 text-sm">
+            {flagged.map((f) => (
+              <li key={f.day}>
+                <button type="button" onClick={() => load(f.day)} className="flex w-full justify-between rounded-md px-2 py-1 text-left hover:bg-red-50">
+                  <span className="underline">{f.day}</span>
+                  <span className="font-semibold text-status-out">
+                    {f.difference > 0 ? `+${baht(f.difference)} over` : `${baht(-f.difference)} short`}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="flex items-center gap-2">
         <button type="button" onClick={() => load(addDays(day.day, -1))} className="rounded-md border border-card-border px-3 py-2 text-sm">
           ‹
@@ -115,10 +170,12 @@ export default function CashClient({ initialDay, initialRecent, today, staff }: 
         </label>
 
         <div className="space-y-1 rounded-lg bg-navy-100/60 p-4 text-sm">
-          <div className="flex justify-between"><span>+ Cash taken today</span><span>{baht(day.cashReceived)}</span></div>
-          {day.cashRefunded > 0 && <div className="flex justify-between"><span>− Cash refunded</span><span>{baht(day.cashRefunded)}</span></div>}
-          <div className="flex justify-between"><span>− Purchases paid from the drawer <a href="/purchases" className="text-[11px] text-navy-700 underline">see Purchases</a></span><span>{baht(day.cashPurchases)}</span></div>
-          <div className="flex justify-between border-t border-card-border pt-1 font-semibold"><span>Expected closing</span><span>{baht(expected)}</span></div>
+          <div className="flex justify-between"><span>Opening</span><span>{baht(openNum)}</span></div>
+          <div className="flex justify-between"><span>+ Cash handed over by customers</span><span>{baht(day.cashHandedOver)}</span></div>
+          <div className="flex justify-between"><span>− Change given back</span><span>{baht(day.changeGiven)}</span></div>
+          <div className="flex justify-between"><span>− Cash refunds</span><span>{baht(day.cashRefunded)}</span></div>
+          <div className="flex justify-between"><span>− Purchases / pay-backs from the drawer <a href="/purchases" className="text-[11px] text-navy-700 underline">see Purchases</a></span><span>{baht(day.cashPurchases)}</span></div>
+          <div className="flex justify-between border-t border-card-border pt-1 font-semibold"><span>Suggested closing</span><span>{baht(expected)}</span></div>
           <p className="text-[11px] text-navy-600">Only cash counts here — online and coupon payments never go in the drawer.</p>
         </div>
 
@@ -129,7 +186,29 @@ export default function CashClient({ initialDay, initialRecent, today, staff }: 
 
         {diff !== null && (
           <p className={`rounded-lg p-3 text-sm font-semibold ${Math.abs(diff) < 0.005 ? "bg-navy-100 text-status-good" : "bg-red-50 text-status-out"}`}>
-            {Math.abs(diff) < 0.005 ? "Drawer matches ✓" : diff > 0 ? `Drawer has ${baht(diff)} MORE than expected` : `Drawer is ${baht(-diff)} SHORT`}
+            {Math.abs(diff) < 0.005 ? "Drawer matches the suggestion ✓" : diff > 0 ? `Drawer has ${baht(diff)} MORE than suggested` : `Drawer is ${baht(-diff)} SHORT of the suggestion`}
+          </p>
+        )}
+
+        {day.flagStatus === "flagged" && (
+          <div className="space-y-2 rounded-lg border-2 border-status-out bg-red-50 p-3">
+            <p className="text-sm font-semibold text-status-out">
+              ⚑ Flagged: counted {baht(day.closingCounted)} vs suggested {baht(day.savedExpected)} ({day.savedDifference !== null && day.savedDifference > 0 ? "+" : ""}
+              {baht(day.savedDifference)}). It stays flagged until resolved.
+            </p>
+            <input value={reason} onChange={(e) => setReason(e.target.value)} className={input} placeholder="Reason (e.g. ฿100 given as change twice, owner took ฿500)" />
+            <button type="button" disabled={busy || !reason.trim()} onClick={resolve} className="w-full rounded-lg bg-status-out px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
+              Mark resolved
+            </button>
+          </div>
+        )}
+        {day.flagStatus === "resolved" && (
+          <p className="rounded-lg bg-navy-100 p-3 text-sm text-navy-800">
+            <span className="font-semibold">Resolved</span> ({baht(day.savedDifference)} difference): {day.resolvedReason}
+            <span className="block text-xs text-navy-600">
+              {day.resolvedByName ? `by ${day.resolvedByName} · ` : ""}
+              {day.resolvedAt ? new Date(day.resolvedAt).toLocaleString("en-GB", { timeZone: "Asia/Bangkok" }) : ""}
+            </span>
           </p>
         )}
 
@@ -154,6 +233,7 @@ export default function CashClient({ initialDay, initialRecent, today, staff }: 
                 <th className="py-1">Day</th>
                 <th className="py-1 text-right">Opening</th>
                 <th className="py-1 text-right">Closing</th>
+                <th className="py-1 text-right">Check</th>
               </tr>
             </thead>
             <tbody>
@@ -162,6 +242,17 @@ export default function CashClient({ initialDay, initialRecent, today, staff }: 
                   <td className="py-1.5">{r.day}</td>
                   <td className="py-1.5 text-right">{baht(r.opening)}</td>
                   <td className="py-1.5 text-right">{baht(r.closingCounted)}</td>
+                  <td className="py-1.5 text-right text-xs">
+                    {r.flagStatus === "ok" ? (
+                      <span className="text-status-good">✓ matched</span>
+                    ) : r.flagStatus === "flagged" ? (
+                      <span className="font-semibold text-status-out">⚑ {baht(r.difference)}</span>
+                    ) : r.flagStatus === "resolved" ? (
+                      <span className="text-navy-600">resolved</span>
+                    ) : (
+                      ""
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

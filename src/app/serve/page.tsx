@@ -1,6 +1,7 @@
 import StaffHeader from "@/components/StaffHeader";
 import { getOpenOrders, getPendingPreOrders } from "@/lib/data";
 import ServeClient from "./ServeClient";
+import { SalesStockToggle } from "@/components/SalesStockSwitch";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,9 @@ export default async function ServePage() {
           Open orders grouped by table/seat, plus upcoming pre-orders to fulfill. Mark served once food/drinks are handed over — it
           then moves to Billing. Updates automatically every few seconds.
         </p>
+        <div className="card mt-4 px-4 py-3">
+          <SalesStockToggle source="qr" />
+        </div>
         <div className="mt-6">
           <ServeClient initialOrders={orders} initialPreOrders={preOrders} />
         </div>

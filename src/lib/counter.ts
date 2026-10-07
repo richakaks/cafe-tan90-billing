@@ -6,6 +6,7 @@
 import { db } from "./supabase";
 import type {
   CashDay,
+  FlaggedCashDay,
   CounterDay,
   CounterOrder,
   FulfillmentType,
@@ -170,7 +171,8 @@ export interface CounterOrderInput {
   // amount on a code = how much of the coupon to use (blank = as much of the
   // bill as its balance covers).
   coupons?: ({ code: string; amount?: number } | { pendingAmount: number })[];
-  payments?: { method: PaymentMethod; amount: number }[];
+  // Round 39: tendered = cash the customer handed over (for change).
+  payments?: { method: PaymentMethod; amount: number; tendered?: number }[];
   // Round 33: practice order -- never counted anywhere.
   trial?: boolean;
 }
@@ -222,8 +224,22 @@ export async function addOrderPayment(
   amount: number,
   receivedOn: string,
   staffId: string | null,
-  note: string | null
+  note: string | null,
+  tendered: number | null = null
 ): Promise<void> {
+  // Round 39: cash with the amount handed over -> change kept on the row.
+  if (method === "cash" && amount > 0 && tendered !== null && tendered > amount) {
+    const { error } = await db().rpc("add_order_cash_payment", {
+      p_order_id: orderId,
+      p_amount: amount,
+      p_tendered: tendered,
+      p_received_on: receivedOn,
+      p_staff_id: staffId,
+      p_note: note,
+    });
+    if (error) throw rpcError(error);
+    return;
+  }
   const { error } = await db().rpc("add_order_payment", {
     p_order_id: orderId,
     p_method: method,
@@ -265,7 +281,8 @@ export async function addOrderSplitPayment(
   online: number,
   receivedOn: string,
   staffId: string | null,
-  note: string | null
+  note: string | null,
+  tendered: number | null = null
 ): Promise<void> {
   const { error } = await db().rpc("add_order_split_payment", {
     p_order_id: orderId,
@@ -274,13 +291,20 @@ export async function addOrderSplitPayment(
     p_received_on: receivedOn,
     p_staff_id: staffId,
     p_note: note,
+    p_tendered: tendered,
   });
   if (error) throw rpcError(error);
 }
 
 // Round 35: Billing's Split button (one bill or a whole table).
-export async function payOrdersSplit(orderIds: string[], cash: number, staffId: string | null): Promise<void> {
-  const { error } = await db().rpc("pay_orders_split", { p_order_ids: orderIds, p_cash: cash, p_staff_id: staffId });
+export async function payOrdersSplit(orderIds: string[], cash: number, staffId: string | null, tendered: number | null = null): Promise<void> {
+  const { error } = await db().rpc("pay_orders_split", { p_order_ids: orderIds, p_cash: cash, p_staff_id: staffId, p_tendered: tendered });
+  if (error) throw rpcError(error);
+}
+
+// Round 39: Billing "Cash" when the customer handed over more than the bill.
+export async function payOrdersCash(orderIds: string[], tendered: number, staffId: string | null): Promise<void> {
+  const { error } = await db().rpc("pay_orders_cash", { p_order_ids: orderIds, p_tendered: tendered, p_staff_id: staffId });
   if (error) throw rpcError(error);
 }
 
@@ -570,11 +594,15 @@ export async function getOrderAudit(orderId: string): Promise<{ action: string; 
 
 export async function getCashDay(day: string): Promise<CashDay> {
   const [{ data: row, error: rowErr }, { data: prev, error: prevErr }, { data: pays, error: payErr }] = await Promise.all([
-    db().from("cash_days").select("day, opening, closing_counted, note, updated_at").eq("day", day).maybeSingle(),
+    db()
+      .from("cash_days")
+      .select("day, opening, closing_counted, note, updated_at, expected_closing, difference, flag_status, resolved_reason, resolved_at, resolver:resolved_by(name)")
+      .eq("day", day)
+      .maybeSingle(),
     db().from("cash_days").select("day, closing_counted").lt("day", day).not("closing_counted", "is", null).order("day", { ascending: false }).limit(1),
     db()
       .from("order_payments")
-      .select("amount, orders!inner(status, is_trial)")
+      .select("amount, change_given, orders!inner(status, is_trial)")
       .eq("received_on", day)
       .eq("method", "cash")
       .neq("orders.status", "void")
@@ -587,10 +615,12 @@ export async function getCashDay(day: string): Promise<CashDay> {
 
   let cashReceived = 0;
   let cashRefunded = 0;
-  for (const p of (pays ?? []) as unknown as { amount: number }[]) {
+  let changeGiven = 0;
+  for (const p of (pays ?? []) as unknown as { amount: number; change_given: number | null }[]) {
     const a = Number(p.amount);
     if (a >= 0) cashReceived += a;
     else cashRefunded += -a;
+    changeGiven += Number(p.change_given ?? 0);
   }
   // Round 33: purchases paid with drawer cash that day, plus own-pocket
   // purchases paid back to someone from the drawer that day.
@@ -615,16 +645,57 @@ export async function getCashDay(day: string): Promise<CashDay> {
     difference: expectedClosing === null || closingCounted === null ? null : Math.round((closingCounted - expectedClosing) * 100) / 100,
     updatedAt: row?.updated_at ?? null,
     cashPurchaseCount: drawerOut.count,
+    cashHandedOver: Math.round((cashReceived + changeGiven) * 100) / 100,
+    changeGiven: Math.round(changeGiven * 100) / 100,
+    flagStatus: (row?.flag_status as CashDay["flagStatus"]) ?? null,
+    savedExpected: row?.expected_closing === null || row?.expected_closing === undefined ? null : Number(row.expected_closing),
+    savedDifference: row?.difference === null || row?.difference === undefined ? null : Number(row.difference),
+    resolvedReason: row?.resolved_reason ?? null,
+    resolvedAt: row?.resolved_at ?? null,
+    resolvedByName: ((Array.isArray(row?.resolver) ? row?.resolver[0] : row?.resolver) as { name: string } | null | undefined)?.name ?? null,
   };
 }
 
-export async function getRecentCashDays(limit = 14): Promise<{ day: string; opening: number | null; closingCounted: number | null }[]> {
-  const { data, error } = await db().from("cash_days").select("day, opening, closing_counted").order("day", { ascending: false }).limit(limit);
+// Round 39: days whose counted closing didn't match and nobody has resolved.
+export async function getFlaggedCashDays(): Promise<FlaggedCashDay[]> {
+  const { data, error } = await db()
+    .from("cash_days")
+    .select("day, difference, expected_closing, closing_counted")
+    .eq("flag_status", "flagged")
+    .order("day", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    day: r.day,
+    difference: Number(r.difference ?? 0),
+    expected: r.expected_closing === null ? null : Number(r.expected_closing),
+    counted: r.closing_counted === null ? null : Number(r.closing_counted),
+  }));
+}
+
+export async function resolveCashDay(day: string, reason: string, staffId: string | null): Promise<void> {
+  const { error } = await db()
+    .from("cash_days")
+    .update({ flag_status: "resolved", resolved_reason: reason, resolved_at: new Date().toISOString(), resolved_by: staffId })
+    .eq("day", day)
+    .eq("flag_status", "flagged");
+  if (error) throw error;
+}
+
+export async function getRecentCashDays(
+  limit = 14
+): Promise<{ day: string; opening: number | null; closingCounted: number | null; flagStatus: string | null; difference: number | null }[]> {
+  const { data, error } = await db()
+    .from("cash_days")
+    .select("day, opening, closing_counted, flag_status, difference")
+    .order("day", { ascending: false })
+    .limit(limit);
   if (error) throw error;
   return (data ?? []).map((r) => ({
     day: r.day,
     opening: r.opening === null ? null : Number(r.opening),
     closingCounted: r.closing_counted === null ? null : Number(r.closing_counted),
+    flagStatus: r.flag_status ?? null,
+    difference: r.difference === null ? null : Number(r.difference),
   }));
 }
 
@@ -633,6 +704,27 @@ export async function saveCashDay(day: string, opening: number | null, closingCo
     .from("cash_days")
     .upsert({ day, opening, closing_counted: closingCounted, note, staff_id: staffId, updated_at: new Date().toISOString() });
   if (error) throw error;
+
+  // Round 39: compare the counted closing with the suggested one and flag a
+  // difference. A day already marked resolved stays resolved unless the
+  // difference itself changes.
+  const d = await getCashDay(day);
+  if (d.expectedClosing === null || d.closingCounted === null) {
+    const { error: e2 } = await db().from("cash_days").update({ expected_closing: d.expectedClosing, difference: null, flag_status: null }).eq("day", day);
+    if (e2) throw e2;
+    return;
+  }
+  const diff = Math.round((d.closingCounted - d.expectedClosing) * 100) / 100;
+  let status: "ok" | "flagged" | "resolved" = Math.abs(diff) < 0.005 ? "ok" : "flagged";
+  if (status === "flagged" && d.flagStatus === "resolved" && d.savedDifference !== null && Math.abs(d.savedDifference - diff) < 0.005) status = "resolved";
+  const patch: Record<string, unknown> = { expected_closing: d.expectedClosing, difference: diff, flag_status: status };
+  if (status !== "resolved") {
+    patch.resolved_reason = null;
+    patch.resolved_at = null;
+    patch.resolved_by = null;
+  }
+  const { error: e3 } = await db().from("cash_days").update(patch).eq("day", day);
+  if (e3) throw e3;
 }
 
 // ---------------------------------------------------------------------------
@@ -1036,4 +1128,56 @@ async function getDrawerPurchaseTotal(day: string): Promise<{ total: number; cou
   if (e2) throw e2;
   const all = [...(bought ?? []), ...(repaid ?? [])] as { price: number }[];
   return { total: all.reduce((s, r) => s + Number(r.price), 0), count: all.length };
+}
+
+// ---------------------------------------------------------------------------
+// Round 38: "sales take stock off" switches (QR and counter, separately)
+// ---------------------------------------------------------------------------
+
+export type SalesSource = "qr" | "counter";
+
+export type SalesStockMeta = { qrOn: boolean; counterOn: boolean; lastStockCount: string | null };
+
+export async function getSalesStockMeta(): Promise<SalesStockMeta> {
+  const [{ data: settings, error: sErr }, { data: count, error: cErr }] = await Promise.all([
+    db().from("app_settings").select("key, value").in("key", ["sales_deduct_qr", "sales_deduct_counter"]),
+    db().from("stock_counts").select("counted_at").order("counted_at", { ascending: false }).limit(1),
+  ]);
+  if (sErr) throw sErr;
+  if (cErr) throw cErr;
+  const byKey = new Map(((settings ?? []) as { key: string; value: { on?: boolean } | null }[]).map((r) => [r.key, r.value?.on]));
+  return {
+    // QR orders always took stock off before the switch existed -> on unless turned off.
+    qrOn: byKey.get("sales_deduct_qr") ?? true,
+    counterOn: byKey.get("sales_deduct_counter") ?? false,
+    lastStockCount: (count ?? [])[0]?.counted_at ?? null,
+  };
+}
+
+export async function setSalesDeduct(source: SalesSource, on: boolean): Promise<void> {
+  const now = new Date().toISOString();
+  const { error } = await db()
+    .from("app_settings")
+    .upsert({ key: source === "qr" ? "sales_deduct_qr" : "sales_deduct_counter", value: { on, changed_at: now }, updated_at: now });
+  if (error) throw error;
+}
+
+export type SalesBackfillRow = { orderId: string; orderDate: string; number: number | null; items: string; status: "will_add" | "already" | "before_count" };
+
+export async function previewSalesBackfill(source: SalesSource, from: string | null, to: string | null): Promise<SalesBackfillRow[]> {
+  const { data, error } = await db().rpc("preview_sales_backfill", { p_source: source, p_from: from, p_to: to });
+  if (error) throw error;
+  return ((data ?? []) as { order_id: string; order_date: string; daily_order_number: number | null; items: string | null; status: string }[]).map((r) => ({
+    orderId: r.order_id,
+    orderDate: r.order_date,
+    number: r.daily_order_number,
+    items: r.items ?? "",
+    status: r.status as SalesBackfillRow["status"],
+  }));
+}
+
+export async function applySalesBackfill(source: SalesSource, from: string | null, to: string | null): Promise<number> {
+  const { data, error } = await db().rpc("apply_sales_backfill", { p_source: source, p_from: from, p_to: to });
+  if (error) throw rpcError(error);
+  return Number(data ?? 0);
 }

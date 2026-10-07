@@ -1,5 +1,6 @@
 "use client";
 
+import SalesStockCard from "@/components/SalesStockSwitch";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { Ingredient, IngredientKind, LastRestockPrice, PrimaryRecipeLink, RestockSignal, StockAdjustmentRow } from "@/lib/types";
@@ -1011,6 +1012,7 @@ export default function InventoryClient({
       )}
 
       <StockCountCard />
+      <SalesStockCard />
 
       <div className="card p-5">
         <input

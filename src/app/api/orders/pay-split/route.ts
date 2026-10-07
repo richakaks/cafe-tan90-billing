@@ -7,13 +7,13 @@ import { readJson, requireStaff } from "@/lib/requireStaff";
 export async function POST(req: NextRequest) {
   const denied = requireStaff(req);
   if (denied) return denied;
-  const body = await readJson<{ orderIds?: string[]; cash?: number; staffId?: string | null }>(req);
+  const body = await readJson<{ orderIds?: string[]; cash?: number; tendered?: number; staffId?: string | null }>(req);
   const orderIds = Array.isArray(body?.orderIds) ? body.orderIds.filter((x) => typeof x === "string") : [];
   const cash = Number(body?.cash);
   if (orderIds.length === 0) return NextResponse.json({ error: "No orders given." }, { status: 400 });
   if (!Number.isFinite(cash) || cash < 0) return NextResponse.json({ error: "Enter the cash part." }, { status: 400 });
   try {
-    await payOrdersSplit(orderIds, cash, body?.staffId ?? null);
+    await payOrdersSplit(orderIds, cash, body?.staffId ?? null, Number(body?.tendered) > 0 ? Number(body?.tendered) : null);
     return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof CounterError) return NextResponse.json({ error: err.friendlyMessage }, { status: 400 });

@@ -504,6 +504,24 @@ export interface CashDay {
   updatedAt: string | null;
   // Round 33: purchases paid from the drawer + owed-back payouts from the drawer.
   cashPurchaseCount: number;
+  // Round 39: cash customers handed over (bill + change) and change given back.
+  cashHandedOver: number;
+  changeGiven: number;
+  // Round 39: drawer check. flagged = counted closing didn't match the
+  // suggested closing; stays flagged until marked resolved with a reason.
+  flagStatus: "ok" | "flagged" | "resolved" | null;
+  savedExpected: number | null;
+  savedDifference: number | null;
+  resolvedReason: string | null;
+  resolvedAt: string | null;
+  resolvedByName: string | null;
+}
+
+export interface FlaggedCashDay {
+  day: string;
+  difference: number;
+  expected: number | null;
+  counted: number | null;
 }
 
 // Round 33: purchase tracker.
