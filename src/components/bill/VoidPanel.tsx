@@ -25,7 +25,7 @@ export default function VoidPanel({ orderId, staffId, onDone }: { orderId: strin
     <div className="space-y-2 rounded-lg bg-red-50 p-3 text-sm">
       <p className="text-xs text-navy-800">
         Voiding cancels the order: it stops counting in sales, money on its coupons goes back on the coupons, and its payments no longer count in the drawer. It
-        stays in the history. Stock already used is not put back.
+        stays in the history. Any stock it took off is put back.
       </p>
       <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (required)" className="w-full rounded-md border border-card-border bg-white px-2 py-1.5" />
       <button
