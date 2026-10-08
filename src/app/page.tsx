@@ -22,6 +22,10 @@ const GROUPS = [
       { href: "/admin/analytics", label: "Sales & Analytics" },
     ],
   },
+  {
+    title: "Help",
+    links: [{ href: "/guide", label: "Staff guide" }],
+  },
 ];
 
 export default function Home() {

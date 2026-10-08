@@ -14,6 +14,7 @@ const NAV = [
   { href: "/admin/inventory", label: "Inventory" },
   { href: "/admin/coupons", label: "Coupons" },
   { href: "/admin/analytics", label: "Sales & Analytics" },
+  { href: "/guide", label: "Guide" },
 ];
 
 // Round 33: the header always uses the same width on every page (the owner

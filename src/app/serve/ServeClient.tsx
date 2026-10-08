@@ -172,7 +172,7 @@ export default function ServeClient({ initialOrders, initialPreOrders }: { initi
                         disabled={fulfillingId === order.id}
                         className="mt-2 w-full rounded-lg border border-card-border px-3 py-2 text-sm font-medium text-navy-900 transition hover:bg-navy-100 disabled:opacity-50"
                       >
-                        {fulfillingId === order.id ? "Fulfilling…" : order.source === "counter" ? "Fulfill now" : "Fulfill now (deducts stock)"}
+                        {fulfillingId === order.id ? "Fulfilling…" : "Fulfill now"}
                       </button>
                     </div>
                   ))}
