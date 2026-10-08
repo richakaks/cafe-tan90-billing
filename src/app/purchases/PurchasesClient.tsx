@@ -688,7 +688,7 @@ function InventorySwitchCard({ meta, today, onChanged }: { meta: PurchaseInvento
       </div>
       {meta.switchOn && (
         <p className="text-[11px] text-status-low">
-          Sales don&rsquo;t take stock off yet (that&rsquo;s the separate sales switch), so for now stock only goes up from purchases.
+          Sales take stock off only while the QR / counter switches on the Inventory page are on.
         </p>
       )}
       {meta.switchOn && !showBackfill && (
