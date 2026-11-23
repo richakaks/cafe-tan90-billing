@@ -8,7 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 // their own kind of order.
 
 type Source = "qr" | "counter";
-type Meta = { qrOn: boolean; counterOn: boolean; lastStockCount: string | null };
+type Meta = { qrOn: boolean; counterOn: boolean; purchasesOn: boolean; lastStockCount: string | null };
 type Row = { orderId: string; orderDate: string; number: number | null; items: string; status: "will_add" | "already" | "before_count" };
 
 const LABEL: Record<Source, string> = { qr: "QR orders", counter: "Counter orders" };
@@ -257,8 +257,8 @@ function EarlierOrders({ source, lastStockCount, onClose }: { source: Source; la
 
 // Full card for the Inventory page.
 export default function SalesStockCard() {
-  const { meta, setMeta } = useMeta();
-  const [busy, setBusy] = useState<Source | null>(null);
+  const { meta, setMeta, load } = useMeta();
+  const [busy, setBusy] = useState<Source | "purchases" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [earlier, setEarlier] = useState<Source | null>(null);
   if (!meta) return null;
@@ -266,11 +266,53 @@ export default function SalesStockCard() {
   return (
     <div id="sales-stock" className="card scroll-mt-4 space-y-3 p-5">
       <div>
-        <h2 className="text-sm font-semibold text-navy-950">Sales take stock off</h2>
+        <h2 className="text-sm font-semibold text-navy-950">Stock switches</h2>
         <p className="mt-1 text-xs text-navy-600">
-          When a switch is on, every order of that kind takes its ingredients (and cups, boxes, straws) off stock. Voiding an order gives them back; editing an
-          order moves only the difference.
+          Sales switches: every order of that kind takes its ingredients (and cups, boxes, straws) off stock. Voiding an order gives them back; editing an order
+          moves only the difference. Purchases switch: linked purchases add to stock.
         </p>
+      </div>
+      <div className="rounded-lg border border-card-border p-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Toggle
+            on={meta.purchasesOn}
+            busy={busy === "purchases"}
+            onClick={async () => {
+              const next = !meta.purchasesOn;
+              if (
+                !window.confirm(
+                  next
+                    ? "Turn ON: purchases linked to an inventory item add to its stock when saved.\n\nEarlier purchases are not added — use \"Add earlier purchases to stock…\" on the Purchases page for those."
+                    : "Turn OFF: purchases are only recorded and no longer add to stock."
+                )
+              )
+                return;
+              setBusy("purchases");
+              setError(null);
+              try {
+                const res = await fetch("/api/purchases/inventory", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ on: next }),
+                });
+                if (!res.ok) setError((await res.json().catch(() => ({}))).error ?? "Could not change the switch.");
+                await load();
+              } catch {
+                setError("No connection.");
+              } finally {
+                setBusy(null);
+              }
+            }}
+          />
+          <span className="text-sm font-medium text-navy-950">
+            Purchases add to inventory:{" "}
+            <span className={meta.purchasesOn ? "text-status-good" : "text-navy-600"}>{meta.purchasesOn ? "ON" : "OFF"}</span>
+          </span>
+          <a href="/purchases" className="text-xs text-navy-700 underline">
+            Earlier purchases… (Purchases page)
+          </a>
+        </div>
+        <p className="mt-1 text-[11px] text-navy-600">Same switch as on the Purchases page — changing it here changes it there.</p>
       </div>
       {(["qr", "counter"] as const).map((source) => {
         const on = source === "qr" ? meta.qrOn : meta.counterOn;

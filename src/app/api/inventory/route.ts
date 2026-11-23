@@ -3,7 +3,7 @@ import { createIngredient } from "@/lib/data";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { name, unit, currentStock, lowStockThreshold, brand, kind } = body ?? {};
+  const { name, unit, currentStock, lowStockThreshold, brand, kind, description } = body ?? {};
 
   if (typeof name !== "string" || !name.trim() || typeof unit !== "string" || !unit.trim()) {
     return NextResponse.json({ error: "Name and unit are required." }, { status: 400 });
@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
       Number(lowStockThreshold) || 0,
       trimmedBrand,
       ingredientKind,
+      typeof description === "string" && description.trim() ? description.trim() : null,
     );
     return NextResponse.json({ ok: true, id: created.id });
   } catch (err) {

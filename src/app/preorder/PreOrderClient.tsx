@@ -19,7 +19,7 @@ function todayIso(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
 }
 
-export default function PreOrderClient({ initialMenu }: { initialMenu: MenuItemWithAvailability[] }) {
+export default function PreOrderClient({ initialMenu, takeawayFee = 0 }: { initialMenu: MenuItemWithAvailability[]; takeawayFee?: number }) {
   const [menu] = useState(initialMenu);
   const [cart, setCart] = useState<Record<string, CartEntry>>({});
   const [basketOpen, setBasketOpen] = useState(false);
@@ -51,7 +51,10 @@ export default function PreOrderClient({ initialMenu }: { initialMenu: MenuItemW
   );
 
   const cartCount = cartLines.reduce((sum, l) => sum + l.qty, 0);
-  const cartTotal = cartLines.reduce((sum, l) => sum + l.qty * l.item.price, 0);
+  // Round 42: takeaway charge per takeaway item.
+  const takeawayQty = cartLines.filter((l) => l.fulfillmentType === "takeaway").reduce((sum, l) => sum + l.qty, 0);
+  const takeawayCharge = takeawayQty * takeawayFee;
+  const cartTotal = cartLines.reduce((sum, l) => sum + l.qty * l.item.price, 0) + takeawayCharge;
 
   function setQty(code: string, qty: number) {
     setCart((prev) => ({
@@ -107,7 +110,7 @@ export default function PreOrderClient({ initialMenu }: { initialMenu: MenuItemW
               <li key={it.code} className="flex justify-between">
                 <span>
                   {it.qty}&times; {it.name}
-                  <span className="ml-1.5 text-xs text-navy-500">({it.fulfillmentType === "takeaway" ? "Takeaway" : "Dine In"})</span>
+                  {it.code !== "TK-FEE" && <span className="ml-1.5 text-xs text-navy-500">({it.fulfillmentType === "takeaway" ? "Takeaway" : "Dine In"})</span>}
                 </span>
                 <span>{formatBaht(it.qty * it.price)}</span>
               </li>
@@ -297,6 +300,14 @@ export default function PreOrderClient({ initialMenu }: { initialMenu: MenuItemW
                   {timeMode === "specific" ? ` around ${time}` : " · any time"}
                 </span>
               </div>
+{takeawayCharge > 0 && (
+              <div className="mt-1 flex justify-between text-sm text-navy-700">
+                <span>
+                  Takeaway charge ({takeawayQty} × {formatBaht(takeawayFee)})
+                </span>
+                <span>{formatBaht(takeawayCharge)}</span>
+              </div>
+            )}
               <div className="mt-1 flex justify-between font-semibold text-navy-950">
                 <span>Total</span>
                 <span>{formatBaht(cartTotal)}</span>

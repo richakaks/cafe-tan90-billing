@@ -28,8 +28,11 @@ export default function ImageCropUpload({
   code,
   currentImageUrl,
   onSaved,
+  uploadUrl,
 }: {
   code: string;
+  // Round 42: where to POST/DELETE the photo (default: the menu item's).
+  uploadUrl?: string;
   currentImageUrl: string | null;
   onSaved: (imageUrl: string | null) => void;
 }) {
@@ -125,7 +128,7 @@ export default function ImageCropUpload({
 
       const formData = new FormData();
       formData.append("image", blob, `${code}.jpg`);
-      const res = await fetch(`/api/menu/${code}/image`, { method: "POST", body: formData });
+      const res = await fetch(uploadUrl ?? `/api/menu/${code}/image`, { method: "POST", body: formData });
       const body = await res.json();
       if (!res.ok) {
         setError(body.error ?? "Could not upload this image.");
@@ -144,7 +147,7 @@ export default function ImageCropUpload({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/menu/${code}/image`, { method: "DELETE" });
+      const res = await fetch(uploadUrl ?? `/api/menu/${code}/image`, { method: "DELETE" });
       if (!res.ok) {
         const body = await res.json();
         setError(body.error ?? "Could not remove this photo.");
@@ -197,7 +200,7 @@ export default function ImageCropUpload({
         </div>
       ) : (
         <div className="mt-2 max-w-[300px]">
-          <p className="text-xs text-navy-600">Drag to reposition, use the slider to zoom. This crop is what customers will see.</p>
+          <p className="text-xs text-navy-600">Drag to reposition, use the slider to zoom.{uploadUrl ? "" : " This crop is what customers will see."}</p>
           <canvas
             ref={canvasRef}
             width={VIEWPORT}

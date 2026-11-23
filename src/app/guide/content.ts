@@ -61,12 +61,12 @@ The Counter page is where orders are taken and where every existing order is ope
 | **New order** / **Editing #12** | Title. It says Editing when you are changing an existing order (section 6) |
 | **Now** / **Pre-order** | Now = normal order. Pre-order = pickup later; shows **Pickup date** and **Pickup time** |
 | **−** / **+** | Change how many of that line |
-| **Takeaway** (tick) | That line leaves the cafe (takeaway box, cup, cutlery are counted for stock) |
+| **Takeaway** (tick) | That line leaves the cafe (takeaway box, cup, cutlery are counted for stock). Each takeaway item adds the **takeaway charge** (฿5 each unless the owner changed it), e.g. 2 takeaway coffees = +฿10 |
 | **Add note** | A note for the kitchen on that line, e.g. "less sweet", "no onion". Shows as **Note: …** |
 | **Customer / group name** | Optional label, e.g. "Ploy", "Table by window", "Grab #A12". Helps find the order and groups it on Billing |
 | **Discount** **%** / **฿** + **Why?** | Percent or baht off the whole order, with an optional reason |
 | **Coupons** | Coupon code → **Add**, or **No code? Amount off ฿** → **Code later** (section 4) |
-| **Items / Discount / Coupons / To pay** | The running bill |
+| **Items / Takeaway charge / Discount / Coupons / To pay** | The running bill. **Takeaway charge (2 × ฿5)** shows only when something is ticked Takeaway |
 | **Payment** | **Cash**, **Online**, **Split**, **Pay later** (pre-orders: **Paid now (deposit)** and **At pickup**) — section 3 |
 | **Customer gave** | Quick note buttons for change (section 3) |
 | **Place order · ฿X** | Sends it to the kitchen. Pre-order: **Book pre-order**. Trial: **Place TRIAL order**. Editing: **Save changes** |
@@ -272,11 +272,12 @@ A bill with ฿0 to pay (e.g. fully covered by a coupon) still needs one tap on 
 
 Record every purchase on the day it is made, before the drawer is counted — drawer purchases are subtracted on the Cash page.
 
-**Purchases add to inventory: ON/OFF** (owner, top card) — when on, purchases linked to a stock item add to its stock. **Turn on / Turn off**, **record one on Inventory** (stock count link) and **Add earlier purchases to stock…** (pick **Since the last stock count** or **Pick dates** → **Preview** → add; never adds anything twice) are owner tools.
+**Purchases add to inventory: ON/OFF** (owner, top card; the same switch is also on Inventory) — when on, purchases linked to a stock item add to its stock. **Turn on / Turn off**, **record one on Inventory** (stock count link) and **Add earlier purchases to stock…** (pick **Since the last stock count** or **Pick dates** → **Preview** → add; never adds anything twice) are owner tools.
 
 **To buy (shopping list)**
 - **Add something to buy** + **Add** — type anything, e.g. "dish soap".
 - **+ Add everything that's low on stock** — fills the list from Inventory.
+- Items linked to a stock item show its **photo** and **description** (e.g. "Sunlight lemon 500 ml, green bottle") so you buy the right one. Tap the photo to see it bigger.
 - Tick an item when you buy it: it jumps into the purchase form below, already linked to its stock item. It leaves the list when you save. **remove** takes it off without buying.
 
 **Add purchases (one receipt at a time)**
@@ -344,6 +345,12 @@ Inventory holds every stock item, the switches that decide what takes stock off,
 
 **Full stock count** — after physically counting everything and updating the numbers, type an optional **Note** and tap **Record a full stock count** (asks to confirm). Shows when the last one was. Purchases and orders from before it are never added or taken off later.
 
+**Stock switches** (top card)
+
+| Switch | ON | OFF |
+| --- | --- | --- |
+| **Purchases add to inventory** | Purchases linked to a stock item add to its stock. Same switch as on the Purchases page; **Earlier purchases…** is on the Purchases page | Purchases are recorded for money only |
+
 **Sales take stock off**
 
 | Switch | ON | OFF |
@@ -360,10 +367,11 @@ Inventory holds every stock item, the switches that decide what takes stock off,
 
 | Part | What it does |
 | --- | --- |
-| Name, brand, **Previously: …** | Current brand, and the old brand when a purchase changed it |
+| Photo, name, brand, **Previously: …** | Photo (tap to enlarge), current brand, and the old brand when a purchase changed it |
+| Description (in italics) | What to buy / how to recognise it, e.g. "Sunlight lemon 500 ml, green bottle" |
 | **Used in: …** | Menu items that use it |
 | **OK** / **Low** / **Out of stock** | Stock status against its low-stock level |
-| **Edit** | Name, brand, unit, current stock, category (Raw ingredient / Batch prep / Consumable / Supplies) → **Save** |
+| **Edit** | Name, brand, unit, current stock, category (Raw ingredient / Batch prep / Consumable / Supplies), **Description** → **Save**. **Photo**: **Add photo** / **Change photo** (crop, then save) or **Remove photo** — saves straight away |
 | **Manage used-in** | Link it to menu items: **Add to menu item…** + **Qty per order** → **Link**; **Remove** a link; **Done** |
 | **Delete** | Removes the item and its history (**Yes, delete**) |
 | **Prep a batch** (batch-prep items) | **Batch qty** → **Prep batch**: adds the prepared amount and takes its raw ingredients off |
@@ -371,7 +379,7 @@ Inventory holds every stock item, the switches that decide what takes stock off,
 | **Low-stock alert at** + **Save** | Level that triggers Low and the stock alert |
 | **Restock / use** | **Amount**, optional **฿ paid** → **+ Restock** or **− Use** (spill, staff meal, waste). Shows **Last bought: +X for ฿Y** |
 
-**Add a new ingredient** — **Name**, **Brand**, **Unit** (g, ml, pcs…), **Starting stock**, **Category**, optional **Used in** menu items with qty (**+ Add another menu item**) → **Add ingredient**; **Clear** empties the form.
+**Add a new ingredient** — **Name**, **Brand**, **Unit** (g, ml, pcs…), **Starting stock**, **Category**, optional **Description** and **Photo**, optional **Used in** menu items with qty (**+ Add another menu item**) → **Add ingredient**. If the photo fails to upload the ingredient is still added — add the photo from its **Edit**; **Clear** empties the form.
 
 **Recent stock changes** — the latest restocks and use-ups. **Full history & export** opens the history page: **From / To**, **Last 7 days**, **This month**, and **Export as CSV** → **Download CSV**.
 
@@ -380,6 +388,8 @@ Inventory holds every stock item, the switches that decide what takes stock off,
 ## 13. Menu (owner)
 
 The Menu page controls what customers see on the QR menu and what staff see on the Counter: names, prices, photos, order and recipes.
+
+**Takeaway charge** (top card) — **฿ per takeaway item** → **Save**. Added for every item marked takeaway on QR, pre-order and counter orders, shown as its own **Takeaway charge** line. Orders already placed keep the amount they were sold at (editing one later keeps its old rate). **0** turns it off. It shows in Sales & Analytics as **Takeaway charges** and is not a menu item.
 
 **The list** — items grouped by category. Each shows its code (e.g. SN-SMT), name, category and price.
 - **☰** handle — drag to change the order within its category; the QR menu uses the same order.
@@ -442,7 +452,7 @@ Knowing the customer's screen helps you answer "how do I order?" at the table.
 
 **QR table menu** (scanning the code on a table or counter seat) — the menu by category with photos, prices and descriptions.
 - **Add**, then **− / +** to change how many. Items marked **Low in stock** can still be ordered; **Unavailable** can't (only while QR orders take stock off).
-- **Your basket** → each item **Dine In** or **Takeaway** → **Place order**. **Keep browsing** goes back to the menu.
+- **Your basket** → each item **Dine In** or **Takeaway**. Takeaway items add a **Takeaway charge (n × ฿5)** line above the Total (the pre-order basket too) → **Place order**. **Keep browsing** goes back to the menu.
 - After ordering: **Order placed**, the order number and total, and "Please pay a staff member at the counter or table". **Order something else** starts another order for the same table.
 - Their order appears on Serve under their table with a **QR** badge, then on Billing after you mark it served.
 
@@ -499,6 +509,8 @@ Each case is a real situation and the exact taps; → means "then tap".
 | How do I give money back? | Order → **Payment / refund** → **Give money back (refund)…** |
 | I recorded the wrong payment | **Payment / refund** → **remove** → record again |
 | Customer pays part cash, part transfer | **Split** |
+| Why is there a Takeaway charge? | ฿5 per item ticked **Takeaway** (owner sets the amount on Menu). Untick Takeaway on the line if it's dine-in. It doesn't show on Serve |
+| How do I know which brand to buy? | Purchases **To buy** and Inventory show the item's photo and description |
 | Customer wants to keep coupon money | **use only** / **Use only part of it** |
 | Coupon code refused | Read the reason (not in system, used up, expired); use code pending if the code is unreadable and tell the owner |
 | What does Owes / Overpaid mean? | Money still due / more recorded than the bill — settle with Payment or Refund |

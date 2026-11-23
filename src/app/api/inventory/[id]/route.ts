@@ -1,3 +1,4 @@
+import { db } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
 import { adjustIngredientStock, updateIngredientThreshold, updateIngredient, deleteIngredient } from "@/lib/data";
 
@@ -26,6 +27,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (typeof body.currentStock === "number" && body.currentStock >= 0) edits.currentStock = body.currentStock;
     if (body.kind === "batch_prep" || body.kind === "raw" || body.kind === "consumable" || body.kind === "supply") edits.kind = body.kind;
     if (Object.keys(edits).length > 0) await updateIngredient(id, edits);
+    // Round 42: description ("" clears it).
+    if (body.description !== undefined) {
+      const desc = typeof body.description === "string" && body.description.trim() ? body.description.trim() : null;
+      const { error } = await db().from("ingredients").update({ description: desc }).eq("id", id);
+      if (error) throw error;
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {

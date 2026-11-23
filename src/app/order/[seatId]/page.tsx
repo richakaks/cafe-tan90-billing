@@ -1,4 +1,4 @@
-import { getMenuForCustomer, getSeat } from "@/lib/data";
+import { getMenuForCustomer, getSeat, getTakeawayFee } from "@/lib/data";
 import OrderClient from "./OrderClient";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +20,7 @@ export default async function OrderPage({ params }: { params: Promise<{ seatId: 
     );
   }
 
-  const menu = await getMenuForCustomer();
+  const [menu, takeawayFee] = await Promise.all([getMenuForCustomer(), getTakeawayFee()]);
 
-  return <OrderClient seat={seat} initialMenu={menu} />;
+  return <OrderClient seat={seat} initialMenu={menu} takeawayFee={takeawayFee} />;
 }

@@ -1,11 +1,12 @@
 import StaffHeader from "@/components/StaffHeader";
-import { getIngredients, getMenuItemsAdmin } from "@/lib/data";
+import { getIngredients, getMenuItemsAdmin, getTakeawayFee } from "@/lib/data";
+import TakeawayFeeCard from "./TakeawayFeeCard";
 import MenuClient from "./MenuClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function MenuAdminPage() {
-  const [items, ingredients] = await Promise.all([getMenuItemsAdmin(), getIngredients()]);
+  const [items, ingredients, takeawayFee] = await Promise.all([getMenuItemsAdmin(), getIngredients(), getTakeawayFee()]);
 
   return (
     <div className="flex flex-1 flex-col">
@@ -16,6 +17,9 @@ export default async function MenuAdminPage() {
           Each item&rsquo;s code (e.g. CT001) and its linked ingredients drive both the customer menu and automatic
           stock deduction.
         </p>
+        <div className="mt-6">
+          <TakeawayFeeCard initialAmount={takeawayFee} />
+        </div>
         <div className="mt-6">
           <MenuClient initialItems={items} ingredients={ingredients} />
         </div>

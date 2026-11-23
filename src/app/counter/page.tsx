@@ -2,6 +2,7 @@ import StaffHeader from "@/components/StaffHeader";
 import { db } from "@/lib/supabase";
 import { bangkokToday, getCounterDay, getCounterOpenItems, getStaff } from "@/lib/counter";
 import CounterClient, { type CounterMenuItem } from "./CounterClient";
+import { getTakeawayFee } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,7 @@ async function getCounterMenu(): Promise<CounterMenuItem[]> {
 
 export default async function CounterPage() {
   const today = bangkokToday();
-  const [menu, staff, day, open] = await Promise.all([getCounterMenu(), getStaff(), getCounterDay(today), getCounterOpenItems()]);
+  const [menu, staff, day, open, takeawayFee] = await Promise.all([getCounterMenu(), getStaff(), getCounterDay(today), getCounterOpenItems(), getTakeawayFee()]);
 
   return (
     <div className="flex flex-1 flex-col">
@@ -24,7 +25,7 @@ export default async function CounterPage() {
           Take orders at the counter instead of the notebook. Works without internet: orders are saved on this tablet and sent when the connection is back.
         </p>
         <div className="mt-5">
-          <CounterClient menu={menu} staff={staff} initialDay={day} initialOpen={open} today={today} />
+          <CounterClient menu={menu} staff={staff} initialDay={day} initialOpen={open} today={today} takeawayFee={takeawayFee} />
         </div>
       </main>
     </div>

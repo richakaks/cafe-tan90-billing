@@ -177,9 +177,17 @@ export async function getSeat(id: string): Promise<Seat | null> {
 // getMenuItemsAdmin() (that also joins every recipe link + ingredient row
 // for every item, which this dropdown doesn't need).
 export async function getMenuItemsForDropdown(): Promise<{ code: string; name: string }[]> {
-  const { data, error } = await db().from("menu_items").select("code, name").order("sort_order");
+  const { data, error } = await db().from("menu_items").select("code, name").neq("code", "TK-FEE").order("sort_order");
   if (error) throw error;
   return (data ?? []).map((m) => ({ code: m.code, name: m.name }));
+}
+
+// Round 42: takeaway charge per takeaway item (= the hidden TK-FEE menu
+// item's price; the owner changes it on the Menu page).
+export async function getTakeawayFee(): Promise<number> {
+  const { data, error } = await db().from("menu_items").select("price").eq("code", "TK-FEE").maybeSingle();
+  if (error) throw error;
+  return data ? Number(data.price) : 0;
 }
 
 export async function getMenuForCustomer(): Promise<MenuItemWithAvailability[]> {
@@ -551,7 +559,7 @@ export async function getCouponBatches(): Promise<CouponBatch[]> {
 export async function getIngredients(): Promise<Ingredient[]> {
   const { data, error } = await db()
     .from("ingredients")
-    .select("id, name, brand, unit, current_stock, low_stock_threshold, kind, previous_brand, brand_changed_on")
+    .select("id, name, brand, unit, current_stock, low_stock_threshold, kind, previous_brand, brand_changed_on, description, image_url")
     .order("name");
   if (error) throw error;
   return (data ?? []).map((i) => ({
@@ -564,6 +572,8 @@ export async function getIngredients(): Promise<Ingredient[]> {
     kind: (i.kind ?? "raw") as Ingredient["kind"],
     previousBrand: i.previous_brand ?? null,
     brandChangedOn: i.brand_changed_on ?? null,
+    description: i.description ?? null,
+    imageUrl: i.image_url ?? null,
   }));
 }
 
@@ -577,6 +587,7 @@ export async function createIngredient(
   lowStockThreshold: number,
   brand?: string | null,
   kind?: Ingredient["kind"],
+  description?: string | null,
 ): Promise<{ id: string }> {
   const { data, error } = await db()
     .from("ingredients")
@@ -587,6 +598,7 @@ export async function createIngredient(
       current_stock: currentStock,
       low_stock_threshold: lowStockThreshold,
       kind: kind ?? "raw",
+      description: description ?? null,
     })
     .select("id")
     .single();
@@ -914,6 +926,8 @@ export async function getMenuItemsAdmin(): Promise<MenuItemAdminView[]> {
     db()
       .from("menu_items")
       .select("code, name, category, price, active, yield_servings, yield_note, description, image_url, packaging_type")
+      // Round 42: the hidden takeaway-charge item is set separately on the Menu page.
+      .neq("code", "TK-FEE")
       .order("sort_order"),
     db().from("menu_item_ingredients").select("menu_item_code, ingredient_id, qty_per_order, unit_label"),
     db().from("ingredients").select("id, name, unit"),
@@ -1316,6 +1330,13 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
 
     for (const it of items) {
       const lineRevenue = it.qty * Number(it.price_at_order);
+      // Round 42: the takeaway charge counts as revenue (and as a "Charges"
+      // category) but is not a product -- keep it out of bestsellers/pairs.
+      if (it.menu_item_code === "TK-FEE") {
+        categoryMap.set("Takeaway charges", (categoryMap.get("Takeaway charges") ?? 0) + lineRevenue);
+        profitRevenueCounted += lineRevenue;
+        continue;
+      }
       const existing = itemMap.get(it.menu_item_code) ?? { code: it.menu_item_code, name: it.item_name, qty: 0, revenue: 0 };
       existing.qty += it.qty;
       existing.revenue += lineRevenue;
@@ -1335,7 +1356,7 @@ export async function getSalesAnalytics(from: string, to: string): Promise<Sales
     }
 
     // Pairing: every unique combination of distinct items within this one order.
-    const distinctCodes = Array.from(new Set(items.map((it) => it.menu_item_code))).sort();
+    const distinctCodes = Array.from(new Set(items.map((it) => it.menu_item_code).filter((c) => c !== "TK-FEE"))).sort();
     for (let i = 0; i < distinctCodes.length; i++) {
       for (let j = i + 1; j < distinctCodes.length; j++) {
         const key = `${distinctCodes[i]}|${distinctCodes[j]}`;

@@ -1,5 +1,6 @@
 "use client";
 
+import PhotoPicker, { IngredientThumb, uploadIngredientPhoto } from "@/components/PhotoPicker";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BackfillRow, IngredientKind, Purchase, PurchaseInventoryMeta, PurchasePaidVia, ShoppingItem, StaffMember } from "@/lib/types";
 import { autoFactor, baseUnitFor, compressImage, normUnit, round3 } from "./inventoryLink";
@@ -192,6 +193,8 @@ function AddToInventoryForm({
   const [kind, setKind] = useState<IngredientKind>("raw");
   const [unit, setUnit] = useState(baseUnitFor(defaults.unit));
   const [threshold, setThreshold] = useState("");
+  const [description, setDescription] = useState("");
+  const [photo, setPhoto] = useState<Blob | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   return (
@@ -218,6 +221,13 @@ function AddToInventoryForm({
           </button>
         ))}
       </div>
+      <input
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="Description (optional) — which brand/pack, where to buy"
+        className={input}
+      />
+      <PhotoPicker value={photo} onChange={setPhoto} label="Photo (optional)" />
       {error && <p className="text-xs text-status-out">{error}</p>}
       <div className="flex gap-2">
         <button
@@ -232,9 +242,14 @@ function AddToInventoryForm({
               lowStockThreshold: Number(threshold) || 0,
               brand: defaults.brand || null,
               kind,
+              description: description.trim() || null,
             });
+            if (err) {
+              setBusy(false);
+              return setError(err);
+            }
+            if (photo) await uploadIngredientPhoto(String(data.id), photo);
             setBusy(false);
-            if (err) return setError(err);
             onCreated(String(data.id));
           }}
           className="rounded-md bg-navy-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
@@ -721,7 +736,9 @@ function ShoppingCard({
   onItems,
   onBuy,
   buyingIds,
+  ingredients = [],
 }: {
+  ingredients?: PurchaseInventoryMeta["ingredients"];
   items: ShoppingItem[];
   onItems: (items: ShoppingItem[]) => void;
   onBuy: (item: ShoppingItem) => void;
@@ -777,10 +794,14 @@ function ShoppingCard({
             return (
               <li key={i.id} className="flex items-center justify-between gap-2 py-2">
                 <label className="flex min-w-0 items-center gap-2 text-sm">
-                  <input type="checkbox" checked={buying} onChange={() => onBuy(i)} className="h-5 w-5" />
+                  <input type="checkbox" checked={buying} onChange={() => onBuy(i)} className="h-5 w-5 shrink-0" />
+                  <IngredientThumb url={ingredients.find((g) => g.id === i.ingredientId)?.imageUrl} />
                   <span className={buying ? "text-navy-600" : "text-navy-950"}>
                     {i.label}
                     {i.note && <span className="ml-1 text-xs text-navy-600">({i.note})</span>}
+                    {ingredients.find((g) => g.id === i.ingredientId)?.description && (
+                      <span className="block text-xs italic text-navy-600">{ingredients.find((g) => g.id === i.ingredientId)?.description}</span>
+                    )}
                   </span>
                 </label>
                 <button
@@ -1002,7 +1023,13 @@ export default function PurchasesClient({ today, staff }: { today: string; staff
         }}
       />
 
-      <ShoppingCard items={shopping} onItems={setShopping} onBuy={buyFromList} buyingIds={lines.map((l) => l.shoppingId).filter((x): x is number => typeof x === "number")} />
+      <ShoppingCard
+        items={shopping}
+        onItems={setShopping}
+        onBuy={buyFromList}
+        ingredients={meta.ingredients}
+        buyingIds={lines.map((l) => l.shoppingId).filter((x): x is number => typeof x === "number")}
+      />
 
       {/* Add */}
       <section className="card space-y-4 p-4 sm:p-5">

@@ -965,7 +965,7 @@ export async function getPurchaseInventoryMeta(): Promise<PurchaseInventoryMeta>
     await Promise.all([
       db().from("app_settings").select("value").eq("key", "purchases_to_inventory").maybeSingle(),
       db().from("stock_counts").select("counted_at").order("counted_at", { ascending: false }).limit(1),
-      db().from("ingredients").select("id, name, unit, kind, brand").order("name"),
+      db().from("ingredients").select("id, name, unit, kind, brand, description, image_url").order("name"),
       db().from("purchase_item_links").select("item_key, ingredient_id, not_inventory"),
       db().from("purchase_unit_conversions").select("ingredient_id, unit_key, factor"),
     ]);
@@ -983,11 +983,13 @@ export async function getPurchaseInventoryMeta(): Promise<PurchaseInventoryMeta>
   return {
     switchOn: !!(setting?.value as { on?: boolean } | undefined)?.on,
     lastStockCount: (count ?? [])[0]?.counted_at ?? null,
-    ingredients: ((ings ?? []) as { id: string; name: string; unit: string; kind: string; brand: string | null }[]).map((i) => ({
+    ingredients: ((ings ?? []) as { id: string; name: string; unit: string; kind: string; brand: string | null; description: string | null; image_url: string | null }[]).map((i) => ({
       id: i.id,
       name: i.name,
       unit: i.unit,
       kind: (i.kind ?? "raw") as PurchaseInventoryMeta["ingredients"][number]["kind"],
+      description: i.description ?? null,
+      imageUrl: i.image_url ?? null,
       brand: i.brand,
     })),
     links: linkMap,
@@ -1136,11 +1138,11 @@ async function getDrawerPurchaseTotal(day: string): Promise<{ total: number; cou
 
 export type SalesSource = "qr" | "counter";
 
-export type SalesStockMeta = { qrOn: boolean; counterOn: boolean; lastStockCount: string | null };
+export type SalesStockMeta = { qrOn: boolean; counterOn: boolean; purchasesOn: boolean; lastStockCount: string | null };
 
 export async function getSalesStockMeta(): Promise<SalesStockMeta> {
   const [{ data: settings, error: sErr }, { data: count, error: cErr }] = await Promise.all([
-    db().from("app_settings").select("key, value").in("key", ["sales_deduct_qr", "sales_deduct_counter"]),
+    db().from("app_settings").select("key, value").in("key", ["sales_deduct_qr", "sales_deduct_counter", "purchases_to_inventory"]),
     db().from("stock_counts").select("counted_at").order("counted_at", { ascending: false }).limit(1),
   ]);
   if (sErr) throw sErr;
@@ -1150,6 +1152,8 @@ export async function getSalesStockMeta(): Promise<SalesStockMeta> {
     // QR orders always took stock off before the switch existed -> on unless turned off.
     qrOn: byKey.get("sales_deduct_qr") ?? true,
     counterOn: byKey.get("sales_deduct_counter") ?? false,
+    // Round 42: the purchases switch is shown on Inventory too.
+    purchasesOn: byKey.get("purchases_to_inventory") ?? false,
     lastStockCount: (count ?? [])[0]?.counted_at ?? null,
   };
 }

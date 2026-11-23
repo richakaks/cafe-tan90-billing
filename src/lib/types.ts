@@ -30,6 +30,10 @@ export interface Ingredient {
   // Round 34: set when a purchase came in under a different brand.
   previousBrand?: string | null;
   brandChangedOn?: string | null;
+  // Round 42: what to buy / what it looks like (shown on Inventory and the
+  // Purchases shopping list).
+  description?: string | null;
+  imageUrl?: string | null;
 }
 
 // Round 22: what kind of packaging a dine-in-vs-takeaway order of this item
@@ -569,7 +573,7 @@ export interface ShoppingItem {
 export interface PurchaseInventoryMeta {
   switchOn: boolean;
   lastStockCount: string | null;
-  ingredients: { id: string; name: string; unit: string; kind: IngredientKind; brand: string | null }[];
+  ingredients: { id: string; name: string; unit: string; kind: IngredientKind; brand: string | null; description?: string | null; imageUrl?: string | null }[];
   links: Record<string, { ingredientId: string | null; notInventory: boolean }>;
   conversions: Record<string, number>; // `${ingredientId}|${unit lower}` -> factor
 }

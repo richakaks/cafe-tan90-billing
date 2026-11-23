@@ -57,7 +57,9 @@ export default function CounterClient({
   initialDay,
   initialOpen,
   today: serverToday,
+  takeawayFee = 0,
 }: {
+  takeawayFee?: number;
   menu: CounterMenuItem[];
   staff: StaffMember[];
   initialDay: CounterDay;
@@ -271,7 +273,13 @@ export default function CounterClient({
     return ["All", ...seen];
   }, [menu]);
 
-  const gross = cart.reduce((s, l) => s + l.qty * (l.soldPrice ?? l.price), 0);
+  const itemsGross = cart.reduce((s, l) => s + l.qty * (l.soldPrice ?? l.price), 0);
+  // Round 42: takeaway charge per takeaway item. An order being edited keeps
+  // the amount it was sold at.
+  const feeEach = editing ? (editing.items.find((it) => it.menuItemCode === "TK-FEE")?.priceAtOrder ?? takeawayFee) : takeawayFee;
+  const takeawayQty = cart.filter((l) => l.fulfillmentType === "takeaway").reduce((s, l) => s + l.qty, 0);
+  const takeawayCharge = round2(takeawayQty * feeEach);
+  const gross = itemsGross + takeawayCharge;
   const discountNum = Number(discountValue) || 0;
   const manualDiscount = discountMode === "pct" ? round2((gross * Math.min(100, Math.max(0, discountNum))) / 100) : Math.max(0, discountNum);
   // Each coupon takes what it can, in order, never more than the bill left.
@@ -381,7 +389,7 @@ export default function CounterClient({
     resetForm();
     setEditing(order);
     setCart(
-      order.items.map((it) => ({
+      order.items.filter((it) => it.menuItemCode !== "TK-FEE").map((it) => ({
         key: newClientKey(),
         code: it.menuItemCode,
         name: it.itemName,
@@ -922,8 +930,16 @@ export default function CounterClient({
           <div className="space-y-0.5 border-t border-card-border pt-3 text-sm">
             <div className="flex justify-between text-navy-700">
               <span>Items</span>
-              <span>{formatBaht(gross)}</span>
+              <span>{formatBaht(itemsGross)}</span>
             </div>
+            {takeawayCharge > 0 && (
+              <div className="flex justify-between text-navy-700">
+                <span>
+                  Takeaway charge ({takeawayQty} × {formatBaht(feeEach)})
+                </span>
+                <span>{formatBaht(takeawayCharge)}</span>
+              </div>
+            )}
             {manualDiscount > 0 && (
               <div className="flex justify-between text-navy-700">
                 <span>Discount</span>

@@ -155,7 +155,7 @@ export default function ServeClient({ initialOrders, initialPreOrders }: { initi
                         {order.customerLabel ? ` · ${order.customerLabel}` : ""}
                       </p>
                       <ul className="mt-1 space-y-0.5 text-sm text-navy-800">
-                        {order.items.map((it) => (
+                        {order.items.filter((it) => it.menuItemCode !== "TK-FEE").map((it) => (
                           <li key={it.id}>
                             {it.qty}&times; {it.itemName}
                             {it.note && <span className="ml-1 text-xs italic text-navy-600">&ldquo;{it.note}&rdquo;</span>}
@@ -205,7 +205,7 @@ export default function ServeClient({ initialOrders, initialPreOrders }: { initi
                         <p className="text-xs text-navy-600">{timeAgo(order.createdAt)}</p>
                       </div>
                       <ul className="mt-1 space-y-0.5 text-sm text-navy-800">
-                        {order.items.map((it) => (
+                        {order.items.filter((it) => it.menuItemCode !== "TK-FEE").map((it) => (
                           <li key={it.id}>
                             {it.qty}&times; {it.itemName}
                             {it.note && <span className="ml-1 text-xs italic text-navy-600">&ldquo;{it.note}&rdquo;</span>}

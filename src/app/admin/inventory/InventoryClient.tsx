@@ -1,6 +1,8 @@
 "use client";
 
 import SalesStockCard from "@/components/SalesStockSwitch";
+import ImageCropUpload from "@/components/ImageCropUpload";
+import PhotoPicker, { IngredientThumb, uploadIngredientPhoto } from "@/components/PhotoPicker";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { Ingredient, IngredientKind, LastRestockPrice, PrimaryRecipeLink, RestockSignal, StockAdjustmentRow } from "@/lib/types";
@@ -57,6 +59,7 @@ function EditIngredientForm({
   const [unit, setUnit] = useState(ingredient.unit);
   const [stock, setStock] = useState(String(ingredient.currentStock));
   const [kind, setKind] = useState<IngredientKind>(ingredient.kind);
+  const [description, setDescription] = useState(ingredient.description ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,6 +83,7 @@ function EditIngredientForm({
       if (trimmedBrand !== (ingredient.brand ?? "")) body.brand = trimmedBrand || null;
       if (stockNum !== ingredient.currentStock) body.currentStock = stockNum;
       if (kind !== ingredient.kind) body.kind = kind;
+      if (description.trim() !== (ingredient.description ?? "")) body.description = description.trim();
 
       if (Object.keys(body).length === 0) {
         onCancel();
@@ -148,6 +152,16 @@ function EditIngredientForm({
           <input type="radio" checked={kind === "supply"} onChange={() => setKind("supply")} />
           Supplies
         </label>
+      </div>
+      <textarea
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        rows={2}
+        placeholder="Description (optional) — e.g. which brand/pack to buy, where, what it looks like"
+        className="w-full rounded-md border border-card-border px-2 py-1 text-sm"
+      />
+      <div className="rounded-md border border-card-border p-2">
+        <ImageCropUpload code={ingredient.id} currentImageUrl={ingredient.imageUrl ?? null} onSaved={() => onSaved()} uploadUrl={`/api/inventory/${ingredient.id}/image`} />
       </div>
       {error && <p className="text-xs text-status-out">{error}</p>}
       <div className="flex gap-1.5">
@@ -586,8 +600,14 @@ function Row({
           </div>
         ) : (
           <>
-            <p className="font-medium text-navy-950">{ingredient.name}</p>
-            {ingredient.brand && <p className="text-xs text-navy-500">{ingredient.brand}</p>}
+            <div className="flex items-start gap-2">
+              <IngredientThumb url={ingredient.imageUrl} />
+              <div className="min-w-0">
+                <p className="font-medium text-navy-950">{ingredient.name}</p>
+                {ingredient.brand && <p className="text-xs text-navy-500">{ingredient.brand}</p>}
+                {ingredient.description && <p className="text-xs italic text-navy-600">{ingredient.description}</p>}
+              </div>
+            </div>
             {ingredient.previousBrand && (
               <p className="text-[11px] text-navy-500">
                 Previously: {ingredient.previousBrand}
@@ -771,6 +791,9 @@ export default function InventoryClient({
   const [newStock, setNewStock] = useState("");
   const [newThreshold, setNewThreshold] = useState("");
   const [newKind, setNewKind] = useState<IngredientKind>("raw");
+  // Round 42: description + photo when adding an ingredient.
+  const [newDescription, setNewDescription] = useState("");
+  const [newPhoto, setNewPhoto] = useState<Blob | null>(null);
   // Round 23: link the new ingredient into one or more menu items' recipes
   // right at creation time, instead of only via "Manage used-in" after the
   // fact -- optional, one blank row by default. Round 25: multiple rows
@@ -887,12 +910,20 @@ export default function InventoryClient({
           currentStock: Number(newStock) || 0,
           lowStockThreshold: Number(newThreshold) || 0,
           kind: newKind,
+          description: newDescription.trim() || null,
         }),
       });
       const body = await res.json();
       if (!res.ok) {
         setError(body.error ?? "Could not add ingredient.");
         return;
+      }
+      if (newPhoto && body.id) {
+        const photoErr = await uploadIngredientPhoto(body.id, newPhoto);
+        if (photoErr) {
+          setError(`Ingredient added, but the photo didn't upload: ${photoErr} Add it from the ingredient's Edit.`);
+          return;
+        }
       }
       // Optional immediate recipe links, same endpoint the "used in" editor
       // and the menu-side editor already both use -- best-effort per row:
@@ -924,6 +955,8 @@ export default function InventoryClient({
       setNewStock("");
       setNewThreshold("");
       setNewKind("raw");
+      setNewDescription("");
+      setNewPhoto(null);
       setNewLinks([{ code: "", qty: "" }]);
       window.location.reload();
     } finally {
@@ -938,6 +971,8 @@ export default function InventoryClient({
     setNewStock("");
     setNewThreshold("");
     setNewKind("raw");
+    setNewDescription("");
+    setNewPhoto(null);
     setNewLinks([{ code: "", qty: "" }]);
     setError(null);
   }
@@ -1120,6 +1155,19 @@ export default function InventoryClient({
               </label>
             </div>
           </label>
+          <label className="block text-sm sm:col-span-3">
+            <span className="mb-1 block text-xs font-medium text-navy-600">Description (optional)</span>
+            <textarea
+              value={newDescription}
+              onChange={(e) => setNewDescription(e.target.value)}
+              rows={2}
+              placeholder="e.g. Makro, 2 kg yellow bag, frozen aisle"
+              className="w-full rounded-md border border-card-border px-3 py-2 text-sm"
+            />
+          </label>
+          <div className="sm:col-span-3">
+            <PhotoPicker value={newPhoto} onChange={setNewPhoto} label="Photo (optional) — what to buy" />
+          </div>
           <label className="block text-sm sm:col-span-2">
             <span className="mb-1 block text-xs font-medium text-navy-600">Used in (optional)</span>
             {/* Round 25: multiple rows -- each menu item this new ingredient

@@ -210,6 +210,7 @@ declare
   v_result_items jsonb := '[]'::jsonb;
   -- Round 38: owner switch "QR orders take stock off" (on unless turned off).
   v_deduct boolean := sales_deduct_on('qr');
+  v_fee numeric;
 begin
   if p_items is null or jsonb_array_length(p_items) = 0 then
     raise exception 'empty_order' using errcode = 'P0001';
@@ -332,6 +333,14 @@ begin
   select v_order_id, item ->> 'code', item ->> 'name', (item ->> 'qty')::int, (item ->> 'price')::numeric, item ->> 'fulfillmentType'
   from jsonb_array_elements(v_result_items) as item;
 
+  -- Round 42: takeaway charge line (per takeaway item).
+  v_fee := sync_takeaway_fee(v_order_id);
+  if v_fee > 0 then
+    v_total := v_total + v_fee;
+    v_result_items := v_result_items || (select jsonb_build_object('code', menu_item_code, 'name', item_name, 'qty', qty, 'price', price_at_order, 'fulfillmentType', 'dine_in')
+                                         from order_items where order_id = v_order_id and menu_item_code = 'TK-FEE');
+  end if;
+
   return jsonb_build_object(
     'order_id', v_order_id,
     'daily_order_number', v_daily_number,
@@ -426,6 +435,7 @@ declare
   v_fulfillment text;
   v_total numeric := 0;
   v_result_items jsonb := '[]'::jsonb;
+  v_fee numeric;
 begin
   if p_items is null or jsonb_array_length(p_items) = 0 then
     raise exception 'empty_order' using errcode = 'P0001';
@@ -471,6 +481,14 @@ begin
   insert into order_items (order_id, menu_item_code, item_name, qty, price_at_order, fulfillment_type)
   select v_order_id, item ->> 'code', item ->> 'name', (item ->> 'qty')::int, (item ->> 'price')::numeric, item ->> 'fulfillmentType'
   from jsonb_array_elements(v_result_items) as item;
+
+  -- Round 42: takeaway charge line (per takeaway item).
+  v_fee := sync_takeaway_fee(v_order_id);
+  if v_fee > 0 then
+    v_total := v_total + v_fee;
+    v_result_items := v_result_items || (select jsonb_build_object('code', menu_item_code, 'name', item_name, 'qty', qty, 'price', price_at_order, 'fulfillmentType', 'dine_in')
+                                         from order_items where order_id = v_order_id and menu_item_code = 'TK-FEE');
+  end if;
 
   return jsonb_build_object(
     'order_id', v_order_id,
@@ -2233,6 +2251,9 @@ begin
     values (v_order_id, v_code, v_name, v_qty, v_price, v_fulfillment, nullif(trim(v_item ->> 'note'), ''));
   end loop;
 
+  -- Round 42: takeaway charge line before coupons/discount are worked out.
+  perform sync_takeaway_fee(v_order_id);
+
   for v_coupon in select * from jsonb_array_elements(coalesce(p -> 'coupons', '[]'::jsonb))
   loop
     if coalesce(trim(v_coupon ->> 'code'), '') <> '' then
@@ -2316,6 +2337,7 @@ declare
   v_name text;
   v_price numeric;
   v_staff uuid := nullif(p ->> 'staffId', '')::uuid;
+  v_fee_price numeric;
 begin
   select * into v_order from orders where id = p_order_id for update;
   if not found then
@@ -2348,9 +2370,12 @@ begin
     perform apply_order_stock(p_order_id, -1);
   end if;
 
+  -- Round 42: remember the takeaway charge per item this order was sold at.
+  select price_at_order into v_fee_price from order_items where order_id = p_order_id and menu_item_code = 'TK-FEE' limit 1;
   delete from order_items where order_id = p_order_id;
   for v_item in select * from jsonb_array_elements(p -> 'items')
   loop
+    continue when v_item ->> 'code' = 'TK-FEE';
     if coalesce((v_item ->> 'qty')::int, 0) <= 0 then
       raise exception 'invalid_item' using errcode = 'P0001';
     end if;
@@ -2365,6 +2390,7 @@ begin
       coalesce(nullif(v_item ->> 'price', '')::numeric, v_price),
       coalesce(v_item ->> 'fulfillmentType', 'dine_in'), nullif(trim(v_item ->> 'note'), ''));
   end loop;
+  perform sync_takeaway_fee(p_order_id, v_fee_price);
 
   update orders set
     customer_label = nullif(trim(p ->> 'customerLabel'), ''),
@@ -3520,6 +3546,53 @@ alter table cash_days add column if not exists resolved_at timestamptz;
 alter table cash_days add column if not exists resolved_by uuid references staff(id) on delete set null;
 
 -- ---------------------------------------------------------------------------
+-- Round 42 (11/23) -- takeaway charge + ingredient photo/description.
+--
+-- Takeaway charge (owner, 2026-11-23): every item marked takeaway adds a
+-- charge (default ฿5) per unit, on QR, pre-order and counter orders alike.
+-- It is stored as its own order line, menu item 'TK-FEE' ("Takeaway
+-- charge", category 'Charges', always inactive so it never shows on a menu),
+-- so every bill total, coupon, discount, report and export picks it up with
+-- no other change. The owner sets the amount on the Menu page (= the
+-- TK-FEE price); an order keeps the amount it was sold at when edited.
+-- ---------------------------------------------------------------------------
+insert into menu_items (code, name, category, price, active, sort_order, packaging_type, cogs_thb)
+values ('TK-FEE', 'Takeaway charge', 'Charges', 5, false, 99999, 'none', 0)
+on conflict (code) do nothing;
+update menu_items set active = false where code = 'TK-FEE' and active;
+
+-- Rebuilds an order's takeaway-charge line from its takeaway items. Returns
+-- the charge total. p_price = the per-item amount to keep (edits); default
+-- = the line's current amount, else today's TK-FEE price.
+create or replace function sync_takeaway_fee(p_order_id uuid, p_price numeric default null)
+returns numeric
+language plpgsql
+as $$
+declare
+  v_price numeric;
+  v_n int;
+begin
+  select coalesce(p_price, (select price_at_order from order_items where order_id = p_order_id and menu_item_code = 'TK-FEE' limit 1),
+                  (select price from menu_items where code = 'TK-FEE'), 0)
+  into v_price;
+  delete from order_items where order_id = p_order_id and menu_item_code = 'TK-FEE';
+  select coalesce(sum(qty), 0) into v_n
+  from order_items where order_id = p_order_id and fulfillment_type = 'takeaway' and menu_item_code <> 'TK-FEE';
+  if v_n > 0 and v_price > 0 then
+    insert into order_items (order_id, menu_item_code, item_name, qty, price_at_order, fulfillment_type)
+    values (p_order_id, 'TK-FEE', 'Takeaway charge', v_n, v_price, 'dine_in');
+    return v_n * v_price;
+  end if;
+  return 0;
+end;
+$$;
+
+-- Ingredient photo + description (owner, 2026-11-23): shown on Inventory
+-- and on the Purchases shopping list so staff buy the right thing.
+alter table ingredients add column if not exists description text;
+alter table ingredients add column if not exists image_url text;
+
+-- ---------------------------------------------------------------------------
 -- Explicit grants for the service role. Newer Supabase projects no longer
 -- auto-grant service_role access to tables created by hand (the "Automatically
 -- expose new tables" project setting) — these grants make this schema work
@@ -3581,3 +3654,4 @@ grant execute on function set_payment_tendered(bigint, numeric) to service_role;
 grant execute on function set_batch_tendered(uuid[], bigint, numeric) to service_role;
 grant execute on function add_order_cash_payment(uuid, numeric, numeric, date, uuid, text) to service_role;
 grant execute on function pay_orders_cash(uuid[], numeric, uuid) to service_role;
+grant execute on function sync_takeaway_fee(uuid, numeric) to service_role;
